@@ -1,0 +1,15 @@
+# Frontend DEV image: Vite dev server with hot-reload.
+# (A separate production Dockerfile will build static files served by nginx.)
+FROM node:22-alpine
+
+WORKDIR /app
+
+# Install deps first for layer caching. Only package.json exists at build time;
+# package-lock.json is generated on first install inside the container.
+COPY package.json ./
+RUN npm install
+
+COPY . .
+
+EXPOSE 5173
+CMD ["npm", "run", "dev"]

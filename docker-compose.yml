@@ -59,11 +59,14 @@ services:
       #   condition: service_healthy
     restart: unless-stopped
 
-  # --- Web: frontend (static placeholder for now; real Vue build later) ---
+  # --- Web: Vue frontend via Vite dev server (hot-reload) ---
   web:
-    image: nginx:alpine
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.dev
     volumes:
-      - ./frontend:/usr/share/nginx/html:ro
+      - ./frontend:/app          # live source: edit on Windows, HMR in browser
+      - /app/node_modules        # keep container's installed deps (not host's)
     restart: unless-stopped
 
   # --- nginx: reverse proxy, the only service exposed to the host ---
