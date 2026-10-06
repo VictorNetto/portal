@@ -281,7 +281,7 @@ Once `dispatched`, report vulns appear in the vulnerability list as independent 
 
 - Username + password; passwords hashed with bcrypt.
 - JWT sessions: short-lived access tokens + refresh tokens.
-- **API Keys** for machine-to-machine integrations: generated and revoked by `admin`, carry a role scope and optional expiry date.
+- **API Keys** for machine-to-machine integrations: generated and revoked by `admin`, carry a role scope and optional expiry date. Keys are high-entropy random strings (32+ bytes from a CSPRNG) hashed with **SHA-256** — not bcrypt — so verification is fast on every request; safe because the key itself is unguessable (D7).
 - Auth layer structured as a pluggable strategy so **Azure AD / SSO can be added post-MVP** without touching application logic.
 
 **First run:** if no users exist on startup, one `admin` user is seeded with a randomly generated password printed to container stdout (never stored in plaintext). User must change it on first login.
@@ -301,7 +301,9 @@ Once `dispatched`, report vulns appear in the vulnerability list as independent 
 
 ### 10.3 Audit Logs
 
-Captured for every: login/logout · record create/read/update/delete · status transition · export action · API key generation/revocation/use · permission change.
+Captured for every: login/logout · record create/read/update/delete · status transition · export action · API key generation/revocation/use · permission change · lock override · correction.
+
+**Read events are logged deliberately (D8)** — this portal holds confidential findings, so who-read-what-when is a security control. To keep volume proportional to user actions, a list/search logs the *listing* access, not one entry per row returned. Growth is managed operationally (retention/partitioning) if needed, never by dropping read capture.
 
 Each entry stores: user · timestamp · action type · target entity ID · IP address.
 
@@ -419,7 +421,7 @@ All `vuln_status` values are implemented in MVP, including the transient `dispat
 | `id` | uuid | PK | |
 | `label` | text | NOT NULL | human-readable name |
 | `key_prefix` | text | NOT NULL | first 8 chars of plaintext key; shown in UI for identification |
-| `key_hash` | text | UNIQUE NOT NULL | full key hashed (bcrypt); plaintext shown exactly once at creation |
+| `key_hash` | text | UNIQUE NOT NULL | full key hashed (SHA-256, D7); key is 32+ bytes CSPRNG; plaintext shown exactly once at creation |
 | `role` | user_role | NOT NULL | scope of this key |
 | `created_by` | uuid | FK users NOT NULL | admin who issued it |
 | `expires_at` | timestamptz | NULL | optional; admin-configured |

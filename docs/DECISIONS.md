@@ -72,3 +72,27 @@ While a report is `dispatching` it is **locked from editing**. Nothing ever read
 **Decision:** Provide an **`admin` correction path**: admins can reset a record's status and clear an incorrectly entered RVS ID. **Every correction is written to the audit log** (via a `correction` / `status_change` entry capturing from→to and the admin actor).
 
 **Why:** Real-world use produces mistakes; requiring manual DB surgery is brittle and dangerous. Scoping corrections to admin + full audit keeps it controlled.
+
+---
+
+## D7 — API-key hashing ✅
+
+**Question:** §10.1 specified bcrypt for API keys. bcrypt is deliberately slow (good for human passwords, bad for machine keys verified on every request).
+
+**Decision:** Hash API keys with **plain SHA-256**, and **enforce high entropy at generation** — keys are 32+ bytes from a CSPRNG (`secrets.token_urlsafe(32)` or similar). Lookup is an indexed query on the stored hash. User passwords remain on **bcrypt** (unchanged — they are low-entropy and need slow hashing).
+
+**Why:** A fast hash is safe here *because* the key is unguessable random input; there is nothing to brute-force, so bcrypt's slowness buys nothing and would add latency to every authenticated API call. Salting/peppering is unnecessary for the same reason (rejected HMAC-with-server-secret: marginal benefit, adds a secret to manage and rotate).
+
+**Spec impact:** §10.1 and the `api_keys.key_hash` note (§15.4) change bcrypt → SHA-256.
+
+---
+
+## D8 — Audit logging of read events ✅
+
+**Question:** §10.3 logs every read. With list views and polling this is high volume and risks drowning the audit log in noise.
+
+**Decision:** **Keep per-read audit logging.** The portal holds confidential red-team findings; a record of *who accessed which vulnerability/report and when* is a deliberate security control, not incidental noise.
+
+**Operational note:** watch `audit_logs` growth. The table is append-only with a `bigserial` PK and indexed on `(entity_type, entity_id)` and `(created_at)` (§15.11–12). If volume becomes a problem post-MVP, address it with **retention/archival or partitioning** — not by dropping read capture. List-view reads should log the *query/listing* access, not one row per item returned, to keep volume proportional to user actions.
+
+**Why:** Confidentiality and traceability outweigh table-size concerns, which are solvable operationally without sacrificing the security signal.
