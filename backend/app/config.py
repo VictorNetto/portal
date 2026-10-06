@@ -15,6 +15,20 @@ class Settings(BaseSettings):
     app_name: str = "Red Team Operations Platform"
     environment: str = "development"  # development | production
 
+    # --- Auth / JWT ---
+    # Secret for signing JWTs. MUST be overridden in production via env; the
+    # default exists only so local dev runs out of the box.
+    jwt_secret: str = "dev-only-insecure-change-me"
+    jwt_algorithm: str = "HS256"
+    access_token_ttl_minutes: int = 15
+    refresh_token_ttl_days: int = 7
+
+    # First-run admin seed (§10.1). If no users exist on startup, an admin is
+    # created. If no password is provided here, a random one is generated and
+    # printed to stdout once.
+    first_admin_username: str = "admin"
+    first_admin_password: str | None = None
+
     # --- Database (populated by Compose; see .env.example) ---
     # Async URL used by SQLAlchemy. Host "db" is the Compose service name.
     database_url: str = "postgresql+psycopg://portal:portal@db:5432/portal"
