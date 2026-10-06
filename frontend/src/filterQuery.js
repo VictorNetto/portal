@@ -1,88 +1,88 @@
-// Slash-command filter grammar for the Hub list.
+// Single-line filter grammar for the Hub list.
 //
-// Space-separated tokens, applied as AND. Supported keys:
-//   status:<value>         exact status match
-//   cvss:>7 cvss:>=7 cvss:<5 cvss:<=5 cvss:7   numeric comparison
-//   id:<text> / identifier:<text>              identifier contains (ci)
-//   source:<text>                              source contains (ci)
-//   <bare text>                                free search on identifier
+// Space-separated tokens, ANDed. Each token may be negated with a leading "-".
+//   key:value        include rows matching
+//   -key:value       exclude rows matching
+//   <bare text>      free search on identifier (negatable: -text)
 //
-// parseQuery -> { predicate(row), tokens: [{raw, key, op, value, valid}] }
+// Keys:
+//   status:<one of STATUSES>     exact status
+//   cvss:<x>                     CVSS >= x  (x: 0..10, at most 1 decimal)
+//   id:<text> / identifier:<text>  identifier contains (ci)
+//   source:<text>                source contains (ci)
 
-const STATUSES = new Set([
+export const STATUSES = [
   'draft', 'saved_local', 'dispatching', 'dispatched',
   'acknowledged', 'waiting_fix', 'pending_retest', 'fixed',
-])
+]
 
-const CVSS_RE = /^(>=|<=|>|<|=)?\s*(\d+(?:\.\d+)?)$/
+export const FILTER_KEYS = [
+  { key: 'status', desc: 'status exato', values: STATUSES },
+  { key: 'cvss', desc: 'CVSS ≥ x (0–10, 1 casa decimal)', values: ['5', '7', '7.8', '9', '10'] },
+  { key: 'id', desc: 'identificador contém', values: [] },
+  { key: 'source', desc: 'fonte contém', values: [] },
+]
+
+// CVSS value: 0..10 with at most one decimal place. Accepts "7", "7.8", "10".
+// Rejects "5.77", "-1", "10.1", "11", "".
+const CVSS_RE = /^(?:10(?:\.0)?|[0-9](?:\.[0-9])?)$/
+export function isValidCvss(v) {
+  return CVSS_RE.test(v)
+}
+
+const STATUS_SET = new Set(STATUSES)
 
 function makeToken(raw) {
-  const colon = raw.indexOf(':')
-  if (colon === -1) {
-    return { raw, key: 'id', op: 'contains', value: raw, valid: raw.length > 0 }
+  let negate = false
+  let body = raw
+  if (body.startsWith('-') && body.length > 1) {
+    negate = true
+    body = body.slice(1)
   }
-  let key = raw.slice(0, colon).toLowerCase()
-  const value = raw.slice(colon + 1)
+
+  const colon = body.indexOf(':')
+  if (colon === -1) {
+    return { raw, negate, key: 'id', op: 'contains', value: body, valid: body.length > 0 }
+  }
+  let key = body.slice(0, colon).toLowerCase()
+  const value = body.slice(colon + 1)
   if (key === 'identifier') key = 'id'
 
-  if (key === 'status') {
-    return { raw, key, op: '=', value, valid: STATUSES.has(value) }
+  if (key === 'status')
+    return { raw, negate, key, op: '=', value, valid: STATUS_SET.has(value) }
+  if (key === 'cvss')
+    return { raw, negate, key, op: '>=', value: Number(value), valid: isValidCvss(value) }
+  if (key === 'id' || key === 'source')
+    return { raw, negate, key, op: 'contains', value, valid: value.length > 0 }
+  return { raw, negate, key, op: '?', value, valid: false }
+}
+
+function baseMatch(tok, r) {
+  switch (tok.key) {
+    case 'status':
+      return r.status === tok.value
+    case 'id':
+      return (r.identifier || '').toLowerCase().includes(tok.value.toLowerCase())
+    case 'source':
+      return (r.source || '').toLowerCase().includes(tok.value.toLowerCase())
+    case 'cvss':
+      return r.cvss_score !== null && r.cvss_score !== undefined &&
+        Number(r.cvss_score) >= tok.value
+    default:
+      return true
   }
-  if (key === 'cvss') {
-    const m = value.match(CVSS_RE)
-    if (!m) return { raw, key, op: '?', value, valid: false }
-    return { raw, key, op: m[1] || '=', value: Number(m[2]), valid: true }
-  }
-  if (key === 'id' || key === 'source') {
-    return { raw, key, op: 'contains', value, valid: value.length > 0 }
-  }
-  return { raw, key, op: '?', value, valid: false }
 }
 
 function tokenPredicate(tok) {
   if (!tok.valid) return () => true // ignore invalid tokens rather than hide all
-  switch (tok.key) {
-    case 'status':
-      return (r) => r.status === tok.value
-    case 'id':
-      return (r) => (r.identifier || '').toLowerCase().includes(tok.value.toLowerCase())
-    case 'source':
-      return (r) => (r.source || '').toLowerCase().includes(tok.value.toLowerCase())
-    case 'cvss':
-      return (r) => {
-        if (r.cvss_score === null || r.cvss_score === undefined) return false
-        const n = Number(r.cvss_score)
-        switch (tok.op) {
-          case '>': return n > tok.value
-          case '>=': return n >= tok.value
-          case '<': return n < tok.value
-          case '<=': return n <= tok.value
-          default: return n === tok.value
-        }
-      }
-    default:
-      return () => true
+  return (r) => {
+    const m = baseMatch(tok, r)
+    return tok.negate ? !m : m
   }
 }
 
 export function parseQuery(text) {
-  const tokens = (text || '')
-    .trim()
-    .split(/\s+/)
-    .filter(Boolean)
-    .map(makeToken)
+  const tokens = (text || '').trim().split(/\s+/).filter(Boolean).map(makeToken)
   const preds = tokens.map(tokenPredicate)
-  return {
-    tokens,
-    predicate: (row) => preds.every((p) => p(row)),
-  }
+  return { tokens, predicate: (row) => preds.every((p) => p(row)) }
 }
-
-export const FILTER_HELP = [
-  { token: 'status:draft', desc: 'status exato' },
-  { token: 'cvss:>7', desc: 'CVSS maior que' },
-  { token: 'cvss:<=5', desc: 'CVSS menor ou igual' },
-  { token: 'id:CVE-2024', desc: 'identificador contém' },
-  { token: 'source:nuclei', desc: 'fonte contém' },
-  { token: 'XSS', desc: 'busca livre no identificador' },
-]

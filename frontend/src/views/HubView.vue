@@ -1,10 +1,10 @@
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { listVulns, deleteVuln, ApiError } from '../api'
 import { t } from '../i18n'
 import AppShell from '../components/AppShell.vue'
-import FilterPalette from '../components/FilterPalette.vue'
+import FilterBar from '../components/FilterBar.vue'
 import { parseQuery } from '../filterQuery'
 
 const router = useRouter()
@@ -24,38 +24,17 @@ const preview = ref(null)
 const pageSize = ref(5)
 const page = ref(1)
 
-// Filters (§5.5). Client-side over loaded rows; state could later move to the
-// query string (§4.3). Fields map to the visible columns.
-const showFilters = ref(false)
-const filters = ref({ status: '', identifier: '', minCvss: '' })
-const STATUS_OPTIONS = [
-  'draft', 'saved_local', 'dispatching', 'dispatched',
-  'acknowledged', 'waiting_fix', 'pending_retest', 'fixed',
-]
-const activeFilterCount = computed(() =>
-  Object.values(filters.value).filter((v) => v !== '' && v !== null).length)
-
-function clearFilters() {
-  filters.value = { status: '', identifier: '', minCvss: '' }
-  page.value = 1
-}
-
-// Slash-command filter (press "/"). The query string drives an additional
-// predicate layered on top of the popover filters.
-const paletteOpen = ref(false)
+// Single-line filter/find (the FilterBar). "/" focuses it and opens the menu.
 const query = ref('')
-const queryActive = computed(() => query.value.trim().length > 0)
-
-function applyQuery(q) { query.value = q; page.value = 1 }
-function clearQuery() { query.value = ''; page.value = 1 }
+const filterBar = ref(null)
+watch(query, () => { page.value = 1 })
 
 function onKeydown(e) {
-  // Open on "/" unless the user is typing in a field.
   const tag = e.target.tagName
   const typing = tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || e.target.isContentEditable
-  if (e.key === '/' && !typing && !paletteOpen.value) {
+  if (e.key === '/' && !typing) {
     e.preventDefault()
-    paletteOpen.value = true
+    filterBar.value?.focusAndOpen()
   }
 }
 onMounted(() => window.addEventListener('keydown', onKeydown))
@@ -63,18 +42,7 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
 
 const filteredVulns = computed(() => {
   let rows = vulns.value
-  const f = filters.value
-  if (f.status) rows = rows.filter((v) => v.status === f.status)
-  if (f.identifier) {
-    const q = f.identifier.toLowerCase()
-    rows = rows.filter((v) => (v.identifier || '').toLowerCase().includes(q))
-  }
-  if (f.minCvss !== '' && f.minCvss !== null) {
-    const min = Number(f.minCvss)
-    rows = rows.filter((v) => v.cvss_score !== null && Number(v.cvss_score) >= min)
-  }
-  // Slash query predicate (AND with the above).
-  if (queryActive.value) {
+  if (query.value.trim()) {
     const { predicate } = parseQuery(query.value)
     rows = rows.filter(predicate)
   }
@@ -166,38 +134,10 @@ onMounted(load)
         </button>
       </div>
       <div class="toolbar">
+        <FilterBar ref="filterBar" v-model="query" />
         <span v-if="selected.size" class="selectionHint mono">
           {{ selected.size }} {{ t('hub.selected') }}
         </span>
-        <button class="btn" :class="{ on: queryActive }" @click="paletteOpen = true" title="Pressione /">
-          <span class="slashKey mono">/</span> {{ t('hub.query') }}
-          <span v-if="queryActive" class="fx" @click.stop="clearQuery" title="Limpar">×</span>
-        </button>
-        <div class="filterWrap">
-          <button class="btn" :class="{ on: activeFilterCount }" @click="showFilters = !showFilters">
-            ⌯ {{ t('hub.filters') }}
-            <span v-if="activeFilterCount" class="fcount">{{ activeFilterCount }}</span>
-          </button>
-          <div v-if="showFilters" class="filterPop">
-            <label>{{ t('cols.status') }}</label>
-            <select v-model="filters.status" @change="page = 1">
-              <option value="">— {{ t('cols.status') }} —</option>
-              <option v-for="s in STATUS_OPTIONS" :key="s" :value="s">{{ s }}</option>
-            </select>
-
-            <label>{{ t('cols.identifier') }}</label>
-            <input v-model="filters.identifier" @input="page = 1" placeholder="CVE / nome…" />
-
-            <label>{{ t('cols.cvss') }} ≥</label>
-            <input v-model="filters.minCvss" type="number" step="0.1" min="0" max="10"
-                   @input="page = 1" placeholder="0.0" />
-
-            <div class="filterPopActions">
-              <button class="btn ghost" @click="clearFilters">Limpar</button>
-              <button class="btn" @click="showFilters = false">Fechar</button>
-            </div>
-          </div>
-        </div>
         <button v-if="selected.size" class="btn">ϟ {{ t('hub.actions') }}</button>
         <button class="btn primary create" @click="goCreate">
           ＋ {{ entity === 'vulns' ? t('hub.createVuln') : t('hub.createReport') }}
@@ -295,9 +235,6 @@ onMounted(load)
         </div>
       </div>
     </aside>
-
-    <FilterPalette v-model="query" :open="paletteOpen"
-                   @apply="applyQuery" @close="paletteOpen = false" />
   </AppShell>
 </template>
 
@@ -312,33 +249,6 @@ onMounted(load)
 .tab.active { color: var(--green); border-color: var(--green); }
 .toolbar { margin-left: auto; display: flex; gap: 12px; align-items: center; }
 .selectionHint { color: var(--muted); font-size: 12px; align-self: center; }
-
-.filterWrap { position: relative; }
-.btn.on { border-color: var(--green); color: var(--green); }
-.slashKey {
-  border: 1px solid var(--line2); border-radius: 4px; padding: 0 6px;
-  font-size: .8rem; color: var(--green); line-height: 1.4;
-}
-.fx { margin-left: 4px; color: var(--muted); font-size: 1rem; cursor: pointer; }
-.fx:hover { color: var(--red); }
-.fcount {
-  background: var(--green); color: #03120a; border-radius: 999px;
-  font-size: 11px; font-weight: 700; padding: 0 6px; margin-left: 2px;
-}
-.filterPop {
-  position: absolute; top: 46px; right: 0; width: 240px; z-index: 40;
-  background: #071211; border: 1px solid rgba(65, 110, 91, .62); border-radius: 8px;
-  box-shadow: var(--shadow); padding: 14px; display: grid; gap: 6px;
-}
-.filterPop label { color: var(--muted); font-size: .78rem; margin-top: .4rem; }
-.filterPop select, .filterPop input {
-  background: #0b0f14; border: 1px solid var(--line); border-radius: 6px;
-  padding: .45rem .55rem; color: var(--text); font-family: var(--mono); font-size: .85rem;
-}
-.filterPop select:focus, .filterPop input:focus { outline: none; border-color: var(--green); }
-.filterPopActions { display: flex; gap: 8px; margin-top: .8rem; }
-.filterPopActions .btn { height: 32px; flex: 1; justify-content: center; }
-.btn.ghost { background: transparent; }
 
 .btn {
   border: 1px solid var(--line2); background: #071512; border-radius: 6px; height: 38px;
