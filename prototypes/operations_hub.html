@@ -1,0 +1,193 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Portal Red Team — Central Operacional</title>
+<style>
+:root{
+  --bg:#06110f;--panel:#071512;--line:#1f3e38;--line2:#2a5a4a;--text:#dce7df;--muted:#8fa49a;
+  --green:#42e67b;--amber:#f5a742;--red:#ff6b5f;--blue:#58a6ff;--purple:#b084f5;
+  --shadow:0 18px 50px rgba(0,0,0,.45);--header:64px;--sidebar:64px;--sidebar-expanded:255px;--radius:8px;
+  --mono:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono",monospace;
+  --sans:Inter,ui-sans-serif,system-ui,-apple-system,Segoe UI,sans-serif;
+}
+*{box-sizing:border-box}html,body{height:100%;margin:0;background:radial-gradient(circle at 20% 10%,rgba(38,120,75,.12),transparent 25%),linear-gradient(180deg,#07110f,#04100e);color:var(--text);font-family:var(--sans);font-size:14px}button,input,select{font:inherit;color:inherit}button{cursor:pointer}.mono{font-family:var(--mono)}
+.header{height:var(--header);position:fixed;inset:0 0 auto 0;display:flex;align-items:center;border-bottom:1px solid rgba(74,130,105,.25);background:#050f0e;z-index:30}.hamb{width:var(--sidebar);height:var(--header);display:grid;place-items:center;border:0;background:transparent;color:var(--text);font-size:24px}.brand{display:flex;align-items:center;gap:16px;font-family:var(--mono);font-size:21px;font-weight:500;letter-spacing:.3px}.shield{width:34px;height:34px;border:2px solid var(--green);border-radius:10px;color:var(--green);display:grid;place-items:center;box-shadow:0 0 22px rgba(66,230,123,.15)}.headRight{margin-left:auto;display:flex;align-items:center;gap:18px;padding-right:28px}.headBtn{border:1px solid rgba(90,130,115,.35);background:#071311;border-radius:6px;height:34px;padding:0 12px;display:flex;align-items:center;gap:9px}.bell{position:relative;font-size:22px}.badge{position:absolute;right:-7px;top:-9px;background:var(--green);color:#04210f;border-radius:999px;font-size:11px;padding:1px 6px}.avatar{width:34px;height:34px;border-radius:50%;border:1px solid var(--green);display:grid;place-items:center;color:var(--green);font-family:var(--mono)}
+.sidebar{position:fixed;top:var(--header);left:0;bottom:0;width:var(--sidebar);background:rgba(4,15,15,.98);z-index:25;display:flex;flex-direction:column;padding-top:18px;gap:7px;transition:width .18s ease,box-shadow .18s ease;background-clip:padding-box;border-right:1px solid rgba(75,126,103,.38);box-shadow:7px 0 22px rgba(0,0,0,.18)}.sidebar.expanded{width:var(--sidebar-expanded);box-shadow:var(--shadow);background:rgba(5,18,17,.985)}
+.navItem{height:46px;width:100%;display:flex;align-items:center;color:#d8e5dd;text-decoration:none;position:relative;border-radius:0}.navItem:hover,.navItem.active{background:rgba(66,230,123,.10);color:var(--green)}.navIcon{flex:0 0 var(--sidebar);width:var(--sidebar);height:46px;display:grid;place-items:center;font-size:22px;text-align:center}.navLabel{display:none;white-space:nowrap;padding-left:4px}.sidebar.expanded .navLabel{display:inline}.navItem .tip{display:none;position:absolute;left:calc(var(--sidebar) + 8px);top:50%;transform:translateY(-50%);background:#0b211c;color:var(--text);padding:6px 9px;border:1px solid var(--line);border-radius:6px;white-space:nowrap;box-shadow:var(--shadow);z-index:40}.sidebar:not(.expanded) .navItem:hover .tip{display:block;animation:tip .25s ease .45s both}@keyframes tip{from{opacity:0;transform:translateY(-50%) translateX(-3px)}to{opacity:1;transform:translateY(-50%)}}
+.main{position:fixed;top:var(--header);left:var(--sidebar);right:0;bottom:0;overflow:auto;padding:28px 28px 34px}.pageTop{display:flex;align-items:flex-start;gap:20px;margin-bottom:18px}.titleBlock h1{margin:0 0 6px;font-family:var(--mono);font-weight:500;font-size:28px;color:#f0fff6}.titleBlock p{margin:0;color:var(--muted)}.btn{border:1px solid var(--line2);background:#071512;border-radius:6px;height:38px;padding:0 16px;color:var(--text);display:inline-flex;align-items:center;gap:9px;text-decoration:none}.btn:hover{border-color:var(--green);color:var(--green)}.btn.primary{background:linear-gradient(180deg,#48df7d,#2fbf68);border-color:#4df587;color:#03120a;font-weight:600}.panel{background:rgba(7,19,17,.82);border:1px solid rgba(65,110,91,.45);border-radius:var(--radius);box-shadow:inset 0 0 0 1px rgba(0,0,0,.15)}.pill{display:inline-flex;align-items:center;border-radius:5px;border:1px solid currentColor;padding:4px 9px;font-size:12px}.greenText{color:var(--green)}.muted{color:var(--muted)}
+
+.hubTop{display:flex;align-items:end;margin-top:18px;margin-bottom:16px;gap:18px}.tabs{display:flex;gap:24px;align-items:center}.tab{border:0;background:transparent;color:var(--muted);padding:12px 0 11px;font-size:16px;border-bottom:2px solid transparent}.tab.active{color:var(--green);border-color:var(--green)}.toolbar{margin-left:auto;display:flex;gap:12px;align-items:center;position:relative}
+#createBtn{width:210px;justify-content:center;white-space:nowrap}
+table{table-layout:fixed}
+th:nth-child(1),td:nth-child(1){width:54px}
+th:nth-child(2),td:nth-child(2){width:220px}
+th:nth-child(3),td:nth-child(3){width:180px}
+th:nth-child(4),td:nth-child(4){width:90px}
+th:nth-child(5),td:nth-child(5){width:280px}
+th:nth-child(6),td:nth-child(6){width:180px}
+th:nth-child(7),td:nth-child(7){width:82px;text-align:center}
+td:nth-child(2),td:nth-child(5),td:nth-child(6){overflow:hidden;text-overflow:ellipsis}
+.tablePanel{height:calc(100vh - var(--header) - 280px);min-height:330px;overflow:auto}table{width:100%;border-collapse:collapse}th,td{text-align:left;border-bottom:1px solid rgba(54,92,82,.42);padding:14px 18px;white-space:nowrap}th{color:#e7f7ed;font-weight:500;background:rgba(5,15,14,.55);position:sticky;top:0;z-index:1}td{color:#d9e8df}tr:hover{background:rgba(66,230,123,.045)}tr.preview{background:linear-gradient(90deg,rgba(66,230,123,.12),rgba(66,230,123,.035))}tr.selected{background:rgba(66,230,123,.08)}.check{width:18px;height:18px;accent-color:var(--green)}.kebab{border:0;background:transparent;font-size:22px;color:var(--muted);padding:2px 8px}
+.rowActionWrap{position:relative;display:inline-flex;justify-content:center}
+.rowMenuInline{position:fixed;min-width:170px;border:1px solid rgba(65,110,91,.62);background:#071211;border-radius:8px;box-shadow:var(--shadow);padding:8px;z-index:50;text-align:left}
+.rowMenuInline button{width:100%;height:36px;border:0;background:transparent;color:var(--text);display:flex;align-items:center;gap:10px;border-radius:6px;padding:0 10px;text-align:left;white-space:nowrap}
+.rowMenuInline button:hover{background:rgba(66,230,123,.10);color:var(--green)}
+.rowMenuInline button.danger{color:#ff8d83}.rowMenuInline button.danger:hover{background:rgba(255,107,95,.10);color:#ff6b5f}
+.hidden{display:none!important}
+.actionWrap{position:relative}.menu{position:absolute;top:44px;right:0;min-width:180px;border:1px solid rgba(65,110,91,.62);background:rgba(7,18,17,.985);border-radius:8px;box-shadow:var(--shadow);padding:8px;z-index:22}.menu button{width:100%;height:36px;border:0;background:transparent;color:var(--text);display:flex;align-items:center;gap:10px;border-radius:6px;padding:0 10px;text-align:left}.menu button:hover{background:rgba(66,230,123,.10);color:var(--green)}.selectionHint{color:var(--muted);font-family:var(--mono);font-size:12px;align-self:center}
+.details{position:fixed;left:var(--sidebar);right:0;bottom:0;height:30vh;min-height:228px;background:rgba(7,18,17,.985);border-top:1px solid rgba(65,110,91,.50);box-shadow:0 -18px 48px rgba(0,0,0,.44);z-index:18;padding:22px 28px;display:none}.details.open{display:block}.detailsTop{display:flex;align-items:center;margin-bottom:18px}.detailsId{font-family:var(--mono);font-size:22px;color:var(--green)}.detailsActions{margin-left:auto;display:flex;align-items:center;gap:12px}.xbtn{border:0;background:transparent;color:#c9d8d1;font-size:26px;line-height:1}.detailCols{display:grid;grid-template-columns:1.05fr 1.45fr 1fr;gap:56px}.timeline{display:grid;gap:10px}.event{display:grid;grid-template-columns:22px 1fr;gap:12px;align-items:start}.dot{width:18px;height:18px;border:1px solid var(--green);border-radius:50%;display:grid;place-items:center;color:var(--green);font-size:11px}.event b{font-weight:500;color:var(--text)}.event small{display:block;color:var(--muted);margin-top:2px}.kv{margin-bottom:18px}.kv label{display:block;color:var(--muted);margin-bottom:7px}.desc{line-height:1.55;color:#b9c9c0;max-width:700px}
+.pagination{display:flex;align-items:center;gap:10px;margin-top:14px;justify-content:flex-end}.pageBtn{height:34px;min-width:34px;border:1px solid var(--line2);background:#071512;border-radius:6px;color:var(--text)}.pageBtn.active{border-color:var(--green);color:#03120a;background:var(--green);font-weight:700}.pageBtn:disabled{opacity:.35;cursor:not-allowed}.pageInfo{color:var(--muted);margin-right:auto;font-family:var(--mono);font-size:12px}.pageSelect{height:34px;border:1px solid var(--line2);background:#071512;border-radius:6px;color:var(--text);padding:0 10px}
+
+*{scrollbar-width:thin;scrollbar-color:rgba(66,230,123,.55) rgba(7,19,17,.9)}
+::-webkit-scrollbar{width:10px;height:10px}
+::-webkit-scrollbar-track{background:#071512;border-left:1px solid rgba(65,110,91,.22)}
+::-webkit-scrollbar-thumb{background:linear-gradient(180deg,rgba(66,230,123,.65),rgba(47,191,104,.42));border:2px solid #071512;border-radius:999px}
+::-webkit-scrollbar-thumb:hover{background:linear-gradient(180deg,rgba(66,230,123,.85),rgba(47,191,104,.62))}
+
+</style>
+</head>
+<body>
+<header class="header"><button class="hamb" id="hamb">☰</button><div class="brand"><div class="shield">⌁</div><span>Portal Red Team</span></div><div class="headRight"><button class="headBtn">◎ PT-BR⌄</button><div class="bell">♧<span class="badge">3</span></div><div class="avatar">JS</div><span>João Silva⌄</span></div></header>
+<nav class="sidebar" id="sidebar" aria-label="Menu principal">
+  <a class="navItem active" href="#"><span class="navIcon">⌂</span><span class="navLabel">Central Operacional</span><span class="tip">Central Operacional</span></a>
+  <a class="navItem" href="vulnerability_creation.html"><span class="navIcon">＋</span><span class="navLabel">Criar Vulnerabilidade</span><span class="tip">Criar Vulnerabilidade</span></a>
+  <a class="navItem" href="#reports-new"><span class="navIcon">＋</span><span class="navLabel">Criar Relatório</span><span class="tip">Criar Relatório</span></a>
+  <a class="navItem" href="#"><span class="navIcon">▤</span><span class="navLabel">Fila RVS</span><span class="tip">Fila RVS</span></a>
+  <a class="navItem" href="#"><span class="navIcon">☷</span><span class="navLabel">Logs de Auditoria</span><span class="tip">Logs de Auditoria</span></a>
+  <a class="navItem" href="#"><span class="navIcon">♙</span><span class="navLabel">Usuários</span><span class="tip">Usuários</span></a>
+  <a class="navItem" href="#"><span class="navIcon">⚿</span><span class="navLabel">Chaves de API</span><span class="tip">Chaves de API</span></a>
+  <a class="navItem" href="#"><span class="navIcon">⚙</span><span class="navLabel">Configurações</span><span class="tip">Configurações</span></a>
+</nav>
+<main class="main">
+  <div class="pageTop"><div class="titleBlock"><h1>Central Operacional</h1><p>Gerencie vulnerabilidades e relatórios de operações de segurança.</p></div></div>
+  <div class="hubTop"><div class="tabs"><button class="tab active" data-tab="vulns">Vulnerabilidades</button><button class="tab" data-tab="reports">Relatórios</button></div><div class="toolbar"><span class="selectionHint hidden" id="selectionHint">0 selecionados</span><button class="btn">⌯ Filtros</button><div class="actionWrap hidden" id="actionWrap"><button class="btn" id="actionsBtn">ϟ Ações</button><div class="menu hidden" id="actionsMenu"><button data-action="export">⇧ Exportar</button><button data-action="dispatch">↗ Disparar</button><button data-action="delete">⌫ Excluir</button></div></div><a class="btn primary" id="createBtn" href="vulnerability_creation.html">＋ Criar Vulnerabilidade</a></div></div>
+  <section class="panel tablePanel"><table><thead id="thead"></thead><tbody id="tbody"></tbody></table></section>
+  <div class="pagination"><span class="pageInfo" id="pageInfo"></span><label class="muted">Linhas</label><select class="pageSelect" id="pageSize"><option>5</option><option>10</option><option>15</option></select><button class="pageBtn" id="prevPage">‹</button><div id="pageNums"></div><button class="pageBtn" id="nextPage">›</button></div>
+</main>
+<section class="details" id="details" aria-label="Detalhes do item"><div class="detailsTop"><div class="detailsId" id="dId">CVE-2024-98765</div><div class="detailsActions"><a class="btn" id="detailLink" href="#">◉ Detalhar</a><button class="xbtn" id="closeDetails" aria-label="Fechar">×</button></div></div><div class="detailCols"><div><div class="timeline" id="dTimeline"></div></div><div><div class="kv"><label>Status</label><span id="dStatus" class="pill">Salvo Localmente</span></div><div class="kv"><label>CVSS</label><b id="dCvss" style="color:var(--amber)">7.5</b></div><div class="kv"><label>Descrição</label><div class="desc" id="dDesc"></div></div></div><div><div class="kv"><label>Fonte</label><div id="dSource" class="greenText">API</div></div><div class="kv"><label>Operadores</label><div id="dOperator" class="greenText">Ana Martins</div></div></div></div></section>
+<script>
+const sidebar=document.getElementById('sidebar');
+document.getElementById('hamb').onclick=e=>{e.stopPropagation();sidebar.classList.toggle('expanded')};
+document.addEventListener('click',e=>{
+  if(sidebar.classList.contains('expanded') && !sidebar.contains(e.target) && e.target.id!=='hamb'){
+    sidebar.classList.remove('expanded');
+  }
+  if(!document.getElementById('actionWrap').contains(e.target)){
+    document.getElementById('actionsMenu').classList.add('hidden');
+  }
+  // Clicking anywhere outside the row action menu closes the three-dots menu.
+  if(!e.target.closest('.rowActionWrap')){
+    document.querySelectorAll('.rowMenuInline').forEach(m=>m.classList.add('hidden'));
+  }
+});
+const vulns=[
+{identifier:'CVE-2024-12345',status:'Despachado',cvss:'9.8',operators:'João Silva, Carla Mendes',source:'Web App',desc:'Execução de scripts arbitrários no navegador de usuários autenticados.',color:'var(--blue)'},
+{identifier:'CVE-2024-98765',status:'Salvo Localmente',cvss:'7.5',operators:'Ana Martins',source:'API',desc:'Falha de controle de acesso permite acessar recursos restritos através da API.',color:'var(--amber)'},
+{identifier:'CVE-2024-54321',status:'Reconhecido',cvss:'8.3',operators:'Bruno Costa, João Silva',source:'Web App',desc:'Exposição de dados sensíveis em resposta de endpoint autenticado.',color:'var(--green)'},
+{identifier:'CVE-2024-11111',status:'Aguardando Correção',cvss:'6.5',operators:'Carla Mendes',source:'Network',desc:'Configuração insegura permite enumeração de serviços internos.',color:'var(--blue)'},
+{identifier:'CVE-2024-22222',status:'Aguardando Reteste',cvss:'4.3',operators:'João Silva',source:'API',desc:'Cabeçalhos de segurança ausentes em algumas respostas.',color:'var(--purple)'},
+{identifier:'CVE-2024-33333',status:'Rascunho',cvss:'5.4',operators:'Lucia Ramos',source:'Recon',desc:'Enumeração de diretórios expõe arquivos auxiliares.',color:'var(--amber)'},
+{identifier:'CVE-2024-44444',status:'Corrigido',cvss:'3.1',operators:'Ana Martins, Bruno Costa',source:'Network',desc:'Banner de serviço expunha versão antiga.',color:'var(--green)'},
+{identifier:'CVE-2024-55555',status:'Pendente Reteste',cvss:'7.2',operators:'João Silva',source:'API',desc:'Token com tempo de expiração excessivo.',color:'var(--purple)'},
+{identifier:'CVE-2024-66666',status:'Despachado',cvss:'8.9',operators:'Carla Mendes',source:'Web App',desc:'Upload de arquivo aceita extensão não autorizada.',color:'var(--blue)'},
+{identifier:'CVE-2024-77777',status:'Salvo Localmente',cvss:'6.8',operators:'Bruno Costa',source:'Mobile',desc:'Armazenamento local de dados sensíveis no dispositivo.',color:'var(--amber)'},
+{identifier:'CVE-2024-88888',status:'Reconhecido',cvss:'9.1',operators:'Lucia Ramos, João Silva',source:'Cloud',desc:'Permissões excessivas em conta de serviço.',color:'var(--green)'},
+{identifier:'CVE-2024-99999',status:'Aguardando Correção',cvss:'5.9',operators:'Ana Martins',source:'API',desc:'Rate limit ausente em endpoint crítico.',color:'var(--blue)'}];
+const reports=[
+{identifier:'Operação Sigma',status:'Rascunho',cvss:'-',operators:'João Silva, Ana Martins',source:'Cliente Alpha',desc:'Relatório de operação em elaboração.',color:'var(--amber)'},
+{identifier:'Pentest API Junho',status:'Despachado',cvss:'-',operators:'Ana Martins',source:'Cliente Beta',desc:'Relatório final enviado para o time azul.',color:'var(--blue)'},
+{identifier:'Avaliação Web App',status:'Rascunho',cvss:'-',operators:'Bruno Costa',source:'Cliente Gamma',desc:'Relatório com vulnerabilidades web em revisão.',color:'var(--amber)'},
+{identifier:'Infra Externa Q2',status:'Despachado',cvss:'-',operators:'Carla Mendes',source:'Cliente Delta',desc:'Relatório de infraestrutura externa.',color:'var(--blue)'},
+{identifier:'Mobile Banking',status:'Rascunho',cvss:'-',operators:'Lucia Ramos',source:'Cliente Epsilon',desc:'Relatório de aplicativo móvel.',color:'var(--amber)'},
+{identifier:'Cloud Review',status:'Rascunho',cvss:'-',operators:'João Silva',source:'Cliente Zeta',desc:'Relatório de revisão cloud.',color:'var(--amber)'}];
+let active='vulns', page=1, pageSize=5; const selected=new Set();
+function currentData(){return active==='vulns'?vulns:reports;}
+function keyFor(i){return active+':'+i;}
+function updateSelections(){const count=selected.size;document.getElementById('actionWrap').classList.toggle('hidden',count===0);document.getElementById('selectionHint').classList.toggle('hidden',count===0);document.getElementById('selectionHint').textContent=count+' selecionado'+(count>1?'s':'');document.querySelectorAll('tbody tr').forEach(tr=>tr.classList.toggle('selected',selected.has(keyFor(Number(tr.dataset.absolute)))));document.querySelectorAll('tbody .rowCheck').forEach(cb=>cb.checked=selected.has(keyFor(Number(cb.dataset.absolute))));const visible=[...document.querySelectorAll('tbody .rowCheck')];const header=document.getElementById('selectAll');if(header){header.checked=visible.length>0&&visible.every(cb=>cb.checked);header.indeterminate=visible.some(cb=>cb.checked)&&!header.checked;}}
+function render(){const data=currentData();const totalPages=Math.max(1,Math.ceil(data.length/pageSize));if(page>totalPages)page=totalPages;const start=(page-1)*pageSize;const slice=data.slice(start,start+pageSize);document.getElementById('thead').innerHTML='<tr><th><input id="selectAll" class="check" type="checkbox" aria-label="Selecionar todos da página"></th><th>Identificador</th><th>Status</th><th>CVSS</th><th>Operadores</th><th>Fonte</th><th>Ações</th></tr>';document.getElementById('tbody').innerHTML=slice.map((r,i)=>{const abs=start+i;return `<tr data-i="${i}" data-absolute="${abs}"><td><input class="check rowCheck" data-absolute="${abs}" type="checkbox" aria-label="Selecionar item"></td><td class="greenText mono">${r.identifier}</td><td><span class="pill" style="color:${r.color}">${r.status}</span></td><td style="color:${r.cvss==='-'?'var(--muted)':(Number(r.cvss)>8?'var(--red)':'var(--amber)')}">${r.cvss}</td><td class="greenText">${r.operators}</td><td class="greenText">${r.source}</td><td><div class="rowActionWrap"><button class="kebab" aria-label="Ações">⋮</button><div class="rowMenuInline hidden"><button data-row-action="edit">✎ Editar</button><button data-row-action="view">◉ Visualizar</button><button data-row-action="export">⇧ Exportar</button><button data-row-action="dispatch">↗ Disparar</button><button class="danger" data-row-action="delete">⌫ Excluir</button></div></div></td></tr>`}).join('');document.querySelectorAll('tbody tr').forEach(tr=>tr.addEventListener('click',rowClick));document.querySelectorAll('tbody .kebab').forEach(el=>el.addEventListener('click',e=>{
+  e.stopPropagation();
+  const menu = el.nextElementSibling;
+  const wasHidden = menu.classList.contains('hidden');
+  document.querySelectorAll('.rowMenuInline').forEach(m=>m.classList.add('hidden'));
+  if(!wasHidden) return;
+
+  menu.classList.remove('hidden');
+
+  const gap = 12;
+  const menuWidth = menu.offsetWidth || 170;
+  const menuHeight = menu.offsetHeight || 190;
+  const viewportW = window.innerWidth;
+  const viewportH = window.innerHeight;
+
+  // Prefer side-by-side positioning with the pointer.
+  // If there is not enough room on the right, open to the left.
+  let left = e.clientX + gap;
+  if(left + menuWidth > viewportW - gap) left = e.clientX - menuWidth - gap;
+  left = Math.max(gap, Math.min(left, viewportW - menuWidth - gap));
+
+  // Keep the menu vertically centered around the mouse as much as possible,
+  // instead of placing it below the pointer.
+  let top = e.clientY - (menuHeight / 2);
+  top = Math.max(gap, Math.min(top, viewportH - menuHeight - gap));
+
+  menu.style.left = left + 'px';
+  menu.style.top = top + 'px';
+}));
+document.querySelectorAll('tbody .rowMenuInline button').forEach(btn=>btn.addEventListener('click',e=>{
+  e.stopPropagation();
+  handleRowAction(btn.dataset.rowAction, btn.closest('tr').dataset.absolute);
+  btn.closest('.rowMenuInline').classList.add('hidden');
+}));document.querySelectorAll('tbody .rowCheck').forEach(cb=>cb.addEventListener('click',e=>{e.stopPropagation();const k=keyFor(Number(cb.dataset.absolute));cb.checked?selected.add(k):selected.delete(k);updateSelections();}));document.getElementById('selectAll').addEventListener('click',e=>{e.stopPropagation();document.querySelectorAll('tbody .rowCheck').forEach(cb=>{const k=keyFor(Number(cb.dataset.absolute));e.target.checked?selected.add(k):selected.delete(k);});updateSelections();});document.getElementById('createBtn').textContent=active==='vulns'?'＋ Criar Vulnerabilidade':'＋ Criar Relatório';document.getElementById('createBtn').href=active==='vulns'?'vulnerability_creation.html':'#reports-new';renderPagination(data.length,totalPages,start,slice.length);updateSelections();}
+function renderPagination(total,totalPages,start,count){document.getElementById('pageInfo').textContent=`Mostrando ${total?start+1:0}-${start+count} de ${total}`;document.getElementById('prevPage').disabled=page===1;document.getElementById('nextPage').disabled=page===totalPages;document.getElementById('pageNums').innerHTML=Array.from({length:totalPages},(_,i)=>`<button class="pageBtn ${page===i+1?'active':''}" data-page="${i+1}">${i+1}</button>`).join(' ');document.querySelectorAll('[data-page]').forEach(b=>b.onclick=()=>{page=Number(b.dataset.page);render();});}
+
+
+function handleRowAction(action, abs){
+  const r=currentData()[Number(abs)];
+  if(action==='view'){
+    showDetails(abs);
+    return;
+  }
+  if(action==='edit'){
+    window.location.href = active==='vulns'
+      ? 'vulnerability_creation.html?mode=edit&id='+encodeURIComponent(r.identifier)
+      : '#reports/'+abs+'/edit';
+    return;
+  }
+  if(action==='export'){
+    alert('Exportar item: '+r.identifier);
+    return;
+  }
+  if(action==='dispatch'){
+    alert('Disparar item: '+r.identifier);
+    return;
+  }
+  if(action==='delete'){
+    if(confirm('Excluir item '+r.identifier+'?')) alert('Item excluído: '+r.identifier);
+  }
+}
+
+function showDetails(abs){
+  const r=currentData()[Number(abs)];
+  document.querySelectorAll('tbody tr').forEach(row=>row.classList.toggle('preview', row.dataset.absolute===String(abs)));
+  document.getElementById('details').classList.add('open');
+  document.getElementById('dId').textContent=r.identifier;
+  document.getElementById('dStatus').textContent=r.status;
+  document.getElementById('dStatus').style.color=r.color;
+  document.getElementById('dCvss').textContent=r.cvss==='-'?'N/A':r.cvss+' (Médio)';
+  document.getElementById('dDesc').textContent=r.desc;
+  document.getElementById('dSource').textContent=r.source;
+  document.getElementById('dOperator').textContent=r.operators;
+  document.getElementById('detailLink').href = active==='vulns' ? '#vulnerabilities/'+abs : '#reports/'+abs;
+  document.getElementById('dTimeline').innerHTML=['Criado','Salvo Localmente','Despachado'].map((x,i)=>`<div class="event"><span class="dot">${i+1}</span><div><b>${x}</b><small>0${5+i}/05/2024 09:${14+i*7} · Sistema</small></div></div>`).join('');
+}
+function rowClick(e){showDetails(e.currentTarget.dataset.absolute);}
+document.getElementById('closeDetails').onclick=()=>{document.getElementById('details').classList.remove('open');document.querySelectorAll('tbody tr').forEach(r=>r.classList.remove('preview'));};
+document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{active=b.dataset.tab;page=1;selected.clear();document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('active',t===b));document.getElementById('details').classList.remove('open');document.getElementById('actionsMenu').classList.add('hidden');render();});
+document.getElementById('actionsBtn').onclick=e=>{e.stopPropagation();document.getElementById('actionsMenu').classList.toggle('hidden');};
+
+document.querySelectorAll('#actionsMenu button').forEach(b=>b.onclick=()=>{alert(b.textContent.trim()+' aplicado a '+selected.size+' item(ns).');document.getElementById('actionsMenu').classList.add('hidden');});
+document.getElementById('prevPage').onclick=()=>{if(page>1){page--;render();}};document.getElementById('nextPage').onclick=()=>{const totalPages=Math.ceil(currentData().length/pageSize);if(page<totalPages){page++;render();}};document.getElementById('pageSize').onchange=e=>{pageSize=Number(e.target.value);page=1;render();};
+render();
+</script>
+</body></html>
