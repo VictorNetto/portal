@@ -3,6 +3,7 @@ import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import { ApiError } from '../api'
+import VulnListView from './VulnListView.vue'
 
 const auth = useAuthStore()
 const router = useRouter()
@@ -46,6 +47,8 @@ async function changePassword() {
       <h1>Operations Hub</h1>
       <p class="muted">You are signed in. This is the authenticated workspace shell.</p>
 
+      <VulnListView />
+
       <section v-if="auth.user" class="panel">
         <h2>Session</h2>
         <dl>
@@ -83,7 +86,7 @@ header {
 .spacer { flex: 1; }
 .who { color: #9fb0c3; font-size: .9rem; }
 .who em { color: #60a5fa; font-style: normal; }
-main { padding: 2rem; max-width: 720px; }
+main { padding: 2rem; max-width: 920px; margin: 0 auto; }
 h1 { margin: 0 0 .3rem; }
 .muted { color: #7d8ea3; margin-top: 0; }
 .panel {

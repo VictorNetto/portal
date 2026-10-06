@@ -2,10 +2,12 @@ import { createRouter, createWebHistory } from 'vue-router'
 import { useAuthStore } from './stores/auth'
 import LoginView from './views/LoginView.vue'
 import HubView from './views/HubView.vue'
+import VulnDetailView from './views/VulnDetailView.vue'
 
 const routes = [
   { path: '/login', name: 'login', component: LoginView, meta: { public: true } },
   { path: '/', name: 'hub', component: HubView },
+  { path: '/vulns/:id', name: 'vuln-detail', component: VulnDetailView },
 ]
 
 const router = createRouter({

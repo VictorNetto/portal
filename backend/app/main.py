@@ -6,7 +6,7 @@ from fastapi import FastAPI
 
 from app.config import settings
 from app.db import SessionLocal
-from app.routers import auth
+from app.routers import auth, vulnerabilities
 from app.seed import seed_first_admin
 
 
@@ -24,6 +24,7 @@ app = FastAPI(title=settings.app_name, lifespan=lifespan)
 # the backend root (proxy_pass http://api:8000/), so "/api/auth/login" arrives
 # here as "/auth/login". Keep routes prefix-free.
 app.include_router(auth.router)
+app.include_router(vulnerabilities.router)
 
 
 @app.get("/health")

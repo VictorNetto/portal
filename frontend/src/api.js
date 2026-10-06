@@ -33,3 +33,12 @@ export async function api(path, { method = 'GET', body, auth = true } = {}) {
   }
   return data
 }
+
+// --- Vulnerability endpoints ---
+export const listVulns = () => api('/vulnerabilities')
+export const getVuln = (id) => api(`/vulnerabilities/${id}`)
+export const createVuln = (body) => api('/vulnerabilities', { method: 'POST', body })
+export const updateVuln = (id, body) =>
+  api(`/vulnerabilities/${id}`, { method: 'PATCH', body })
+export const sendVuln = (id) => api(`/vulnerabilities/${id}/send`, { method: 'POST' })
+export const deleteVuln = (id) => api(`/vulnerabilities/${id}`, { method: 'DELETE' })
