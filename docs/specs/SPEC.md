@@ -6,6 +6,8 @@ A self-hosted web platform for red team operators to manage, document, and repor
 
 **Stack:** Python (FastAPI) · PostgreSQL · MinIO (local S3) · Vue (SPA) · Tailwind CSS · Docker · Azure Communication Services (email)
 
+> **Design decisions log:** see [DECISIONS.md](../DECISIONS.md) for resolved edge-case decisions (deletion, dispatch atomicity, locking overrides, concurrency, corrections) and their rationale. Sections below reflect those decisions.
+
 ---
 
 ## 0. Glossary
@@ -69,7 +71,9 @@ No separate draft tables. A single `vulnerabilities` table and a single `reports
 ```
 draft ──[save_draft]──────────► draft
 draft ──[send]────────────────► saved_local   (internal ID assigned)
-saved_local ──────────────────► dispatched    (routed via dispatcher service)
+saved_local ──[dispatch]──────► dispatching   (transient; render + send in progress — see D2)
+dispatching ──[delivery ok]───► dispatched    (routed via dispatcher service)
+dispatching ──[delivery fail]─► dispatching   (error recorded; operator retries)
 dispatched ───────────────────► acknowledged  (blue team assigns RVS ID)
 acknowledged ─────────────────► waiting_fix
 waiting_fix ──────────────────► pending_retest
@@ -81,10 +85,12 @@ pending_retest ───────────────► fixed
 
 ```
 draft ──[save_draft]──────────► draft
-draft ──[send]────────────────► dispatched    (end of report lifecycle)
+draft ──[send]────────────────► dispatching   (transient; locked from editing — see D2)
+dispatching ──[delivery ok]───► dispatched    (end of report lifecycle)
+dispatching ──[delivery fail]─► dispatching   (error recorded; operator retries)
 ```
 
-Once dispatched, a report is **immutable** except for its internal notes field.
+Once dispatched, a report is **immutable** except for its internal notes field. While `dispatching` the report is locked from editing; the status only advances to `dispatched` after the dispatcher confirms delivery.
 
 ### 2.3 Report Vulnerability
 
@@ -111,7 +117,12 @@ When the parent report is dispatched, all its linked vulns transition to `dispat
 - Holding the report lock grants write access to: the report itself, and all vulnerabilities with a FK to that report.
 - Lock auto-releases after **10 minutes of inactivity** (idle-release: no writes for 10 min → lock is considered free on the next acquire attempt; no background job needed).
 - **Standalone vulnerabilities** have no lock — freely editable by any authorized writer.
+- While a report is `dispatching` (transient dispatch state, see §9 / D2) it is locked from all editing until the dispatcher confirms delivery.
 - Once a report is `dispatched`, it is immutable; the lock is not used. The only post-dispatch editable field is `internal_notes` on the report — no coordination needed for that field alone.
+
+**Force-release (D4):** an `admin` may forcibly release a lock held by another operator before the 10-minute idle release fires (e.g. an operator left with a lock held). The UI shows the current holder and when the lock was acquired. Force-release is recorded in the audit log as a `lock_override` action. *(May be widened to `writer-all` post-MVP; single permission-check change.)*
+
+**Standalone vuln concurrency (D5):** standalone vulnerabilities carry no lock but use **optimistic concurrency** — writes include the last-read `version` integer and are rejected with `409 Conflict` if the stored version has advanced. See §15.8.
 
 ---
 
@@ -121,9 +132,12 @@ When the parent report is dispatched, all its linked vulns transition to `dispat
 
 | Status | Editable fields |
 |---|---|
-| `draft`, `saved_local` | All fields |
+| `draft`, `saved_local` | All fields. `identifier` may be blank here but is **required to dispatch** (D3) |
+| `dispatching` | None — locked while delivery is in progress (D2) |
 | `dispatched` | Internal notes · status · RVS ID — all other text fields read-only |
 | `acknowledged` and beyond | Internal notes · status only — RVS ID is read-only (setting the RVS ID **is** the acknowledgment action; once set it cannot change) |
+
+> **Admin correction (D6):** an `admin` may override these rules to reset a mistaken status transition or clear an incorrectly entered RVS ID. Every correction is written to the audit log.
 
 ### Reports
 
@@ -242,13 +256,22 @@ Internal notes are stripped from all exports.
 
 ## 9. Report Dispatch
 
-Triggered by the operator clicking **Send** on a `draft` report. The following happen atomically:
+Triggered by the operator clicking **Send** on a `draft` report. Dispatch runs in **two phases** so a delivery failure can never masquerade as a completed dispatch (D2).
 
-1. All linked vulns transition `draft → dispatched` in one batch.
-2. An **Excel file** is generated with all vulns as rows.
-3. The **dispatcher service** is called with: PDF report + Excel + all non-image file attachments from all vulns combined. The dispatcher currently sends an email via Azure Communication Services (plain message body + all files attached). This is not hardcoded — the dispatcher is a swappable module; future implementations may route to ServiceNow or other destinations without touching this flow.
-4. Report status set to `dispatched` — immutable from this point (except internal notes).
-5. Report vulns appear in the vulnerability list as independent records, each managing its own lifecycle forward.
+**Precondition:** every linked vuln must have a non-blank `identifier` (D3); the send is refused otherwise with the offending vulns flagged.
+
+**Phase 1 — DB transaction (atomic, Postgres only):**
+1. Report and all linked vulns transition `draft → dispatching` in one batch.
+2. `VULN-xxxx` internal IDs are assigned to the linked vulns.
+3. Commit. The report is now locked from editing (§3).
+
+**Phase 2 — render + dispatch (outside the DB transaction):**
+4. An **Excel file** is generated with all vulns as rows; the PDF operation report is rendered.
+5. The **dispatcher service** is called with: PDF report + Excel + all non-image file attachments from all vulns combined. The dispatcher currently sends an email via Azure Communication Services (plain message body + all files attached). This is not hardcoded — the dispatcher is a swappable module; future implementations may route to ServiceNow or other destinations without touching this flow.
+6. **On success:** report and vulns transition `dispatching → dispatched`, `dispatched_at` set. Report is immutable from this point (except internal notes).
+7. **On failure:** report and vulns **remain `dispatching`** with the error recorded; the operator retries the send. No partial/half-sent state is ever labelled `dispatched`.
+
+Once `dispatched`, report vulns appear in the vulnerability list as independent records, each managing its own lifecycle forward.
 
 ---
 
@@ -363,18 +386,18 @@ Read-only REST endpoints exposing `dispatched`+ vulns and reports to authorized 
 | Enum | Values |
 |---|---|
 | `user_role` | `admin` · `writer_all` · `reader_all` · `auditor` |
-| `vuln_status` | `draft` · `saved_local` · `dispatched` · `acknowledged` · `waiting_fix` · `pending_retest` · `fixed` |
-| `report_status` | `draft` · `dispatched` |
-| `audit_action` | `login` · `logout` · `create` · `read` · `update` · `delete` · `status_change` · `export` · `dispatch` · `api_key_create` · `api_key_revoke` · `permission_change` |
+| `vuln_status` | `draft` · `saved_local` · `dispatching` · `dispatched` · `acknowledged` · `waiting_fix` · `pending_retest` · `fixed` |
+| `report_status` | `draft` · `dispatching` · `dispatched` |
+| `audit_action` | `login` · `logout` · `create` · `read` · `update` · `delete` · `status_change` · `export` · `dispatch` · `api_key_create` · `api_key_revoke` · `permission_change` · `lock_override` · `correction` |
 
-All 7 `vuln_status` values are implemented in MVP. Transitions currently triggered manually by operators; designed so ServiceNow can drive them post-MVP without schema changes.
+All `vuln_status` values are implemented in MVP, including the transient `dispatching` state (D2). Transitions currently triggered manually by operators; designed so ServiceNow can drive them post-MVP without schema changes.
 
 ### 15.2 Sequences
 
 | Sequence | Format | Assigned when |
 |---|---|---|
 | `report_seq` | `OP-%04d` | First save of a report (draft → first write) |
-| `vuln_seq` | `VULN-%04d` | Standalone: `saved_local` transition. Report vuln: parent report dispatched |
+| `vuln_seq` | `VULN-%04d` | Standalone: `saved_local` transition. Report vuln: assigned in dispatch phase 1 (`draft → dispatching`), see §9 / D2 |
 
 ### 15.3 Table: `users`
 
@@ -414,7 +437,8 @@ All 7 `vuln_status` values are implemented in MVP. Transitions currently trigger
 | `client_name` | text | NULL | target organisation; rendered on cover |
 | `start_date` | date | NULL | |
 | `end_date` | date | NULL | |
-| `status` | report_status | NOT NULL default `draft` | |
+| `status` | report_status | NOT NULL default `draft` | includes transient `dispatching` (D2) |
+| `dispatch_error` | text | NULL | last dispatch-phase-2 failure message; set while stuck in `dispatching`, cleared on success (D2) |
 | `executive_summary_md` | text | NULL | pre-populated with default template on creation |
 | `introduction_md` | text | NULL | always custom |
 | `test_type` | text | NULL | free text (MVP); enum post-MVP |
@@ -464,10 +488,11 @@ UNIQUE on (`report_id`, `position`); reordering shifts positions in a single tra
 |---|---|---|---|
 | `id` | uuid | PK | |
 | `internal_id` | text | UNIQUE NULL | `VULN-0042`; assigned on `saved_local` (standalone) or parent report dispatch (report vuln) |
-| `report_id` | uuid | FK reports ON DELETE RESTRICT NULL | NULL = standalone; exclusive — one report only |
-| `status` | vuln_status | NOT NULL default `draft` | |
-| `rvs_id` | text | NULL | set at the `acknowledged` transition; read-only thereafter (app-enforced) |
-| `identifier` | text | NOT NULL | CVE-YYYY-NNNNN or free-text name |
+| `report_id` | uuid | FK reports ON DELETE CASCADE NULL | NULL = standalone; exclusive — one report only. Cascade only ever reaches *draft* report vulns (D1) |
+| `status` | vuln_status | NOT NULL default `draft` | includes transient `dispatching` (D2) |
+| `version` | int | NOT NULL default 1 | optimistic-concurrency counter for standalone edits; bumped on every write; stale write → `409` (D5) |
+| `rvs_id` | text | NULL | set at the `acknowledged` transition; read-only thereafter (app-enforced; admin correction excepted, D6) |
+| `identifier` | text | NULL | CVE-YYYY-NNNNN or free-text name. Nullable while draft/saved_local; **required to dispatch** (D3, app-enforced) |
 | `cwe` | text | NULL | e.g. `CWE-79` |
 | `description` | text | NULL | markdown |
 | `finding_detail` | text | NULL | markdown |
@@ -488,7 +513,7 @@ UNIQUE on (`report_id`, `position`); reordering shifts positions in a single tra
 | `updated_at` | timestamptz | NOT NULL | |
 | `deleted_at` | timestamptz | NULL | soft delete |
 
-**`report_id` constraint:** enforced at app layer — a vuln's `report_id` cannot change once the parent report is `dispatched`. `ON DELETE RESTRICT` prevents deleting a report that still has vulns.
+**`report_id` constraint:** enforced at app layer — a vuln's `report_id` cannot change once the parent report is `dispatched`. `ON DELETE CASCADE` means deleting a report removes its linked vulns; the app layer only ever permits deleting a **`draft`** report, so cascade never reaches dispatched/live vulns (D1).
 
 ### 15.9 Table: `vulnerability_operators`
 

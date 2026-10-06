@@ -12,6 +12,7 @@ docs/
     SPEC.md                     Backend/system spec (entity model, lifecycles, dispatcher, API)
     FRONTEND_SPEC.md            Frontend spec (routes, pages, visual system, API contract)
     vulnerability_hub_escopo_priorizacao.md   Scope & prioritization notes (PT-BR)
+  DECISIONS.md                  Resolved edge-case design decisions (D1–D6) + rationale
   archive/                      Superseded earlier spec versions (kept for history)
 
 prototypes/
