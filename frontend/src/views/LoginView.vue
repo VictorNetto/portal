@@ -29,19 +29,19 @@ async function submit() {
 <template>
   <div class="login-wrap">
     <form class="card" @submit.prevent="submit">
-      <h1>🛡️ Red Team Portal</h1>
-      <p class="sub">Sign in to continue</p>
+      <h1>⌁ Portal Red Team</h1>
+      <p class="sub">Entre para continuar</p>
 
-      <label>Username</label>
+      <label>Usuário</label>
       <input v-model="username" autocomplete="username" autofocus />
 
-      <label>Password</label>
+      <label>Senha</label>
       <input v-model="password" type="password" autocomplete="current-password" />
 
       <p v-if="error" class="error">{{ error }}</p>
 
       <button :disabled="busy || !username || !password">
-        {{ busy ? 'Signing in…' : 'Sign in' }}
+        {{ busy ? 'Entrando…' : 'Entrar' }}
       </button>
     </form>
   </div>
@@ -50,22 +50,22 @@ async function submit() {
 <style scoped>
 .login-wrap { min-height: 100vh; display: grid; place-items: center; }
 .card {
-  width: 320px; display: flex; flex-direction: column; gap: .4rem;
-  background: #0f1620; border: 1px solid #1f2933; border-radius: 12px;
-  padding: 2rem;
+  width: 330px; display: flex; flex-direction: column; gap: .4rem;
+  background: rgba(7, 19, 17, .9); border: 1px solid var(--line2); border-radius: var(--radius);
+  padding: 2.2rem; box-shadow: var(--shadow);
 }
-h1 { margin: 0; font-size: 1.3rem; }
-.sub { margin: 0 0 1rem; color: #7d8ea3; font-size: .9rem; }
-label { font-size: .75rem; color: #9fb0c3; margin-top: .5rem; }
+h1 { margin: 0; font-size: 1.3rem; font-family: var(--mono); color: #f0fff6; }
+.sub { margin: 0 0 1rem; color: var(--muted); font-size: .9rem; }
+label { font-size: .75rem; color: var(--muted); margin-top: .5rem; }
 input {
-  background: #0b0f14; border: 1px solid #1f2933; border-radius: 6px;
-  padding: .55rem .6rem; color: #e6edf3; font-size: .95rem;
+  background: #0b0f14; border: 1px solid var(--line); border-radius: 6px;
+  padding: .55rem .6rem; color: var(--text); font-size: .95rem; font-family: var(--mono);
 }
-input:focus { outline: none; border-color: #3b82f6; }
+input:focus { outline: none; border-color: var(--green); }
 button {
-  margin-top: 1rem; padding: .6rem; border: 0; border-radius: 6px;
-  background: #2563eb; color: white; font-weight: 600; cursor: pointer;
+  margin-top: 1rem; padding: .6rem; border: 1px solid #4df587; border-radius: 6px;
+  background: linear-gradient(180deg, #48df7d, #2fbf68); color: #03120a; font-weight: 600;
 }
 button:disabled { opacity: .5; cursor: not-allowed; }
-.error { color: #f87171; font-size: .85rem; margin: .3rem 0 0; }
+.error { color: var(--red); font-size: .85rem; margin: .3rem 0 0; }
 </style>
