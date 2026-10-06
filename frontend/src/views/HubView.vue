@@ -1,9 +1,11 @@
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { listVulns, deleteVuln, ApiError } from '../api'
 import { t } from '../i18n'
 import AppShell from '../components/AppShell.vue'
+import FilterPalette from '../components/FilterPalette.vue'
+import { parseQuery } from '../filterQuery'
 
 const router = useRouter()
 
@@ -38,6 +40,27 @@ function clearFilters() {
   page.value = 1
 }
 
+// Slash-command filter (press "/"). The query string drives an additional
+// predicate layered on top of the popover filters.
+const paletteOpen = ref(false)
+const query = ref('')
+const queryActive = computed(() => query.value.trim().length > 0)
+
+function applyQuery(q) { query.value = q; page.value = 1 }
+function clearQuery() { query.value = ''; page.value = 1 }
+
+function onKeydown(e) {
+  // Open on "/" unless the user is typing in a field.
+  const tag = e.target.tagName
+  const typing = tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || e.target.isContentEditable
+  if (e.key === '/' && !typing && !paletteOpen.value) {
+    e.preventDefault()
+    paletteOpen.value = true
+  }
+}
+onMounted(() => window.addEventListener('keydown', onKeydown))
+onUnmounted(() => window.removeEventListener('keydown', onKeydown))
+
 const filteredVulns = computed(() => {
   let rows = vulns.value
   const f = filters.value
@@ -49,6 +72,11 @@ const filteredVulns = computed(() => {
   if (f.minCvss !== '' && f.minCvss !== null) {
     const min = Number(f.minCvss)
     rows = rows.filter((v) => v.cvss_score !== null && Number(v.cvss_score) >= min)
+  }
+  // Slash query predicate (AND with the above).
+  if (queryActive.value) {
+    const { predicate } = parseQuery(query.value)
+    rows = rows.filter(predicate)
   }
   return rows
 })
@@ -141,6 +169,10 @@ onMounted(load)
         <span v-if="selected.size" class="selectionHint mono">
           {{ selected.size }} {{ t('hub.selected') }}
         </span>
+        <button class="btn" :class="{ on: queryActive }" @click="paletteOpen = true" title="Pressione /">
+          <span class="slashKey mono">/</span> {{ t('hub.query') }}
+          <span v-if="queryActive" class="fx" @click.stop="clearQuery" title="Limpar">×</span>
+        </button>
         <div class="filterWrap">
           <button class="btn" :class="{ on: activeFilterCount }" @click="showFilters = !showFilters">
             ⌯ {{ t('hub.filters') }}
@@ -263,6 +295,9 @@ onMounted(load)
         </div>
       </div>
     </aside>
+
+    <FilterPalette v-model="query" :open="paletteOpen"
+                   @apply="applyQuery" @close="paletteOpen = false" />
   </AppShell>
 </template>
 
@@ -280,6 +315,12 @@ onMounted(load)
 
 .filterWrap { position: relative; }
 .btn.on { border-color: var(--green); color: var(--green); }
+.slashKey {
+  border: 1px solid var(--line2); border-radius: 4px; padding: 0 6px;
+  font-size: .8rem; color: var(--green); line-height: 1.4;
+}
+.fx { margin-left: 4px; color: var(--muted); font-size: 1rem; cursor: pointer; }
+.fx:hover { color: var(--red); }
 .fcount {
   background: var(--green); color: #03120a; border-radius: 999px;
   font-size: 11px; font-weight: 700; padding: 0 6px; margin-left: 2px;

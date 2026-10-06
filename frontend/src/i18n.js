@@ -21,6 +21,7 @@ const messages = {
       tabVulns: 'Vulnerabilidades',
       tabReports: 'Relatórios',
       filters: 'Filtros',
+      query: 'Buscar',
       actions: 'Ações',
       createVuln: 'Criar Vulnerabilidade',
       createReport: 'Criar Relatório',
