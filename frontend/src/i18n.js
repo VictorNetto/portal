@@ -340,6 +340,7 @@ const messages = {
     rpt: {
       exportPdf: 'Exportar PDF',
       exportXlsx: 'Exportar Excel',
+      exportDocx: 'Exportar Word',
       retry: 'Tentar novamente',
       dispatchingBtn: 'Disparando…',
       confirmDispatch: 'Disparar este relatório para o blue team? Ele e suas vulnerabilidades ficarão imutáveis.',
@@ -712,6 +713,7 @@ const messages = {
     rpt: {
       exportPdf: 'Export PDF',
       exportXlsx: 'Export Excel',
+      exportDocx: 'Export Word',
       retry: 'Retry',
       dispatchingBtn: 'Dispatching…',
       confirmDispatch: 'Dispatch this report to the blue team? It and its vulnerabilities become immutable.',

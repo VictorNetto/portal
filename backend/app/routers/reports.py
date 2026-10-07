@@ -109,7 +109,7 @@ def dispatch_report(
 def export_report(
     report_id: uuid.UUID,
     request: Request,
-    format: str = Query("pdf", pattern="^(pdf|xlsx)$"),
+    format: str = Query("pdf", pattern="^(pdf|xlsx|docx)$"),
     user: User = Depends(get_current_user),
     session: Session = Depends(get_session),
 ):

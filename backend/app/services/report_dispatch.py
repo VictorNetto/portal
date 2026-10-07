@@ -34,6 +34,7 @@ from app.services.vulnerability import _next_vuln_internal_id
 from app.storage import get_storage
 
 DISPATCH_TARGET = "blue-team"
+DOCX_MIME = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
 
 
 def _blank(value: str | None) -> bool:
@@ -224,10 +225,19 @@ def export_report(
     session: Session, report_id: uuid.UUID, fmt: str, user: User, request: Request
 ) -> tuple[bytes, str, str]:
     """(bytes, media_type, filename). Internal notes are never included."""
-    if fmt not in ("pdf", "xlsx"):
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "format must be pdf or xlsx")
+    if fmt not in ("pdf", "xlsx", "docx"):
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "format must be pdf, xlsx or docx")
     report = report_svc.get_report(session, report_id)
     vulns = report_svc._vulns_of(session, report)
+    if fmt == "docx":
+        docx_bytes = render.report_docx(report, vulns, _image_loader(_owned_attachments(session, report, vulns)))
+        audit.record(
+            session, action=AuditAction.export, user_id=user.id,
+            entity_type="report", entity_id=report.id, detail={"format": fmt}, request=request,
+        )
+        session.commit()
+        return (docx_bytes, DOCX_MIME,
+                f"{report.internal_id}_{datetime.now().strftime('%Y%m%d')}.docx")
     pdf, xlsx, _files = build_package(session, report, vulns)
     audit.record(
         session, action=AuditAction.export, user_id=user.id,
@@ -324,13 +334,16 @@ def export_reports_batch(
 
 
 def export_vulnerability_pdf(
-    session: Session, vuln: Vulnerability, user: User, request: Request
+    session: Session, vuln: Vulnerability, user: User, request: Request, fmt: str = "pdf"
 ) -> tuple[bytes, str, str]:
     owned = list(session.scalars(select(Attachment).where(Attachment.vulnerability_id == vuln.id)))
-    pdf = render.vulnerability_pdf(vuln, _image_loader(owned))
+    if fmt == "docx":
+        data, media, ext = render.vulnerability_docx(vuln, _image_loader(owned)), DOCX_MIME, "docx"
+    else:
+        data, media, ext = render.vulnerability_pdf(vuln, _image_loader(owned)), "application/pdf", "pdf"
     audit.record(
         session, action=AuditAction.export, user_id=user.id,
-        entity_type="vulnerability", entity_id=vuln.id, detail={"format": "pdf"}, request=request,
+        entity_type="vulnerability", entity_id=vuln.id, detail={"format": ext}, request=request,
     )
     session.commit()
-    return pdf, "application/pdf", f"{vuln.internal_id or 'vulnerabilidade'}.pdf"
+    return data, media, f"{vuln.internal_id or 'vulnerabilidade'}.{ext}"

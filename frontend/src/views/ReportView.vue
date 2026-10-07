@@ -415,6 +415,7 @@ watch(() => route.fullPath, () => { if (!isNew.value && report.value?.id !== id.
           <button class="btn" @click="router.push('/hub')">{{ t('rpt.back') }}</button>
           <button class="btn" @click="exportAs('pdf')">{{ t('rpt.exportPdf') }}</button>
           <button class="btn" @click="exportAs('xlsx')">{{ t('rpt.exportXlsx') }}</button>
+          <button class="btn" @click="exportAs('docx')">{{ t('rpt.exportDocx') }}</button>
           <button v-if="canTakeLock" class="btn primary" @click="takeLock">{{ t('rpt.edit') }}</button>
           <button v-if="lockMine && status === 'draft'" class="btn" @click="giveUpLock">{{ t('rpt.stopEditing') }}</button>
           <button v-if="editing || notesOnly" class="btn" :class="{ primary: !canDispatch }" :disabled="saving" @click="save">

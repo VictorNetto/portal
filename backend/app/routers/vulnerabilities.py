@@ -152,12 +152,14 @@ def correct_vuln(
 def export_vulnerability(
     vuln_id: uuid.UUID,
     request: Request,
-    format: str = Query("pdf", pattern="^pdf$"),
+    format: str = Query("pdf", pattern="^(pdf|docx)$"),
     user: User = Depends(get_current_user),
     session: Session = Depends(get_session),
 ):
     vuln = svc.get_visible(session, vuln_id)
-    data, media_type, filename = report_dispatch.export_vulnerability_pdf(session, vuln, user, request)
+    data, media_type, filename = report_dispatch.export_vulnerability_pdf(
+        session, vuln, user, request, format
+    )
     return Response(
         content=data, media_type=media_type,
         headers={"Content-Disposition": f'attachment; filename="{filename}"',

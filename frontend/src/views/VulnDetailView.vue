@@ -281,9 +281,9 @@ async function applyCorrection() {
   } catch (e) { error.value = e instanceof ApiError ? e.detail : t('errors.update') }
 }
 
-async function exportPdf() {
+async function exportAs(format) {
   error.value = ''
-  try { await downloadAuthed(`/vulnerabilities/${id.value}/export?format=pdf`, 'vulnerabilidade.pdf') }
+  try { await downloadAuthed(`/vulnerabilities/${id.value}/export?format=${format}`, `vulnerabilidade.${format}`) }
   catch (e) { error.value = e instanceof ApiError ? e.detail : t('errors.load') }
 }
 
@@ -441,7 +441,8 @@ watch(() => route.fullPath, () => {
       </div>
       <div class="pageActions">
         <button v-if="!isNew" class="btn danger" @click="remove">{{ t('rowActions.delete') }}</button>
-        <button v-if="!isNew" class="btn" @click="exportPdf">{{ t('rpt.exportPdf') }}</button>
+        <button v-if="!isNew" class="btn" @click="exportAs('pdf')">{{ t('rpt.exportPdf') }}</button>
+        <button v-if="!isNew" class="btn" @click="exportAs('docx')">{{ t('rpt.exportDocx') }}</button>
         <button class="btn" @click="leave">{{ inReport ? t('rpt.back') : t('vform.cancel') }}</button>
         <button v-if="isAdmin && correctionTargets.length" class="btn" @click="openCorrection">
           {{ t('correction.button') }}

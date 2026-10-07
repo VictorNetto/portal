@@ -168,18 +168,21 @@ def _image_flowable(url: str, alt: str, load_image: ImageLoader, st: dict) -> An
     return KeepTogether(parts)
 
 
-def md_flowables(text: str | None, st: dict, load_image: ImageLoader) -> list[Any]:
+def parse_markdown(text: str | None) -> list[tuple]:
+    """Markdown -> blocks, shared by the PDF and Word outputs:
+    ("h", level, text) · ("p", text) · ("list", ordered, [items]) · ("quote", text)
+    · ("code", text) · ("img", alt, url). Inline markup stays inside the text."""
     if not (text or "").strip():
         return []
     src = text.replace("\r\n", "\n").replace("\r", "\n")
-    flow: list[Any] = []
+    blocks: list[tuple] = []
 
     # fenced code blocks are lifted out first
-    blocks: list[str] = []
+    fences: list[str] = []
 
     def fence(m: re.Match) -> str:
-        blocks.append(m.group(1).rstrip("\n"))
-        return f"\n\x01{len(blocks) - 1}\x01\n"
+        fences.append(m.group(1).rstrip("\n"))
+        return f"\n\x01{len(fences) - 1}\x01\n"
 
     src = re.sub(r"```[^\n]*\n?(.*?)```", fence, src, flags=re.S)
 
@@ -194,37 +197,27 @@ def md_flowables(text: str | None, st: dict, load_image: ImageLoader) -> list[An
             return
         joined = "\n".join(para)
         para = []
-        # split around images so each becomes its own flowable
-        pos = 0
+        pos = 0  # an image inside a paragraph becomes its own block
         for m in _IMG.finditer(joined):
             before = joined[pos:m.start()].strip()
             if before:
-                flow.append(Paragraph(_inline(before).replace("\n", "<br/>"), st["body"]))
-            img = _image_flowable(m.group(2), m.group(1), load_image, st)
-            if img is not None:
-                flow.append(img)
-                flow.append(Spacer(1, 4))
+                blocks.append(("p", before))
+            blocks.append(("img", m.group(1), m.group(2)))
             pos = m.end()
         rest = joined[pos:].strip()
         if rest:
-            flow.append(Paragraph(_inline(rest).replace("\n", "<br/>"), st["body"]))
+            blocks.append(("p", rest))
 
     def flush_list() -> None:
         nonlocal items
-        if not items:
-            return
-        for i, item in enumerate(items, start=1):
-            bullet = f"{i}." if ordered else "•"
-            flow.append(Paragraph(f"{bullet}&nbsp;&nbsp;{_inline(item)}",
-                                  ParagraphStyle("li", parent=st["body"], leftIndent=14, firstLineIndent=-10,
-                                                 spaceAfter=2)))
-        flow.append(Spacer(1, 4))
-        items = []
+        if items:
+            blocks.append(("list", ordered, items))
+            items = []
 
     def flush_quote() -> None:
         nonlocal quote
         if quote:
-            flow.append(Paragraph(_inline("\n".join(quote)).replace("\n", "<br/>"), st["quote"]))
+            blocks.append(("quote", "\n".join(quote)))
             quote = []
 
     def flush_all() -> None:
@@ -236,12 +229,11 @@ def md_flowables(text: str | None, st: dict, load_image: ImageLoader) -> list[An
             continue
         if (m := re.fullmatch(r"\x01(\d+)\x01", line)):
             flush_all()
-            code = _esc(blocks[int(m.group(1))]).replace("\n", "<br/>").replace(" ", "&nbsp;")
-            flow.append(Paragraph(code, st["code"]))
+            blocks.append(("code", fences[int(m.group(1))]))
             continue
         if (m := re.match(r"^(#{1,3}) (.*)$", line)):
             flush_all()
-            flow.append(Paragraph(_inline(m.group(2)), st[f"md{len(m.group(1))}"]))
+            blocks.append(("h", len(m.group(1)), m.group(2)))
             continue
         if (m := re.match(r"^> ?(.*)$", line)):
             flush_para(); flush_list()
@@ -264,6 +256,35 @@ def md_flowables(text: str | None, st: dict, load_image: ImageLoader) -> list[An
         flush_list(); flush_quote()
         para.append(line)
     flush_all()
+    return blocks
+
+
+def md_flowables(text: str | None, st: dict, load_image: ImageLoader) -> list[Any]:
+    flow: list[Any] = []
+    for block in parse_markdown(text):
+        kind = block[0]
+        if kind == "h":
+            flow.append(Paragraph(_inline(block[2]), st[f"md{block[1]}"]))
+        elif kind == "p":
+            flow.append(Paragraph(_inline(block[1]).replace("\n", "<br/>"), st["body"]))
+        elif kind == "img":
+            img = _image_flowable(block[2], block[1], load_image, st)
+            if img is not None:
+                flow.append(img)
+                flow.append(Spacer(1, 4))
+        elif kind == "list":
+            for i, item in enumerate(block[2], start=1):
+                bullet = f"{i}." if block[1] else "•"
+                flow.append(Paragraph(
+                    f"{bullet}&nbsp;&nbsp;{_inline(item)}",
+                    ParagraphStyle("li", parent=st["body"], leftIndent=14, firstLineIndent=-10, spaceAfter=2),
+                ))
+            flow.append(Spacer(1, 4))
+        elif kind == "quote":
+            flow.append(Paragraph(_inline(block[1]).replace("\n", "<br/>"), st["quote"]))
+        elif kind == "code":
+            code = _esc(block[1]).replace("\n", "<br/>").replace(" ", "&nbsp;")
+            flow.append(Paragraph(code, st["code"]))
     return flow
 
 
@@ -485,4 +506,235 @@ def vulnerabilities_xlsx(report, vulns: list) -> bytes:
 
     out = io.BytesIO()
     wb.save(out)
+    return out.getvalue()
+
+
+# =====================================================================================
+# Word (.docx) — same structure as the PDF, produced with python-docx
+# =====================================================================================
+_XML_BAD = re.compile("[\x00-\x08\x0b\x0c\x0e-\x1f￾￿]")
+_TOKEN = re.compile(r"(\*\*[^*]+\*\*|\*[^*]+\*|`[^`]+`|\[[^\]]+\]\([^)\s]+\))")
+
+
+def _xml(text: str | None) -> str:
+    """Word's XML rejects control characters; python-docx would raise on them."""
+    return _XML_BAD.sub("", text or "")
+
+
+def _docx_runs(par, text: str) -> None:
+    from docx.shared import Pt
+
+    for part in _TOKEN.split(_xml(text)):
+        if not part:
+            continue
+        if part.startswith("**") and part.endswith("**") and len(part) > 4:
+            par.add_run(part[2:-2]).bold = True
+        elif part.startswith("`") and part.endswith("`") and len(part) > 2:
+            run = par.add_run(part[1:-1])
+            run.font.name = "Courier New"
+            run.font.size = Pt(9)
+        elif part.startswith("*") and part.endswith("*") and len(part) > 2:
+            par.add_run(part[1:-1]).italic = True
+        elif part.startswith("["):
+            m = re.fullmatch(r"\[([^\]]+)\]\(([^)\s]+)\)", part)
+            if m and re.match(r"^(https?://|mailto:)", m.group(2), re.I):
+                par.add_run(f"{m.group(1)} ({m.group(2)})")
+            else:
+                par.add_run(part)  # not an allowed link: shown literally
+        else:
+            par.add_run(part)
+
+
+def _docx_picture(doc, url: str, alt: str, load_image: ImageLoader) -> None:
+    from docx.shared import Cm, Pt
+
+    m = _ATT_URL.match(url)
+    loaded = load_image(m.group(1)) if m else None
+    if not loaded:
+        if m:
+            doc.add_paragraph(f"[{_xml(alt) or 'imagem'} — indisponível]")
+        return
+    data, _mime = loaded
+    try:
+        from PIL import Image as PILImage
+
+        pil = PILImage.open(io.BytesIO(data))
+        pil.load()
+        if pil.format not in ("PNG", "JPEG"):
+            buf = io.BytesIO()
+            pil.convert("RGBA" if pil.mode in ("RGBA", "LA", "P") else "RGB").save(buf, "PNG")
+            data = buf.getvalue()
+        width_cm = min(16.0, pil.width * 0.0265)
+        doc.add_picture(io.BytesIO(data), width=Cm(max(width_cm, 1.0)))
+    except Exception:
+        doc.add_paragraph(f"[{_xml(alt) or 'imagem'} — formato não suportado]")
+        return
+    if alt.strip():
+        cap = doc.add_paragraph()
+        run = cap.add_run(_xml(alt))
+        run.italic = True
+        run.font.size = Pt(8.5)
+
+
+def _docx_markdown(doc, text: str | None, load_image: ImageLoader) -> None:
+    from docx.shared import Pt
+
+    for block in parse_markdown(text):
+        kind = block[0]
+        if kind == "h":
+            par = doc.add_paragraph()
+            run = par.add_run(_xml(block[2]))
+            run.bold = True
+            run.font.size = Pt({1: 12, 2: 11, 3: 10}[block[1]])
+        elif kind == "p":
+            _docx_runs(doc.add_paragraph(), block[1].replace("\n", "\v"))
+        elif kind == "img":
+            _docx_picture(doc, block[2], block[1], load_image)
+        elif kind == "list":
+            for item in block[2]:
+                _docx_runs(doc.add_paragraph(style="List Number" if block[1] else "List Bullet"), item)
+        elif kind == "quote":
+            par = doc.add_paragraph(style="Quote")
+            _docx_runs(par, block[1])
+        elif kind == "code":
+            par = doc.add_paragraph()
+            run = par.add_run(_xml(block[1]))
+            run.font.name = "Courier New"
+            run.font.size = Pt(8.5)
+
+
+def _docx_kv(doc, rows: list[tuple[str, str]]) -> None:
+    from docx.shared import Cm, Pt
+
+    table = doc.add_table(rows=0, cols=2)
+    table.style = "Light List"
+    for k, v in rows:
+        cells = table.add_row().cells
+        cells[0].width, cells[1].width = Cm(4), Cm(12.5)
+        cells[0].paragraphs[0].add_run(_xml(k)).bold = True
+        cells[1].paragraphs[0].add_run(_xml(v) or "—")
+        for c in cells:
+            for r in c.paragraphs[0].runs:
+                r.font.size = Pt(9.5)
+
+
+def _docx_field(par, instruction: str, placeholder: str = "") -> None:
+    """Insert a Word field (TOC, PAGE...). `placeholder` shows until it is updated."""
+    from docx.oxml import OxmlElement
+    from docx.oxml.ns import qn
+
+    def fld(kind: str):
+        r = par.add_run()
+        el = OxmlElement("w:fldChar")
+        el.set(qn("w:fldCharType"), kind)
+        r._r.append(el)
+
+    fld("begin")
+    r = par.add_run()
+    instr = OxmlElement("w:instrText")
+    instr.set(qn("xml:space"), "preserve")
+    instr.text = instruction
+    r._r.append(instr)
+    fld("separate")
+    par.add_run(placeholder)
+    fld("end")
+
+
+def _docx_vuln(doc, v, load_image: ImageLoader, *, level: int = 2) -> None:
+    doc.add_heading(_xml(v.identifier or v.internal_id or "Vulnerabilidade"), level=level)
+    cvss = _score(v.cvss_score) + (f"  ({v.cvss_vector})" if v.cvss_vector else "")
+    _docx_kv(doc, [
+        ("ID interno", v.internal_id or "—"), ("CWE", v.cwe or "—"), ("CVSS", cvss),
+        ("Fonte", v.source or "—"),
+        ("Operadores", ", ".join(sorted(o.username for o in v.operators)) or "—"),
+    ])
+    for heading, text in (("Descrição", v.description), ("Detalhes do achado", v.finding_detail),
+                          ("Mitigação / Solução", v.mitigation)):
+        if (text or "").strip():
+            doc.add_heading(heading, level=level + 1)
+            _docx_markdown(doc, text, load_image)
+    refs = [r for r in (v.references or []) if r]
+    if refs:
+        doc.add_heading("Referências", level=level + 1)
+        for r in refs:
+            doc.add_paragraph(_xml(r), style="List Bullet")
+
+
+def _docx_base(footer_text: str):
+    from docx import Document
+    from docx.shared import Pt
+
+    doc = Document()
+    doc.styles["Normal"].font.name = "Calibri"
+    doc.styles["Normal"].font.size = Pt(10)
+    par = doc.sections[0].footer.paragraphs[0]
+    par.add_run(_xml(footer_text) + "    —    Página ")
+    _docx_field(par, "PAGE", "1")
+    return doc
+
+
+def vulnerability_docx(v, load_image: ImageLoader) -> bytes:
+    doc = _docx_base(f"{v.internal_id or 'Vulnerabilidade'}")
+    _docx_vuln(doc, v, load_image, level=1)
+    out = io.BytesIO()
+    doc.save(out)
+    return out.getvalue()
+
+
+def report_docx(report, vulns: list, load_image: ImageLoader) -> bytes:
+    from docx.shared import Pt
+
+    doc = _docx_base(f"{report.internal_id or ''} — {report.name}")
+    extras = sorted(report.sections, key=lambda x: x.position)
+
+    # Cover
+    for _ in range(6):
+        doc.add_paragraph()
+    title = doc.add_paragraph()
+    run = title.add_run(_xml(report.name))
+    run.bold = True
+    run.font.size = Pt(28)
+    if report.client_name:
+        sub = doc.add_paragraph()
+        sub.add_run(_xml(report.client_name)).font.size = Pt(14)
+    doc.add_paragraph()
+    _docx_kv(doc, [
+        ("Relatório", report.internal_id or "—"),
+        ("Período", f"{_fmt_date(report.start_date)} – {_fmt_date(report.end_date)}"),
+        ("Operadores", ", ".join(sorted(o.username for o in report.operators)) or "—"),
+        ("Gerado em", datetime.now().strftime("%d/%m/%Y %H:%M")),
+    ])
+    doc.add_page_break()
+
+    # Table of contents: a real Word field. Until it is updated (right-click ->
+    # Update field) it lists the section titles.
+    doc.add_heading("Sumário", level=1)
+    titles = ["Sumário Executivo", "Introdução", "Dados do Relatório",
+              *[s.title for s in extras], "Vulnerabilidades",
+              *[(v.identifier or v.internal_id or "Vulnerabilidade") for v in vulns]]
+    _docx_field(doc.add_paragraph(), 'TOC \\o "1-2" \\h \\z \\u', "\n".join(_xml(t) for t in titles))
+    doc.add_page_break()
+
+    doc.add_heading("Sumário Executivo", level=1)
+    _docx_markdown(doc, report.executive_summary_md, load_image)
+    doc.add_heading("Introdução", level=1)
+    _docx_markdown(doc, report.introduction_md, load_image)
+    doc.add_heading("Dados do Relatório", level=1)
+    _docx_kv(doc, [
+        ("Tipo de teste", report.test_type or ""), ("Modelo de teste", report.test_model or ""),
+        ("Ambiente", report.environment or ""), ("Origem da demanda", report.demand_origin or ""),
+        ("Escopo", (report.scope or "").replace("\n", "  ")),
+    ])
+    for section in extras:
+        doc.add_heading(_xml(section.title), level=1)
+        _docx_markdown(doc, section.content_markdown, load_image)
+
+    doc.add_heading("Vulnerabilidades", level=1)
+    if not vulns:
+        doc.add_paragraph("Nenhuma vulnerabilidade registrada neste relatório.")
+    for v in vulns:
+        _docx_vuln(doc, v, load_image)
+
+    out = io.BytesIO()
+    doc.save(out)
     return out.getvalue()
