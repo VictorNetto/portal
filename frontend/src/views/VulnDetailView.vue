@@ -5,7 +5,7 @@ import {
   getVuln, createVuln, updateVuln, sendVuln, dispatchVuln, deleteVuln, listUsers,
   listAttachments, uploadAttachment, deleteAttachment, fetchAttachmentBlob,
   transitionVuln, correctVuln, getReport, createReportVuln, acquireReportLock,
-  heartbeatReport, releaseReportLock, ApiError,
+  heartbeatReport, releaseReportLock, downloadAuthed, ApiError,
 } from '../api'
 import { attachmentPath } from '../markdown'
 import { fmtTime } from '../dates'
@@ -281,6 +281,12 @@ async function applyCorrection() {
   } catch (e) { error.value = e instanceof ApiError ? e.detail : t('errors.update') }
 }
 
+async function exportPdf() {
+  error.value = ''
+  try { await downloadAuthed(`/vulnerabilities/${id.value}/export?format=pdf`, 'vulnerabilidade.pdf') }
+  catch (e) { error.value = e instanceof ApiError ? e.detail : t('errors.load') }
+}
+
 async function remove() {
   if (!confirm(t('vuln.confirmDelete'))) return
   try { await deleteVuln(id.value); router.push(inReport.value ? `/reports/${reportId.value}` : '/hub') }
@@ -435,6 +441,7 @@ watch(() => route.fullPath, () => {
       </div>
       <div class="pageActions">
         <button v-if="!isNew" class="btn danger" @click="remove">{{ t('rowActions.delete') }}</button>
+        <button v-if="!isNew" class="btn" @click="exportPdf">{{ t('rpt.exportPdf') }}</button>
         <button class="btn" @click="leave">{{ inReport ? t('rpt.back') : t('vform.cancel') }}</button>
         <button v-if="isAdmin && correctionTargets.length" class="btn" @click="openCorrection">
           {{ t('correction.button') }}

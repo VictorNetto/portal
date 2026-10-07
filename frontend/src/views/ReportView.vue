@@ -8,14 +8,18 @@ import { useRoute, useRouter, onBeforeRouteLeave } from 'vue-router'
 import {
   getReport, createReport, updateReport, deleteReport, listUsers,
   acquireReportLock, heartbeatReport, releaseReportLock, releaseReportLockOnExit, forceReleaseReport,
-  addReportSection, updateReportSection, deleteReportSection, reorderReportSections, ApiError,
+  addReportSection, updateReportSection, deleteReportSection, reorderReportSections,
+  dispatchReport, listReportAttachments, uploadReportAttachment, deleteAttachment,
+  fetchAttachmentBlob, downloadAuthed, ApiError,
 } from '../api'
+import { attachmentPath } from '../markdown'
 import { t } from '../i18n'
 import { vField } from '../directives'
 import { fmtDateTime, fmtTime, fmtDate, fmtPlainDate } from '../dates'
 import { useAuthStore } from '../stores/auth'
 import AppShell from '../components/AppShell.vue'
 import MarkdownEditor from '../components/MarkdownEditor.vue'
+import AttachmentsPanel from '../components/AttachmentsPanel.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -82,7 +86,7 @@ async function load() {
   try { allUsers.value = await listUsers() } catch { /* non-fatal */ }
   if (isNew.value) { loading.value = false; return }
   loading.value = true; error.value = ''
-  try { report.value = await getReport(id.value); sync() }
+  try { report.value = await getReport(id.value); sync(); await loadEvidence() }
   catch (e) { error.value = e instanceof ApiError ? e.detail : t('errors.load') }
   finally { loading.value = false }
 }
@@ -232,6 +236,96 @@ const onPageHide = () => { if (lockMine.value) releaseReportLockOnExit(id.value)
 onMounted(() => window.addEventListener('pagehide', onPageHide))
 onBeforeUnmount(() => { window.removeEventListener('pagehide', onPageHide); stopBeat() })
 
+// --- Dispatch & export --------------------------------------------------------
+const dispatching = ref(false)
+const canDispatch = computed(() => (editing.value && status.value === 'draft') || (status.value === 'dispatching' && isWriter.value))
+
+async function doDispatch() {
+  const retry = status.value === 'dispatching'
+  if (!retry && !confirm(t('rpt.confirmDispatch'))) return
+  error.value = ''; notice.value = ''
+  if (!retry && dirty.value) { await save(); if (error.value) return }
+  dispatching.value = true
+  try {
+    report.value = await dispatchReport(id.value)
+    sync()
+    notice.value = t('rpt.dispatchedOk')
+  } catch (e) {
+    error.value = e instanceof ApiError ? e.detail : t('errors.dispatch')
+    await reloadKeepingForm()  // shows the new state (e.g. stuck in dispatching)
+  } finally { dispatching.value = false }
+}
+
+async function exportAs(format) {
+  error.value = ''
+  try { await downloadAuthed(`/reports/${id.value}/export?format=${format}`, `${report.value.internal_id}.${format}`) }
+  catch (e) { error.value = e instanceof ApiError ? e.detail : t('errors.load') }
+}
+
+// --- Evidence bundle (§7): files and images usable in the narrative sections ----
+const evidence = ref([])
+const evUploading = ref(false)
+const evError = ref('')
+const ALLOWED_EXT = ['pdf', 'png', 'jpg', 'jpeg', 'gif', 'webp', 'txt', 'csv', 'zip']
+const MAX_BYTES = 50 * 1024 * 1024
+
+async function loadEvidence() {
+  try { evidence.value = await listReportAttachments(id.value) } catch { /* non-fatal */ }
+}
+function evErrorFor(e, name) {
+  if (!(e instanceof ApiError)) return t('attach.errGeneric', { name })
+  if (e.status === 413) return t('attach.errSize', { name })
+  if (e.status === 409) return t('rpt.lockLost')
+  if (e.status === 422) return t('attach.errEmpty', { name })
+  if (e.status === 415) {
+    return /does not match/i.test(e.detail || '') ? t('attach.errMismatch', { name }) : t('attach.errType', { name })
+  }
+  return t('attach.errGeneric', { name })
+}
+async function uploadEvidenceOne(file, displayName) {
+  const name = file.name || 'file'
+  const ext = name.includes('.') ? name.split('.').pop().toLowerCase() : ''
+  if (!ALLOWED_EXT.includes(ext)) { evError.value = t('attach.errType', { name }); return null }
+  if (file.size > MAX_BYTES) { evError.value = t('attach.errSize', { name }); return null }
+  try {
+    const att = await uploadReportAttachment(id.value, file, displayName)
+    evidence.value = [...evidence.value, att]
+    return att
+  } catch (e) { evError.value = evErrorFor(e, name); return null }
+}
+async function onEvidenceUpload(files) {
+  evError.value = ''; evUploading.value = true
+  try { for (const f of files) await uploadEvidenceOne(f, null) } finally { evUploading.value = false }
+}
+// Pasted / dropped / picked images in the narrative editors land in the evidence bundle.
+async function uploadEditorImage(file) {
+  evError.value = ''
+  const base = (file.name || 'imagem').replace(/\.[^.]+$/, '')
+  const name = prompt(t('md.imageName'), base)
+  if (name === null) return null
+  const att = await uploadEvidenceOne(file, name.trim() || base)
+  return att ? { id: att.id, name: att.display_name || base } : null
+}
+async function removeEvidence(a) {
+  if (!confirm(t('attach.confirmRemove', { name: a.display_name || a.original_filename }))) return
+  try {
+    await deleteAttachment(a.id)
+    evidence.value = evidence.value.filter((x) => x.id !== a.id)
+  } catch (e) { evError.value = e instanceof ApiError ? e.detail : t('errors.delete') }
+}
+async function downloadEvidence(a) {
+  try {
+    const url = URL.createObjectURL(await fetchAttachmentBlob(a.id))
+    const link = document.createElement('a')
+    link.href = url; link.download = a.original_filename; link.click()
+    setTimeout(() => URL.revokeObjectURL(url), 10000)
+  } catch { evError.value = t('errors.load') }
+}
+async function copyEvidenceMarkdown(a) {
+  const md = `![${a.display_name || a.original_filename}](${attachmentPath(a.id)})`
+  try { await navigator.clipboard.writeText(md) } catch { /* clipboard unavailable */ }
+}
+
 // --- Vulnerabilities in the report --------------------------------------------
 async function openVuln(v) {
   if (dirty.value && editing.value) await save()
@@ -319,10 +413,15 @@ watch(() => route.fullPath, () => { if (!isNew.value && report.value?.id !== id.
         <div class="pageActions" v-if="report">
           <button v-if="status === 'draft' && isWriter" class="btn danger" @click="remove">{{ t('rowActions.delete') }}</button>
           <button class="btn" @click="router.push('/hub')">{{ t('rpt.back') }}</button>
+          <button class="btn" @click="exportAs('pdf')">{{ t('rpt.exportPdf') }}</button>
+          <button class="btn" @click="exportAs('xlsx')">{{ t('rpt.exportXlsx') }}</button>
           <button v-if="canTakeLock" class="btn primary" @click="takeLock">{{ t('rpt.edit') }}</button>
           <button v-if="lockMine && status === 'draft'" class="btn" @click="giveUpLock">{{ t('rpt.stopEditing') }}</button>
-          <button v-if="editing || notesOnly" class="btn primary" :disabled="saving" @click="save">
+          <button v-if="editing || notesOnly" class="btn" :class="{ primary: !canDispatch }" :disabled="saving" @click="save">
             {{ saving ? t('vuln.saving') : t('vuln.save') }}
+          </button>
+          <button v-if="canDispatch" class="btn primary" :disabled="dispatching || saving" @click="doDispatch">
+            {{ dispatching ? t('rpt.dispatchingBtn') : (status === 'dispatching' ? t('rpt.retry') : t('actions.dispatch')) }}
           </button>
         </div>
       </div>
@@ -389,12 +488,14 @@ watch(() => route.fullPath, () => { if (!isNew.value && report.value?.id !== id.
 
         <section class="panel card">
           <h2 class="secTitle">{{ t('rpt.summary') }}</h2>
-          <MarkdownEditor v-model="form.executive_summary_md" :disabled="!editing" />
+          <MarkdownEditor v-model="form.executive_summary_md" :disabled="!editing"
+                          :image-uploader="editing ? uploadEditorImage : null" />
         </section>
 
         <section class="panel card">
           <h2 class="secTitle">{{ t('rpt.intro') }}</h2>
-          <MarkdownEditor v-model="form.introduction_md" :disabled="!editing" />
+          <MarkdownEditor v-model="form.introduction_md" :disabled="!editing"
+                          :image-uploader="editing ? uploadEditorImage : null" />
         </section>
 
         <!-- Free-form sections -->
@@ -411,7 +512,8 @@ watch(() => route.fullPath, () => { if (!isNew.value && report.value?.id !== id.
                 <button class="link danger" @click="removeSection(i)">{{ t('vform.removeRef') }}</button>
               </div>
             </div>
-            <MarkdownEditor v-model="s.content_markdown" :disabled="!editing" />
+            <MarkdownEditor v-model="s.content_markdown" :disabled="!editing"
+                            :image-uploader="editing ? uploadEditorImage : null" />
           </div>
           <button v-if="editing" class="link addRef" @click="addSection">{{ t('rpt.addSection') }}</button>
         </section>
@@ -437,6 +539,14 @@ watch(() => route.fullPath, () => { if (!isNew.value && report.value?.id !== id.
               </tr>
             </tbody>
           </table>
+        </section>
+
+        <section class="panel card">
+          <h2 class="secTitle">{{ t('rpt.evidence') }}</h2>
+          <p class="hint">{{ t('rpt.evidenceHint') }}</p>
+          <AttachmentsPanel :attachments="evidence" :disabled="!editing" :uploading="evUploading" :error="evError"
+                            @upload="onEvidenceUpload" @remove="removeEvidence"
+                            @download="downloadEvidence" @copy-markdown="copyEvidenceMarkdown" />
         </section>
 
         <section class="panel card">

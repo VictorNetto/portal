@@ -159,3 +159,29 @@ export function releaseReportLockOnExit(id) {
     method: 'DELETE', keepalive: true, headers: { Authorization: `Bearer ${accessToken}` },
   }).catch(() => {})
 }
+
+export const dispatchReport = (id) => api(`/reports/${id}/dispatch`, { method: 'POST' })
+export const listReportAttachments = (id) => api(`/reports/${id}/attachments`)
+export function uploadReportAttachment(id, file, displayName) {
+  const form = new FormData()
+  form.append('file', file)
+  if (displayName) form.append('display_name', displayName)
+  return api(`/reports/${id}/attachments`, { method: 'POST', body: form })
+}
+
+// Download a file from an authenticated endpoint (exports): the bearer token
+// can't ride on a plain <a href>, so fetch it as a Blob and save that.
+export async function downloadAuthed(path, fallbackName) {
+  const res = await authedFetch(`${BASE}${path}`)
+  if (!res.ok) {
+    const data = await res.json().catch(() => null)
+    throw new ApiError(res.status, data?.detail)
+  }
+  const match = /filename="?([^";]+)"?/.exec(res.headers.get('Content-Disposition') || '')
+  const url = URL.createObjectURL(await res.blob())
+  const link = document.createElement('a')
+  link.href = url
+  link.download = match ? match[1] : fallbackName
+  link.click()
+  setTimeout(() => URL.revokeObjectURL(url), 10000)
+}
