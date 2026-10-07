@@ -9,7 +9,15 @@ from app.db import get_session
 from app.deps import get_current_user, require_roles
 from app.models.enums import UserRole
 from app.models.user import User
-from app.schemas.vulnerability import RvsSet, VulnCreate, VulnListItem, VulnOut, VulnUpdate
+from app.schemas.vulnerability import (
+    CorrectionRequest,
+    RvsSet,
+    TransitionRequest,
+    VulnCreate,
+    VulnListItem,
+    VulnOut,
+    VulnUpdate,
+)
 from app.services import vulnerability as svc
 
 router = APIRouter(prefix="/vulnerabilities", tags=["vulnerabilities"])
@@ -19,6 +27,7 @@ rvs_router = APIRouter(prefix="/rvs-queue", tags=["rvs"])
 
 # Writers and admins may mutate; everyone authenticated may read.
 _writer = require_roles(UserRole.admin, UserRole.writer_all)
+_admin = require_roles(UserRole.admin)
 
 
 @rvs_router.get("", response_model=list[VulnOut])
@@ -96,6 +105,28 @@ def set_rvs(
     session: Session = Depends(get_session),
 ) -> VulnOut:
     return svc.set_rvs(session, vuln_id, body.rvs_id, user, request)
+
+
+@router.post("/{vuln_id}/transition", response_model=VulnOut)
+def transition_vuln(
+    vuln_id: uuid.UUID,
+    body: TransitionRequest,
+    request: Request,
+    user: User = Depends(_writer),
+    session: Session = Depends(get_session),
+) -> VulnOut:
+    return svc.transition(session, vuln_id, body.to, user, request)
+
+
+@router.post("/{vuln_id}/correction", response_model=VulnOut)
+def correct_vuln(
+    vuln_id: uuid.UUID,
+    body: CorrectionRequest,
+    request: Request,
+    user: User = Depends(_admin),
+    session: Session = Depends(get_session),
+) -> VulnOut:
+    return svc.correct(session, vuln_id, body.to, body.reason, user, request)
 
 
 @router.delete("/{vuln_id}", status_code=status.HTTP_204_NO_CONTENT)
