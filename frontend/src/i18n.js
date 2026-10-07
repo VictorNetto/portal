@@ -124,19 +124,166 @@ const messages = {
       help: 'Ajuda',
       rowMenu: 'Ações',
     },
+    profile: {
+      menu: 'Perfil',
+      language: 'Idioma',
+      title: 'Meu perfil',
+      placeholder: 'Página de perfil em construção.',
+      username: 'Usuário',
+      role: 'Função',
+    },
     signOut: 'Sair',
     comingSoon: 'Em breve',
   },
+
+  // English. Any key missing here falls back to pt-BR (see t()).
+  en: {
+    brand: 'Red Team Portal',
+    nav: {
+      hub: 'Operations Hub',
+      createVuln: 'Create Vulnerability',
+      createReport: 'Create Report',
+      rvsQueue: 'RVS Queue',
+      audit: 'Audit Logs',
+      users: 'Users',
+      apiKeys: 'API Keys',
+      settings: 'Settings',
+    },
+    hub: {
+      title: 'Operations Hub',
+      subtitle: 'Manage vulnerabilities and reports of security operations.',
+      tabVulns: 'Vulnerabilities',
+      tabReports: 'Reports',
+      actions: 'Actions',
+      createVuln: 'Create Vulnerability',
+      createReport: 'Create Report',
+      selected: 'selected',
+      showing: 'Showing',
+      of: 'of',
+      empty: 'No records found.',
+    },
+    cols: {
+      identifier: 'Identifier',
+      status: 'Status',
+      cvss: 'CVSS',
+      operators: 'Operators',
+      source: 'Source',
+      createdAt: 'Created',
+      updatedAt: 'Updated',
+      actions: 'Actions',
+      name: 'Name',
+      client: 'Client',
+    },
+    rowActions: { view: 'View', detail: 'Details', edit: 'Edit', send: 'Send', delete: 'Delete' },
+    users: {
+      title: 'Users',
+      subtitle: 'Manage operator accounts and permissions.',
+      newUser: 'New user',
+      username: 'Username',
+      password: 'Password',
+      role: 'Role',
+      status: 'Status',
+      active: 'Active',
+      inactive: 'Inactive',
+      activate: 'Activate',
+      deactivate: 'Deactivate',
+      resetPassword: 'Reset password',
+      create: 'Create',
+      cancel: 'Cancel',
+      save: 'Save',
+      mustChange: 'must change password',
+    },
+    roles: { admin: 'Administrator', writer_all: 'Editor', reader_all: 'Reader', auditor: 'Auditor' },
+    audit: {
+      title: 'Audit Logs',
+      subtitle: 'Record of every action in the portal.',
+      when: 'When',
+      actor: 'Actor',
+      action: 'Action',
+      entity: 'Entity',
+      ip: 'IP',
+      detail: 'Detail',
+      allActions: 'All actions',
+      empty: 'No records.',
+    },
+    rvs: {
+      title: 'RVS Queue',
+      subtitle: 'Dispatched vulnerabilities waiting for an RVS id.',
+      rvsId: 'RVS id',
+      enter: 'Register',
+      placeholder: 'e.g. RVS-2026-001',
+      empty: 'No vulnerabilities waiting for an RVS id.',
+      dispatchedAt: 'Dispatched at',
+    },
+    actions: { dispatch: 'Dispatch' },
+    apiKeys: {
+      title: 'API Keys',
+      subtitle: 'Keys for machine-to-machine integrations (scanners, pipelines).',
+      newKey: 'New key',
+      label: 'Label',
+      role: 'Role',
+      prefix: 'Prefix',
+      created: 'Created',
+      status: 'Status',
+      active: 'Active',
+      revoked: 'Revoked',
+      revoke: 'Revoke',
+      create: 'Create',
+      cancel: 'Cancel',
+      empty: 'No API keys.',
+      copyWarn: 'Copy the key now — it will not be shown again.',
+      copy: 'Copy',
+      copied: 'Copied!',
+      done: 'Done',
+    },
+    common: { prev: 'Previous', next: 'Next', close: 'Close', clear: 'Clear', help: 'Help', rowMenu: 'Actions' },
+    profile: {
+      menu: 'Profile',
+      language: 'Language',
+      title: 'My profile',
+      placeholder: 'Profile page under construction.',
+      username: 'Username',
+      role: 'Role',
+    },
+    signOut: 'Sign out',
+    comingSoon: 'Coming soon',
+  },
 }
 
-export const locale = ref('pt-BR')
+export const LOCALES = [
+  { code: 'pt-BR', label: 'Português (BR)', short: 'PT-BR' },
+  { code: 'en', label: 'English', short: 'EN' },
+]
 
-export function t(path) {
-  const parts = path.split('.')
-  let node = messages[locale.value]
+function initialLocale() {
+  try {
+    const saved = localStorage.getItem('locale')
+    if (saved && messages[saved]) return saved
+  } catch { /* storage unavailable */ }
+  return 'pt-BR'
+}
+
+export const locale = ref(initialLocale())
+document.documentElement.lang = locale.value
+
+export function setLocale(code) {
+  if (!messages[code]) return
+  locale.value = code
+  document.documentElement.lang = code
+  try { localStorage.setItem('locale', code) } catch { /* ignore */ }
+}
+
+function lookup(lang, parts) {
+  let node = messages[lang]
   for (const p of parts) {
     node = node?.[p]
-    if (node === undefined) return path
+    if (node === undefined) return undefined
   }
   return node
+}
+
+// Falls back to pt-BR (the source language) before giving up and echoing the key.
+export function t(path) {
+  const parts = path.split('.')
+  return lookup(locale.value, parts) ?? lookup('pt-BR', parts) ?? path
 }

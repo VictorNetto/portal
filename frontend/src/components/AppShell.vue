@@ -1,8 +1,8 @@
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
-import { t } from '../i18n'
+import { t, locale, setLocale, LOCALES } from '../i18n'
 
 const router = useRouter()
 const route = useRoute()
@@ -45,7 +45,21 @@ function go(item) {
   expanded.value = false
 }
 
+// Profile menu: language, profile page, sign out. Closes on any outside click.
+const profileOpen = ref(false)
+function onDocClick(e) {
+  if (profileOpen.value && !e.target.closest('.profileWrap')) profileOpen.value = false
+}
+onMounted(() => document.addEventListener('click', onDocClick))
+onUnmounted(() => document.removeEventListener('click', onDocClick))
+
+function goProfile() {
+  profileOpen.value = false
+  router.push('/profile')
+}
+
 function signOut() {
+  profileOpen.value = false
   auth.logout()
   router.push('/login')
 }
@@ -74,10 +88,21 @@ function signOut() {
 
   <header class="header">
     <span class="brand">{{ t('brand') }}</span>
-    <div class="headRight">
-      <span class="lang">PT-BR</span>
-      <span class="user">{{ auth.user?.username }}</span>
-      <button class="signout" @click="signOut">{{ t('signOut') }}</button>
+    <div class="headRight profileWrap">
+      <button class="profileBtn" :class="{ open: profileOpen }" @click="profileOpen = !profileOpen">
+        {{ auth.user?.username }}
+      </button>
+      <div v-if="profileOpen" class="profileMenu">
+        <div class="menuLabel">{{ t('profile.language') }}</div>
+        <button v-for="l in LOCALES" :key="l.code" class="menuItem"
+                :class="{ current: locale === l.code }" @click="setLocale(l.code); profileOpen = false">
+          {{ l.label }}
+        </button>
+        <div class="sep"></div>
+        <button class="menuItem" @click="goProfile">{{ t('profile.menu') }}</button>
+        <div class="sep"></div>
+        <button class="menuItem" @click="signOut">{{ t('signOut') }}</button>
+      </div>
     </div>
   </header>
 
@@ -125,11 +150,25 @@ function signOut() {
   background: var(--panel); border-bottom: 1px solid var(--line);
 }
 .brand { font-size: 15px; font-weight: 400; color: var(--text); letter-spacing: .01em; }
-.headRight { margin-left: auto; display: flex; align-items: center; gap: 20px; font-size: 13px; }
-.lang { color: var(--muted); }
-.user { color: var(--text-2); font-family: var(--mono); font-size: 12px; }
-.signout { border: 0; background: transparent; padding: 0; color: var(--muted); font-size: 13px; }
-.signout:hover { color: var(--text); }
+.headRight { margin-left: auto; position: relative; font-size: 13px; }
+.profileBtn {
+  height: 32px; padding: 0 12px; border: 1px solid var(--line-2); border-radius: var(--radius);
+  background: var(--panel); color: var(--text-2); font-family: var(--mono); font-size: 12px; font-weight: 400;
+}
+.profileBtn:hover, .profileBtn.open { background: var(--hover); }
+.profileMenu {
+  position: absolute; right: 0; top: 38px; min-width: 190px; padding: 4px; z-index: 60;
+  display: flex; flex-direction: column;
+  background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow-pop);
+}
+.menuLabel { padding: 6px 10px 4px; font-size: 11px; color: var(--dim); }
+.menuItem {
+  height: 30px; border: 0; background: transparent; text-align: left; padding: 0 10px;
+  border-radius: var(--radius-sm); font-size: 13px; color: var(--text-2);
+}
+.menuItem:hover { background: var(--hover); }
+.menuItem.current { color: var(--accent); }
+.sep { height: 1px; background: var(--line); margin: 4px 0; }
 
 .main {
   position: fixed; top: var(--header); left: var(--sidebar); right: 0; bottom: 0;
