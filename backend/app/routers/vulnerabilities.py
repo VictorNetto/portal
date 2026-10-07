@@ -2,7 +2,7 @@
 
 import uuid
 
-from fastapi import APIRouter, Depends, Request, status
+from fastapi import APIRouter, Depends, Query, Request, Response, status
 from sqlalchemy.orm import Session
 
 from app.db import get_session
@@ -18,6 +18,7 @@ from app.schemas.vulnerability import (
     VulnOut,
     VulnUpdate,
 )
+from app.services import report_dispatch
 from app.services import vulnerability as svc
 
 router = APIRouter(prefix="/vulnerabilities", tags=["vulnerabilities"])
@@ -127,6 +128,23 @@ def correct_vuln(
     session: Session = Depends(get_session),
 ) -> VulnOut:
     return svc.correct(session, vuln_id, body.to, body.reason, user, request)
+
+
+@router.get("/{vuln_id}/export")
+def export_vulnerability(
+    vuln_id: uuid.UUID,
+    request: Request,
+    format: str = Query("pdf", pattern="^pdf$"),
+    user: User = Depends(get_current_user),
+    session: Session = Depends(get_session),
+):
+    vuln = svc.get_visible(session, vuln_id)
+    data, media_type, filename = report_dispatch.export_vulnerability_pdf(session, vuln, user, request)
+    return Response(
+        content=data, media_type=media_type,
+        headers={"Content-Disposition": f'attachment; filename="{filename}"',
+                 "X-Content-Type-Options": "nosniff"},
+    )
 
 
 @router.delete("/{vuln_id}", status_code=status.HTTP_204_NO_CONTENT)

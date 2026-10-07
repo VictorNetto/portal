@@ -2,7 +2,7 @@
 
 import uuid
 
-from fastapi import APIRouter, Depends, Request, status
+from fastapi import APIRouter, Depends, Query, Request, Response, status
 from sqlalchemy.orm import Session
 
 from app.db import get_session
@@ -20,6 +20,7 @@ from app.schemas.report import (
 )
 from app.schemas.vulnerability import VulnCreate, VulnOut
 from app.services import report as svc
+from app.services import report_dispatch
 
 router = APIRouter(prefix="/reports", tags=["reports"])
 
@@ -73,6 +74,37 @@ def delete_report(
     session: Session = Depends(get_session),
 ) -> None:
     svc.delete(session, report_id, user, request)
+
+
+# --- dispatch & export ---
+
+@router.post("/{report_id}/dispatch", response_model=ReportOut)
+def dispatch_report(
+    report_id: uuid.UUID,
+    request: Request,
+    user: User = Depends(_writer),
+    session: Session = Depends(get_session),
+):
+    """Two-phase dispatch (D2). Calling it again retries a failed delivery."""
+    return report_dispatch.dispatch(session, report_id, user, request)
+
+
+@router.get("/{report_id}/export")
+def export_report(
+    report_id: uuid.UUID,
+    request: Request,
+    format: str = Query("pdf", pattern="^(pdf|xlsx)$"),
+    user: User = Depends(get_current_user),
+    session: Session = Depends(get_session),
+):
+    data, media_type, filename = report_dispatch.export_report(
+        session, report_id, format, user, request
+    )
+    return Response(
+        content=data, media_type=media_type,
+        headers={"Content-Disposition": f'attachment; filename="{filename}"',
+                 "X-Content-Type-Options": "nosniff"},
+    )
 
 
 # --- lock ---

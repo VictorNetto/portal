@@ -31,9 +31,7 @@ from app.services import report_lock
 from app.services.vulnerability import _resolve_operators
 
 # Pre-filled on creation (SPEC §6/§7); the operator rewrites it.
-DEFAULT_EXECUTIVE_SUMMARY = """## Sumário Executivo
-
-### Objetivo
+DEFAULT_EXECUTIVE_SUMMARY = """### Objetivo
 Descreva o objetivo e o contexto do teste.
 
 ### Principais resultados

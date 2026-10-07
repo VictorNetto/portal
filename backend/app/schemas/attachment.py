@@ -9,6 +9,7 @@ from pydantic import BaseModel
 class AttachmentOut(BaseModel):
     id: uuid.UUID
     vulnerability_id: uuid.UUID | None
+    report_id: uuid.UUID | None = None
     original_filename: str
     display_name: str | None
     mime_type: str

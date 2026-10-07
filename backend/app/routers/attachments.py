@@ -50,6 +50,31 @@ def upload_attachment(
     return svc.add(session, vuln_id, file, display_name, user, request)
 
 
+@router.get("/reports/{report_id}/attachments", response_model=list[AttachmentOut])
+def list_report_attachments(
+    report_id: uuid.UUID,
+    _: User = Depends(get_current_user),
+    session: Session = Depends(get_session),
+) -> list:
+    return svc.list_for_report(session, report_id)
+
+
+@router.post(
+    "/reports/{report_id}/attachments",
+    response_model=AttachmentOut,
+    status_code=status.HTTP_201_CREATED,
+)
+def upload_report_attachment(
+    report_id: uuid.UUID,
+    request: Request,
+    file: UploadFile = File(...),
+    display_name: str | None = Form(default=None),
+    user: User = Depends(_writer),
+    session: Session = Depends(get_session),
+):
+    return svc.add_to_report(session, report_id, file, display_name, user, request)
+
+
 @router.get("/attachments/{attachment_id}/content")
 def attachment_content(
     attachment_id: uuid.UUID,

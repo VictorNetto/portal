@@ -17,7 +17,9 @@ from app import audit
 from app.models.attachment import Attachment
 from app.models.enums import AuditAction, VulnStatus
 from app.models.user import User
+from app.models.report import Report
 from app.models.vulnerability import Vulnerability
+from app.services import report_lock
 from app.services import vulnerability as vuln_svc
 from app.storage import get_storage
 
@@ -115,19 +117,39 @@ def get(session: Session, attachment_id: uuid.UUID) -> Attachment:
         owner = session.get(Vulnerability, att.vulnerability_id)
         if owner is None or owner.deleted_at is not None:
             raise HTTPException(status.HTTP_404_NOT_FOUND, "Attachment not found")
+    if att.report_id is not None:
+        rep = session.get(Report, att.report_id)
+        if rep is None or rep.deleted_at is not None:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "Attachment not found")
     return att
 
 
-def add(
-    session: Session,
-    vuln_id: uuid.UUID,
-    upload: UploadFile,
-    display_name: str | None,
-    user: User,
-    request: Request,
-) -> Attachment:
-    vuln = get_editable_vuln(session, vuln_id, user)
+def get_editable_report(session: Session, report_id: uuid.UUID, user: User) -> Report:
+    """The report's evidence bundle follows the report's own rule (§3, §7): only
+    while it is a draft and the caller holds the lock."""
+    report = session.get(Report, report_id)
+    if report is None or report.deleted_at is not None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Report not found")
+    report_lock.require_editable(report, user)
+    return report
 
+
+def list_for_report(session: Session, report_id: uuid.UUID) -> list[Attachment]:
+    report = session.get(Report, report_id)
+    if report is None or report.deleted_at is not None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Report not found")
+    return list(
+        session.scalars(
+            select(Attachment)
+            .where(Attachment.report_id == report_id)
+            .order_by(Attachment.created_at)
+        )
+    )
+
+
+def _validate_upload(upload: UploadFile) -> tuple[str, str, bool, int]:
+    """Type allowlist, size cap and magic-byte check. Returns
+    (filename, mime, is_image, size) and leaves the file positioned at 0."""
     filename = _safe_filename(upload.filename)
     ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
     if ext not in _TYPES:
@@ -153,14 +175,30 @@ def add(
             "File content does not match its extension",
         )
     fileobj.seek(0)
+    return filename, mime, is_image, size
 
-    key = f"vulnerabilities/{vuln.id}/{uuid.uuid4()}"
+
+def _store(
+    session: Session,
+    upload: UploadFile,
+    display_name: str | None,
+    user: User,
+    request: Request,
+    *,
+    vulnerability_id: uuid.UUID | None = None,
+    report_id: uuid.UUID | None = None,
+) -> Attachment:
+    filename, mime, is_image, size = _validate_upload(upload)
+
+    owner_path = f"vulnerabilities/{vulnerability_id}" if vulnerability_id else f"reports/{report_id}"
+    key = f"{owner_path}/{uuid.uuid4()}"
     storage = get_storage()
-    storage.put(key, fileobj, size, mime)
+    storage.put(key, upload.file, size, mime)
 
     name = (display_name or "").strip() or None
     att = Attachment(
-        vulnerability_id=vuln.id,
+        vulnerability_id=vulnerability_id,
+        report_id=report_id,
         s3_key=key,
         original_filename=filename,
         display_name=name[:200] if name else None,
@@ -172,11 +210,14 @@ def add(
     session.add(att)
     try:
         session.flush()
+        owner_detail = (
+            {"vulnerability_id": str(vulnerability_id)} if vulnerability_id
+            else {"report_id": str(report_id)}
+        )
         audit.record(
             session, action=AuditAction.create, user_id=user.id,
             entity_type="attachment", entity_id=att.id,
-            detail={"vulnerability_id": str(vuln.id), "filename": filename, "size": size},
-            request=request,
+            detail={**owner_detail, "filename": filename, "size": size}, request=request,
         )
         session.commit()
     except Exception:
@@ -187,18 +228,47 @@ def add(
     return att
 
 
+def add(
+    session: Session,
+    vuln_id: uuid.UUID,
+    upload: UploadFile,
+    display_name: str | None,
+    user: User,
+    request: Request,
+) -> Attachment:
+    vuln = get_editable_vuln(session, vuln_id, user)
+    return _store(session, upload, display_name, user, request, vulnerability_id=vuln.id)
+
+
+def add_to_report(
+    session: Session,
+    report_id: uuid.UUID,
+    upload: UploadFile,
+    display_name: str | None,
+    user: User,
+    request: Request,
+) -> Attachment:
+    report = get_editable_report(session, report_id, user)
+    return _store(session, upload, display_name, user, request, report_id=report.id)
+
+
 def remove(session: Session, attachment_id: uuid.UUID, user: User, request: Request) -> None:
     att = get(session, attachment_id)
-    if att.vulnerability_id is None:
+    if att.vulnerability_id is not None:
+        get_editable_vuln(session, att.vulnerability_id, user)
+        owner_detail = {"vulnerability_id": str(att.vulnerability_id)}
+    elif att.report_id is not None:
+        get_editable_report(session, att.report_id, user)
+        owner_detail = {"report_id": str(att.report_id)}
+    else:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Attachment not found")
-    get_editable_vuln(session, att.vulnerability_id, user)
 
-    key, filename, vuln_id = att.s3_key, att.original_filename, att.vulnerability_id
+    key, filename = att.s3_key, att.original_filename
     session.delete(att)
     audit.record(
         session, action=AuditAction.delete, user_id=user.id,
         entity_type="attachment", entity_id=attachment_id,
-        detail={"vulnerability_id": str(vuln_id), "filename": filename}, request=request,
+        detail={**owner_detail, "filename": filename}, request=request,
     )
     session.commit()
     # Delete the object only after the DB commit succeeded; a failure here just
