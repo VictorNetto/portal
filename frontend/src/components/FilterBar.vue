@@ -1,6 +1,6 @@
 <script setup>
 import { ref, computed, nextTick } from 'vue'
-import { parseQuery, FILTER_KEYS, STATUSES } from '../filterQuery'
+import { parseQuery, FILTER_KEYS } from '../filterQuery'
 
 const props = defineProps({ modelValue: String })
 const emit = defineEmits(['update:modelValue'])
@@ -14,102 +14,113 @@ const text = computed({
   set: (v) => emit('update:modelValue', v),
 })
 
-// Live token chips (for validity feedback under the bar).
 const tokens = computed(() => parseQuery(text.value).tokens)
+const hasText = computed(() => (text.value || '').length > 0)
 
-// The token fragment currently being typed (last whitespace-delimited chunk).
+// The fragment currently being typed (last whitespace-delimited chunk).
 const currentFragment = computed(() => {
   const m = (text.value || '').match(/(\S*)$/)
   return m ? m[1] : ''
 })
 
-// Context-aware suggestions: before a ":" suggest keys; after "key:" suggest
-// that key's values.
-const suggestions = computed(() => {
-  let frag = currentFragment.value
-  const neg = frag.startsWith('-')
-  if (neg) frag = frag.slice(1)
-
-  const colon = frag.indexOf(':')
-  if (colon === -1) {
-    // suggesting keys
-    const q = frag.toLowerCase()
-    return FILTER_KEYS
-      .filter((k) => k.key.startsWith(q))
-      .map((k) => ({ label: `${k.key}:`, desc: k.desc, insert: `${neg ? '-' : ''}${k.key}:`, keep: true }))
-  }
-  // suggesting values for the typed key
-  const key = frag.slice(0, colon).toLowerCase()
-  const partial = frag.slice(colon + 1).toLowerCase()
-  const def = FILTER_KEYS.find((k) => k.key === key || (key === 'identifier' && k.key === 'id'))
-  if (!def || !def.values.length) return []
-  return def.values
-    .filter((v) => v.toLowerCase().startsWith(partial))
-    .map((v) => ({ label: v, desc: '', insert: `${neg ? '-' : ''}${def.key}:${v}`, keep: false }))
+// Menu opens ONLY when the current fragment is "/" (keys) or "-/" (negated keys).
+const triggerState = computed(() => {
+  const f = currentFragment.value
+  if (f === '/') return { show: true, negate: false }
+  if (f === '-/') return { show: true, negate: true }
+  return { show: false, negate: false }
 })
 
-function openMenu() {
-  menuOpen.value = true
-  activeIdx.value = 0
+const suggestions = computed(() => {
+  if (!triggerState.value.show) return []
+  const neg = triggerState.value.negate ? '-' : ''
+  return FILTER_KEYS.map((k) => ({
+    label: `${k.key}:`,
+    desc: k.desc,
+    insert: `${neg}${k.key}:`,
+  }))
+})
+
+function maybeOpenMenu() {
+  if (triggerState.value.show) {
+    menuOpen.value = true
+    activeIdx.value = 0
+  } else {
+    menuOpen.value = false
+  }
 }
 
-function onKeydownGlobal(e) {
-  // handled by parent; kept for interface parity
-}
-
-function onInput() {
-  menuOpen.value = true
-  activeIdx.value = 0
-}
+function onInput() { maybeOpenMenu() }
 
 function applySuggestion(s) {
-  // Replace the current fragment with the suggestion's insert text.
+  // Replace the trailing "/" or "-/" fragment with the chosen "key:".
   const base = (text.value || '').replace(/(\S*)$/, '')
-  text.value = base + s.insert + (s.keep ? '' : ' ')
+  text.value = base + s.insert
   nextTick(() => {
     inputEl.value?.focus()
-    // keep menu open when we only completed a key (keep=true)
-    menuOpen.value = s.keep
+    menuOpen.value = false
     activeIdx.value = 0
   })
 }
 
 function onKeydown(e) {
-  if (!menuOpen.value && e.key === 'ArrowDown') { openMenu(); return }
   if (!menuOpen.value) return
   const list = suggestions.value
+  if (!list.length) return
   if (e.key === 'ArrowDown') { e.preventDefault(); activeIdx.value = (activeIdx.value + 1) % list.length }
   else if (e.key === 'ArrowUp') { e.preventDefault(); activeIdx.value = (activeIdx.value - 1 + list.length) % list.length }
-  else if (e.key === 'Enter') {
-    if (list.length) { e.preventDefault(); applySuggestion(list[activeIdx.value]) }
-    else menuOpen.value = false
-  }
+  else if (e.key === 'Enter' || e.key === 'Tab') { e.preventDefault(); applySuggestion(list[activeIdx.value]) }
   else if (e.key === 'Escape') { e.preventDefault(); menuOpen.value = false }
-  else if (e.key === 'Tab' && list.length) { e.preventDefault(); applySuggestion(list[activeIdx.value]) }
 }
 
-// Exposed so the parent can focus + open the menu when the user presses "/".
-function focusAndOpen() {
-  inputEl.value?.focus()
-  openMenu()
+function clearAll() {
+  text.value = ''
+  nextTick(() => inputEl.value?.focus())
 }
-defineExpose({ focusAndOpen })
+
+// Parent calls this when the user presses "/" outside the input: focus the bar
+// and inject "/" so the key menu appears.
+function focusAndTrigger() {
+  inputEl.value?.focus()
+  const cur = text.value || ''
+  const needsSpace = cur.length && !cur.endsWith(' ')
+  text.value = cur + (needsSpace ? ' /' : '/')
+  nextTick(maybeOpenMenu)
+}
+defineExpose({ focusAndTrigger })
+
+const HELP_LINES = [
+  'Digite / para ver as chaves de filtro.',
+  'status:draft — status exato',
+  'cvss:7 — CVSS maior ou igual a 7 (0–10, 1 casa decimal)',
+  'id:CVE — identificador contém',
+  'source:nuclei — fonte contém',
+  'texto — busca livre no identificador',
+  '-chave:valor — negação (exclui)',
+  'Vários termos são combinados com E (AND).',
+]
 </script>
 
 <template>
   <div class="filterbar">
-    <span class="slashKey mono">/</span>
     <input
       ref="inputEl"
       v-model="text"
-      class="mono"
-      placeholder="filtrar: status:draft cvss:7 -source:nuclei …"
+      class="mono field"
+      placeholder="Filtrar"
       @input="onInput"
       @keydown="onKeydown"
-      @focus="openMenu"
       @blur="() => setTimeout(() => (menuOpen = false), 120)"
     />
-    <button v-if="text" class="clear" @click="text = ''" title="Limpar">×</button>
+
+    <!-- trailing adornment: ? (help) when empty, × (clear) when there's text -->
+    <button v-if="hasText" class="adorn clear" @click="clearAll" title="Limpar filtro">×</button>
+    <span v-else class="adorn help" tabindex="0">?
+      <span class="tip">
+        <strong>Filtro</strong>
+        <span v-for="(line, i) in HELP_LINES" :key="i">{{ line }}</span>
+      </span>
+    </span>
 
     <!-- token validity chips -->
     <div v-if="tokens.length" class="chips">
@@ -118,36 +129,58 @@ defineExpose({ focusAndOpen })
             :title="tk.valid ? '' : 'inválido — ignorado'">{{ tk.raw }}</span>
     </div>
 
-    <!-- suggestion menu -->
+    <!-- key suggestion menu (only on "/" or "-/") -->
     <ul v-if="menuOpen && suggestions.length" class="menu">
       <li v-for="(s, i) in suggestions" :key="s.insert"
           :class="{ active: i === activeIdx }"
           @mousedown.prevent="applySuggestion(s)">
         <span class="mono">{{ s.label }}</span>
-        <em v-if="s.desc">{{ s.desc }}</em>
+        <em>{{ s.desc }}</em>
       </li>
     </ul>
   </div>
 </template>
 
 <style scoped>
-.filterbar { position: relative; display: flex; align-items: center; gap: 8px; min-width: 360px; }
-.slashKey { color: var(--green); border: 1px solid var(--line2); border-radius: 4px; padding: 0 6px; font-size: .8rem; }
-input {
+.filterbar { position: relative; display: flex; align-items: center; min-width: 320px; }
+.field {
   flex: 1; background: #0b0f14; border: 1px solid var(--line); border-radius: 6px;
-  padding: .5rem .6rem; color: var(--text); font-size: .9rem;
+  padding: .5rem 2rem .5rem .6rem; color: var(--text); font-size: .9rem;
 }
-input:focus { outline: none; border-color: var(--green); }
-.clear { border: 0; background: transparent; color: var(--muted); font-size: 1.1rem; cursor: pointer; }
-.clear:hover { color: var(--red); }
+.field:focus { outline: none; border-color: var(--green); }
 
-.chips { position: absolute; top: 44px; left: 34px; display: flex; gap: 6px; flex-wrap: wrap; pointer-events: none; }
+.adorn {
+  position: absolute; right: 8px; width: 20px; height: 20px; border-radius: 50%;
+  display: grid; place-items: center; font-size: .85rem; line-height: 1; border: 0;
+}
+.adorn.help {
+  color: var(--muted); border: 1px solid var(--line2); background: transparent; cursor: help;
+}
+.adorn.help:hover, .adorn.help:focus { color: var(--green); border-color: var(--green); outline: none; }
+.adorn.clear {
+  color: var(--muted); background: transparent; font-size: 1.1rem; cursor: pointer;
+}
+.adorn.clear:hover { color: var(--red); }
+
+/* Delayed tooltip for the ? help. */
+.tip {
+  position: absolute; top: 28px; right: 0; width: 300px; z-index: 70;
+  display: flex; flex-direction: column; gap: 4px;
+  background: #071211; border: 1px solid rgba(66, 230, 123, .4); border-radius: 8px;
+  box-shadow: var(--shadow); padding: 10px 12px; color: var(--text); font-size: .78rem;
+  opacity: 0; visibility: hidden; transition: opacity .12s ease; transition-delay: 0s;
+  text-align: left; font-family: var(--sans);
+}
+.tip strong { color: var(--green); font-size: .82rem; margin-bottom: 2px; }
+.adorn.help:hover .tip, .adorn.help:focus .tip { opacity: 1; visibility: visible; transition-delay: .5s; }
+
+.chips { position: absolute; top: 42px; left: 2px; display: flex; gap: 6px; flex-wrap: wrap; pointer-events: none; z-index: 5; }
 .chip { font-size: .72rem; border: 1px solid var(--line2); border-radius: 4px; padding: 1px 6px; background: rgba(66, 230, 123, .06); color: var(--text); }
 .chip.neg { border-color: var(--amber); color: var(--amber); background: rgba(245, 167, 66, .07); }
 .chip.bad { border-color: rgba(255, 107, 95, .6); color: var(--red); background: rgba(255, 107, 95, .07); text-decoration: line-through; }
 
 .menu {
-  position: absolute; top: 44px; left: 34px; right: 34px; z-index: 60; margin: 0; padding: 6px; list-style: none;
+  position: absolute; top: 42px; left: 0; right: 0; z-index: 60; margin: 0; padding: 6px; list-style: none;
   background: #071211; border: 1px solid rgba(66, 230, 123, .4); border-radius: 8px; box-shadow: var(--shadow);
   max-height: 260px; overflow: auto;
 }

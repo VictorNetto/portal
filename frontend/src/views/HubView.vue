@@ -32,9 +32,11 @@ watch(query, () => { page.value = 1 })
 function onKeydown(e) {
   const tag = e.target.tagName
   const typing = tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || e.target.isContentEditable
+  // Only hijack "/" when focus is outside an input; the filter bar handles its
+  // own "/" while focused.
   if (e.key === '/' && !typing) {
     e.preventDefault()
-    filterBar.value?.focusAndOpen()
+    filterBar.value?.focusAndTrigger()
   }
 }
 onMounted(() => window.addEventListener('keydown', onKeydown))
