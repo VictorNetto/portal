@@ -264,7 +264,6 @@ onMounted(load)
                   <div v-if="menuFor === v.id" class="rowMenuInline" :style="menuPos">
                     <button @click="openPreview(v); menuFor = null">{{ t('rowActions.view') }}</button>
                     <button @click="goDetail(v.id)">{{ t('rowActions.detail') }}</button>
-                    <button @click="goDetail(v.id)">{{ t('rowActions.edit') }}</button>
                     <button class="danger" @click="removeRow(v.id)">{{ t('rowActions.delete') }}</button>
                   </div>
                 </div>

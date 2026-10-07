@@ -46,7 +46,6 @@ const messages = {
     rowActions: {
       view: 'Visualizar',
       detail: 'Detalhar',
-      edit: 'Editar',
       send: 'Enviar',
       delete: 'Excluir',
     },
@@ -218,7 +217,6 @@ const messages = {
       records: 'registros',
     },
     md: {
-      edit: 'Editar',
       preview: 'Visualizar',
       bold: 'Negrito',
       italic: 'Itálico',
@@ -332,7 +330,7 @@ const messages = {
       name: 'Name',
       client: 'Client',
     },
-    rowActions: { view: 'View', detail: 'Details', edit: 'Edit', send: 'Send', delete: 'Delete' },
+    rowActions: { view: 'View', detail: 'Details', send: 'Send', delete: 'Delete' },
     users: {
       title: 'Users',
       subtitle: 'Manage operator accounts and permissions.',
