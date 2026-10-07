@@ -300,17 +300,17 @@ onMounted(load)
             <span class="detailsId mono" :title="preview.identifier || ''">
               {{ preview.identifier || preview.internal_id || t('vuln.draft') }}
             </span>
-            <span class="pill" :class="'s-' + preview.status">{{ t('status.' + preview.status) }}</span>
+          </div>
+          <div class="detailsActions">
             <span class="updated" :title="fullDate(preview.updated_at)">
               {{ t('cols.updatedAt') }} {{ fmtDateTime(preview.updated_at) }}
             </span>
-          </div>
-          <div class="detailsActions">
             <button class="btn" @click="goDetail(preview.id)">{{ t('rowActions.detail') }}</button>
             <button class="btn" @click="closePreview">{{ t('common.close') }}</button>
           </div>
         </div>
         <h2 class="metaLine">
+          <span class="m"><span class="pill" :class="'s-' + preview.status">{{ t('status.' + preview.status) }}</span></span>
           <span class="m"><span class="k">{{ t('cols.cvss') }}</span>
             <span v-if="preview.cvss_score != null" class="cvss" :class="sevClass(preview.cvss_score)">{{ preview.cvss_score }}</span>
             <span v-else>—</span></span>
@@ -388,11 +388,10 @@ tr.selected td, tr.preview td { background: var(--accent-soft); }
 .detailsTop { display: flex; align-items: center; gap: 16px; margin-bottom: 10px; }
 .headline { display: flex; align-items: center; gap: 14px; min-width: 0; flex: 1 1 auto; }
 .detailsId { font-size: 17px; color: var(--accent); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
-.headline .pill { flex: 0 0 auto; }
-.updated { flex: 0 0 auto; font-size: 12px; color: var(--dim); }
+.updated { flex: 0 0 auto; margin-right: 6px; font-size: 12px; color: var(--dim); }
 .detailsActions { margin-left: auto; display: flex; align-items: center; gap: 8px; }
 .metaLine, .opsLine { margin: 0 0 8px; font-size: 13px; font-weight: 300; color: var(--text-2); }
-.metaLine { display: flex; flex-wrap: wrap; gap: 2px 28px; }
+.metaLine { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 28px; }
 .metaLine .k { margin-right: 8px; font-size: 12px; color: var(--muted); }
 .metaLine .v { word-break: break-all; }
 .opsLine { display: flex; flex-wrap: wrap; gap: 6px; }
