@@ -15,7 +15,7 @@ const allNavItems = [
   { icon: '⌂', label: 'nav.hub', to: '/hub' },
   { icon: '＋', label: 'nav.createVuln', to: '/vulnerabilities/new' },
   { icon: '＋', label: 'nav.createReport', soon: true },
-  { icon: '▤', label: 'nav.rvsQueue', soon: true },
+  { icon: '▤', label: 'nav.rvsQueue', to: '/rvs-queue' },
   { icon: '☷', label: 'nav.audit', soon: true },
   { icon: '♙', label: 'nav.users', to: '/users', adminOnly: true },
   { icon: '⚿', label: 'nav.apiKeys', soon: true, adminOnly: true },

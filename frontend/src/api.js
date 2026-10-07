@@ -41,6 +41,10 @@ export const createVuln = (body) => api('/vulnerabilities', { method: 'POST', bo
 export const updateVuln = (id, body) =>
   api(`/vulnerabilities/${id}`, { method: 'PATCH', body })
 export const sendVuln = (id) => api(`/vulnerabilities/${id}/send`, { method: 'POST' })
+export const dispatchVuln = (id) => api(`/vulnerabilities/${id}/dispatch`, { method: 'POST' })
+export const setVulnRvs = (id, rvsId) =>
+  api(`/vulnerabilities/${id}/rvs`, { method: 'POST', body: { rvs_id: rvsId } })
+export const rvsQueue = () => api('/rvs-queue')
 export const deleteVuln = (id) => api(`/vulnerabilities/${id}`, { method: 'DELETE' })
 
 // --- User management ---

@@ -1,7 +1,7 @@
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { getVuln, createVuln, updateVuln, sendVuln, deleteVuln, listUsers, ApiError } from '../api'
+import { getVuln, createVuln, updateVuln, sendVuln, dispatchVuln, deleteVuln, listUsers, ApiError } from '../api'
 import { t } from '../i18n'
 import AppShell from '../components/AppShell.vue'
 
@@ -12,7 +12,11 @@ const isNew = computed(() => route.name === 'vuln-new')
 // This is always a vulnerability view -> green accent.
 document.documentElement.setAttribute('data-entity', 'vulns')
 onUnmounted(() => document.documentElement.removeAttribute('data-entity'))
-const id = route.params.id
+
+// `id` is reactive: creating a vuln then router.replace()ing to its detail
+// reuses this component, so we reload when the route changes rather than only
+// on mount.
+const id = computed(() => route.params.id)
 
 const vuln = ref(null)
 const form = ref({
@@ -60,7 +64,7 @@ async function load() {
   try { allUsers.value = await listUsers() } catch { /* non-fatal */ }
   if (isNew.value) return
   loading.value = true; error.value = ''
-  try { vuln.value = await getVuln(id); syncForm() }
+  try { vuln.value = await getVuln(id.value); syncForm() }
   catch (e) { error.value = e instanceof ApiError ? e.detail : 'Falha ao carregar' }
   finally { loading.value = false }
 }
@@ -89,7 +93,7 @@ async function save() {
     }
     const body = { version: vuln.value.version, ...bodyFromForm([...editableFields.value]) }
     if (canEdit('operators')) body.operator_ids = [...selectedOps.value]
-    vuln.value = await updateVuln(id, body); syncForm(); notice.value = 'Salvo.'
+    vuln.value = await updateVuln(id.value, body); syncForm(); notice.value = 'Salvo.'
   } catch (e) {
     if (e instanceof ApiError && e.status === 409) { error.value = e.detail; await load() }
     else error.value = e instanceof ApiError ? e.detail : 'Falha ao salvar'
@@ -98,17 +102,27 @@ async function save() {
 
 async function doSend() {
   error.value = ''; notice.value = ''
-  try { vuln.value = await sendVuln(id); syncForm(); notice.value = 'Enviado — ID interno atribuído.' }
+  try { vuln.value = await sendVuln(id.value); syncForm(); notice.value = 'Enviado — ID interno atribuído.' }
   catch (e) { error.value = e instanceof ApiError ? e.detail : 'Falha ao enviar' }
+}
+
+const isSavedLocal = computed(() => vuln.value?.status === 'saved_local')
+async function doDispatch() {
+  if (!confirm('Disparar esta vulnerabilidade para o blue team?')) return
+  error.value = ''; notice.value = ''
+  try { vuln.value = await dispatchVuln(id.value); syncForm(); notice.value = 'Disparada.' }
+  catch (e) { error.value = e instanceof ApiError ? e.detail : 'Falha ao disparar' }
 }
 
 async function remove() {
   if (!confirm('Excluir esta vulnerabilidade?')) return
-  try { await deleteVuln(id); router.push('/hub') }
+  try { await deleteVuln(id.value); router.push('/hub') }
   catch (e) { error.value = e instanceof ApiError ? e.detail : 'Falha ao excluir' }
 }
 
 onMounted(load)
+// Reload when navigating between new -> created detail (same component reused).
+watch(() => route.fullPath, () => load())
 </script>
 
 <template>
@@ -124,6 +138,7 @@ onMounted(load)
       </div>
       <div class="pageActions">
         <button v-if="!isNew && isDraft" class="btn primary" @click="doSend">↗ {{ t('rowActions.send') }}</button>
+        <button v-if="isSavedLocal" class="btn primary" @click="doDispatch">⇈ {{ t('actions.dispatch') }}</button>
         <button v-if="!isNew" class="btn danger" @click="remove">⌫ {{ t('rowActions.delete') }}</button>
         <button class="btn" @click="router.push('/hub')">‹ {{ t('nav.hub') }}</button>
       </div>

@@ -9,13 +9,24 @@ from app.db import get_session
 from app.deps import get_current_user, require_roles
 from app.models.enums import UserRole
 from app.models.user import User
-from app.schemas.vulnerability import VulnCreate, VulnListItem, VulnOut, VulnUpdate
+from app.schemas.vulnerability import RvsSet, VulnCreate, VulnListItem, VulnOut, VulnUpdate
 from app.services import vulnerability as svc
 
 router = APIRouter(prefix="/vulnerabilities", tags=["vulnerabilities"])
 
+# A separate router for the RVS queue (its own top-level path).
+rvs_router = APIRouter(prefix="/rvs-queue", tags=["rvs"])
+
 # Writers and admins may mutate; everyone authenticated may read.
 _writer = require_roles(UserRole.admin, UserRole.writer_all)
+
+
+@rvs_router.get("", response_model=list[VulnOut])
+def rvs_queue(
+    _: User = Depends(get_current_user),
+    session: Session = Depends(get_session),
+) -> list:
+    return svc.rvs_queue(session)
 
 
 @router.get("", response_model=list[VulnListItem])
@@ -64,6 +75,27 @@ def send_vuln(
     session: Session = Depends(get_session),
 ) -> VulnOut:
     return svc.send(session, vuln_id, user, request)
+
+
+@router.post("/{vuln_id}/dispatch", response_model=VulnOut)
+def dispatch_vuln(
+    vuln_id: uuid.UUID,
+    request: Request,
+    user: User = Depends(_writer),
+    session: Session = Depends(get_session),
+) -> VulnOut:
+    return svc.dispatch_vuln(session, vuln_id, user, request)
+
+
+@router.post("/{vuln_id}/rvs", response_model=VulnOut)
+def set_rvs(
+    vuln_id: uuid.UUID,
+    body: RvsSet,
+    request: Request,
+    user: User = Depends(_writer),
+    session: Session = Depends(get_session),
+) -> VulnOut:
+    return svc.set_rvs(session, vuln_id, body.rvs_id, user, request)
 
 
 @router.delete("/{vuln_id}", status_code=status.HTTP_204_NO_CONTENT)

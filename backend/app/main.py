@@ -26,6 +26,7 @@ app = FastAPI(title=settings.app_name, lifespan=lifespan)
 app.include_router(auth.router)
 app.include_router(users.router)
 app.include_router(vulnerabilities.router)
+app.include_router(vulnerabilities.rvs_router)
 
 
 @app.get("/health")
