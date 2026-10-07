@@ -9,7 +9,7 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db import Base
 from app.models.enums import UserRole
-from app.models.mixins import Timestamps, UUIDPK
+from app.models.mixins import UUIDPK, Timestamps
 
 
 class User(UUIDPK, Timestamps, Base):

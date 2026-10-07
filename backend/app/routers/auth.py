@@ -66,7 +66,7 @@ def refresh(body: RefreshRequest, session: Session = Depends(get_session)) -> Ac
     except (jwt.PyJWTError, KeyError, ValueError):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid refresh token"
-        )
+        ) from None
 
     user = session.get(User, user_id)
     if user is None or not user.is_active:

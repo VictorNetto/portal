@@ -16,8 +16,8 @@ from sqlalchemy.orm import Session
 from app import audit
 from app.models.attachment import Attachment
 from app.models.enums import AuditAction, VulnStatus
-from app.models.user import User
 from app.models.report import Report
+from app.models.user import User
 from app.models.vulnerability import Vulnerability
 from app.services import report_lock
 from app.services import vulnerability as vuln_svc

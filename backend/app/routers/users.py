@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 
 from app import audit, security
 from app.db import get_session
-from app.deps import get_current_user, require_roles
+from app.deps import require_roles
 from app.models.enums import AuditAction, UserRole
 from app.models.user import User
 from app.schemas.user import PasswordReset, UserCreate, UserOut, UserUpdate
@@ -54,7 +54,7 @@ def create_user(
         session.flush()
     except IntegrityError:
         session.rollback()
-        raise HTTPException(status.HTTP_409_CONFLICT, "Username already exists")
+        raise HTTPException(status.HTTP_409_CONFLICT, "Username already exists") from None
     audit.record(
         session, action=AuditAction.create, user_id=admin.id,
         entity_type="user", entity_id=user.id,

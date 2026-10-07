@@ -1,11 +1,10 @@
 """Reports: write lock, sections, vulnerabilities inside a report, deletion."""
 
-from datetime import timedelta
 
+from conftest import new_report, report_vuln
 from sqlalchemy import text
 
 from app.db import SessionLocal
-from conftest import new_report, report_vuln, tag
 
 
 def test_creating_a_report_gives_an_id_a_template_and_the_lock(writer):

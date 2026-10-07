@@ -2,7 +2,6 @@
 
 import httpx
 import pytest
-
 from conftest import BASE_URL, tag
 
 URL = f"{BASE_URL}/ingest/vulnerabilities"

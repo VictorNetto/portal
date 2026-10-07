@@ -1,6 +1,7 @@
 """Report dispatch (two phases, D2) and the dispatcher."""
 
 import pytest
+from conftest import new_report, png_bytes, report_vuln, tag, upload
 from sqlalchemy import select
 
 from app import dispatcher
@@ -13,7 +14,6 @@ from app.schemas.report import ReportCreate
 from app.schemas.vulnerability import VulnCreate
 from app.services import report as report_svc
 from app.services import report_dispatch
-from conftest import new_report, png_bytes, report_vuln, tag, upload
 
 
 def build_report(c, *, blank_identifier=False):

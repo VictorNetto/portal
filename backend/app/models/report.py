@@ -2,25 +2,27 @@
 
 import uuid
 from datetime import date, datetime
+from typing import TYPE_CHECKING
 
 from sqlalchemy import (
+    Column,
     Date,
     Enum,
     ForeignKey,
     Integer,
     Table,
-    Column,
     Text,
     UniqueConstraint,
-    func,
-    text,
 )
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db import Base
 from app.models.enums import ReportStatus
-from app.models.mixins import Timestamps, UUIDPK
+from app.models.mixins import UUIDPK, Timestamps
+
+if TYPE_CHECKING:
+    from app.models.user import User
 
 # §15.7 — many-to-many between reports and users (assigned operators).
 report_operators = Table(

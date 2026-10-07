@@ -1,7 +1,6 @@
 """Authentication, first-login password change, roles."""
 
 import httpx
-
 from conftest import BASE_URL, Client, login, make_user, tag
 
 

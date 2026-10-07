@@ -1,6 +1,6 @@
 """File uploads: validation, access rules, locking."""
 
-from conftest import new_report, new_vuln, png_bytes, report_vuln, saved_vuln, tag, upload
+from conftest import new_report, new_vuln, png_bytes, report_vuln, saved_vuln, upload
 
 
 def path(v):

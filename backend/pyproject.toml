@@ -30,3 +30,14 @@ dev = [
 [tool.ruff]
 line-length = 100
 target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP"]
+ignore = [
+    "B008",   # FastAPI's Depends(...) as a default argument is the intended idiom
+    "E501",   # line length is a formatter concern; long strings/SQL are fine
+    "UP042",  # keep (str, enum.Enum): the enums are stored in PostgreSQL enum types
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["E702", "E731"]   # terse one-liners are fine in tests

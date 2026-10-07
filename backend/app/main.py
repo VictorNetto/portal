@@ -9,7 +9,6 @@ from app.db import SessionLocal
 from app.routers import api_keys, attachments, audit, auth, ingest, reports, users, vulnerabilities
 from app.seed import seed_first_admin
 
-
 DEV_JWT_SECRET = "dev-only-insecure-change-me"
 
 

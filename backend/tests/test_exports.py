@@ -4,10 +4,9 @@ import io
 import zipfile
 
 import openpyxl
+from conftest import new_report, new_vuln, png_bytes, report_vuln, saved_vuln, upload
 from docx import Document
 from pypdf import PdfReader
-
-from conftest import new_report, new_vuln, png_bytes, report_vuln, saved_vuln, tag, upload
 
 SECRET = "SEGREDO-INTERNO"
 

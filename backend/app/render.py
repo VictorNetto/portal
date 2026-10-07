@@ -107,7 +107,7 @@ def _styles() -> dict[str, ParagraphStyle]:
 
 # --- markdown -> flowables ------------------------------------------------------
 _IMG = re.compile(r"!\[([^\]]*)\]\(([^)\s]+)\)")
-_ATT_URL = re.compile(r"^/api/attachments/([0-9a-f-]{36})/content$", re.I)
+_ATT_URL = re.compile(r"^/api/attachments/([0-9a-f-]{36})/content$", re.IGNORECASE)
 
 
 def _esc(text: str) -> str:
@@ -128,7 +128,7 @@ def _inline(text: str) -> str:
 
     def link(m: re.Match) -> str:
         url = m.group(2).replace("&amp;", "&")
-        if re.match(r"^(https?://|mailto:)", url, re.I):
+        if re.match(r"^(https?://|mailto:)", url, re.IGNORECASE):
             safe = url.replace('"', "%22").replace("&", "&amp;")
             return keep(f'<a href="{safe}" color="#4f46e5">{m.group(1)}</a>')
         return m.group(0)
@@ -184,7 +184,7 @@ def parse_markdown(text: str | None) -> list[tuple]:
         fences.append(m.group(1).rstrip("\n"))
         return f"\n\x01{len(fences) - 1}\x01\n"
 
-    src = re.sub(r"```[^\n]*\n?(.*?)```", fence, src, flags=re.S)
+    src = re.sub(r"```[^\n]*\n?(.*?)```", fence, src, flags=re.DOTALL)
 
     para: list[str] = []
     items: list[str] = []
@@ -221,7 +221,9 @@ def parse_markdown(text: str | None) -> list[tuple]:
             quote = []
 
     def flush_all() -> None:
-        flush_para(); flush_list(); flush_quote()
+        flush_para()
+        flush_list()
+        flush_quote()
 
     for line in src.split("\n"):
         if not line.strip():
@@ -236,24 +238,28 @@ def parse_markdown(text: str | None) -> list[tuple]:
             blocks.append(("h", len(m.group(1)), m.group(2)))
             continue
         if (m := re.match(r"^> ?(.*)$", line)):
-            flush_para(); flush_list()
+            flush_para()
+            flush_list()
             quote.append(m.group(1))
             continue
         if (m := re.match(r"^[-*] (.*)$", line)):
-            flush_para(); flush_quote()
+            flush_para()
+            flush_quote()
             if items and ordered:
                 flush_list()
             ordered = False
             items.append(m.group(1))
             continue
         if (m := re.match(r"^\d+\. (.*)$", line)):
-            flush_para(); flush_quote()
+            flush_para()
+            flush_quote()
             if items and not ordered:
                 flush_list()
             ordered = True
             items.append(m.group(1))
             continue
-        flush_list(); flush_quote()
+        flush_list()
+        flush_quote()
         para.append(line)
     flush_all()
     return blocks
@@ -537,7 +543,7 @@ def _docx_runs(par, text: str) -> None:
             par.add_run(part[1:-1]).italic = True
         elif part.startswith("["):
             m = re.fullmatch(r"\[([^\]]+)\]\(([^)\s]+)\)", part)
-            if m and re.match(r"^(https?://|mailto:)", m.group(2), re.I):
+            if m and re.match(r"^(https?://|mailto:)", m.group(2), re.IGNORECASE):
                 par.add_run(f"{m.group(1)} ({m.group(2)})")
             else:
                 par.add_run(part)  # not an allowed link: shown literally

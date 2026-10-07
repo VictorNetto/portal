@@ -3,7 +3,6 @@
 from concurrent.futures import ThreadPoolExecutor
 
 import httpx
-
 from conftest import BASE_URL, acknowledged_vuln, new_vuln, saved_vuln, tag
 
 

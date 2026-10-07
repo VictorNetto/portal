@@ -40,7 +40,7 @@ def get_current_user_allow_password_change(
         payload = decode_token(creds.credentials, expected_type="access")
         user_id = uuid.UUID(payload["sub"])
     except (jwt.PyJWTError, KeyError, ValueError):
-        raise _CREDENTIALS_EXC
+        raise _CREDENTIALS_EXC from None  # don't leak token-parsing details
 
     user = session.get(User, user_id)
     if user is None or not user.is_active:

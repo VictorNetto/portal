@@ -22,8 +22,8 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app import audit, dispatcher, render
-from app.models.enums import AuditAction, ReportStatus, VulnStatus
 from app.models.attachment import Attachment
+from app.models.enums import AuditAction, ReportStatus, VulnStatus
 from app.models.report import Report
 from app.models.user import User
 from app.models.vulnerability import Vulnerability
@@ -180,7 +180,7 @@ def dispatch(
         result = dispatcher.dispatch(DISPATCH_TARGET, payload)
         if not result.ok:
             raise RuntimeError(result.detail or "dispatcher reported a failure")
-    except Exception as exc:  # noqa: BLE001 - any failure keeps the report in `dispatching`
+    except Exception as exc:  # any failure keeps the report in `dispatching`
         report.dispatch_error = str(exc)[:500]
         audit.record(
             session, action=AuditAction.dispatch, user_id=user.id,
@@ -192,7 +192,7 @@ def dispatch(
             status.HTTP_502_BAD_GATEWAY,
             "Delivery failed; the report stays in 'dispatching'. Retry the dispatch. "
             f"({report.dispatch_error})",
-        )
+        ) from exc
 
     now = report_lock.utcnow()
     for v in vulns:

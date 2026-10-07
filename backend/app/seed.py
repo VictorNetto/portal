@@ -35,10 +35,10 @@ def seed_first_admin(session: Session) -> None:
         # Printed once to container stdout; grab via `docker compose logs api`.
         print(
             "\n" + "=" * 60,
-            f"  FIRST-RUN ADMIN CREATED",
+            "  FIRST-RUN ADMIN CREATED",
             f"  username: {settings.first_admin_username}",
             f"  password: {password}",
-            f"  (change it on first login — shown only once)",
+            "  (change it on first login — shown only once)",
             "=" * 60 + "\n",
             sep="\n",
             flush=True,
