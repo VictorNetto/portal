@@ -52,8 +52,18 @@ function onKeydown(e) {
     filterBar.value?.focusAndTrigger()
   }
 }
-onMounted(() => window.addEventListener('keydown', onKeydown))
-onUnmounted(() => window.removeEventListener('keydown', onKeydown))
+// Close the row action menu on any click outside it.
+function onDocClick(e) {
+  if (menuFor.value && !e.target.closest('.rowActionWrap')) menuFor.value = null
+}
+onMounted(() => {
+  window.addEventListener('keydown', onKeydown)
+  document.addEventListener('click', onDocClick)
+})
+onUnmounted(() => {
+  window.removeEventListener('keydown', onKeydown)
+  document.removeEventListener('click', onDocClick)
+})
 
 const filteredVulns = computed(() => {
   let rows = vulns.value
@@ -256,6 +266,10 @@ onMounted(load)
       <p v-if="error" class="err">{{ error }}</p>
     </template>
 
+    <!-- Reserves room under the list while the details panel is open, so the
+         last rows can be scrolled above it. -->
+    <div v-if="preview" class="detailsSpacer"></div>
+
     <!-- Bottom details panel (§6/§7) -->
     <aside class="details" :class="{ open: preview }">
       <div v-if="preview" class="detailsInner">
@@ -330,6 +344,7 @@ tr.selected td, tr.preview td { background: var(--accent-soft); }
   z-index: 18; padding: 20px 32px;
   transform: translateY(100%); transition: transform .15s ease;
 }
+.detailsSpacer { height: max(30vh, 220px); }
 .details.open { transform: translateY(0); }
 .detailsTop { display: flex; align-items: center; margin-bottom: 18px; }
 .detailsId { font-size: 17px; color: var(--accent); }
