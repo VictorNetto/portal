@@ -29,6 +29,11 @@ export async function api(path, { method = 'GET', body, auth = true } = {}) {
   if (res.status === 204) return null
   const data = await res.json().catch(() => null)
   if (!res.ok) {
+    // The server blocks accounts flagged must_change_password (first login, or
+    // after an admin reset). Let the app react wherever the call came from.
+    if (res.status === 403 && data?.detail === 'password_change_required') {
+      window.dispatchEvent(new Event('password-change-required'))
+    }
     throw new ApiError(res.status, data?.detail)
   }
   return data

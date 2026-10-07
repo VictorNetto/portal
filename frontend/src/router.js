@@ -31,6 +31,11 @@ const router = createRouter({
 router.beforeEach((to) => {
   const auth = useAuthStore()
   if (!to.meta.public && !auth.isAuthenticated) return { name: 'login' }
+  // First-login rule: until the password is changed, the profile page is the
+  // only place the user can go.
+  if (auth.isAuthenticated && auth.user?.must_change_password && to.name !== 'profile') {
+    return { name: 'profile' }
+  }
   if (to.name === 'login' && auth.isAuthenticated) return { name: 'hub' }
   if (to.meta.adminOnly && auth.user?.role !== 'admin') return { name: 'hub' }
   if (to.meta.roles && !to.meta.roles.includes(auth.user?.role)) return { name: 'hub' }

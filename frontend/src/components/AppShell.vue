@@ -8,6 +8,9 @@ const router = useRouter()
 const route = useRoute()
 const auth = useAuthStore()
 const expanded = ref(false)
+// While the password must be changed, navigation is locked (the router guard
+// enforces it too; this just makes it visible).
+const forced = computed(() => !!auth.user?.must_change_password)
 
 // Nav items. `to` navigates; `soon` marks not-yet-built destinations (stubbed);
 // `adminOnly` / `roles` hide the item from users without access. Icons are thin
@@ -40,7 +43,7 @@ function isActive(item) {
 }
 
 function go(item) {
-  if (item.soon) return
+  if (item.soon || forced.value) return
   router.push(item.to)
   expanded.value = false
 }
@@ -66,7 +69,7 @@ function signOut() {
 </script>
 
 <template>
-  <nav class="sidebar" :class="{ expanded }" @mouseleave="expanded = false">
+  <nav class="sidebar" :class="{ expanded, locked: forced }" @mouseleave="expanded = false">
     <button class="hamb" @click="expanded = !expanded" aria-label="Menu">
       <svg viewBox="0 0 24 24" class="ico"><path d="M4 7h16M4 12h16M4 17h16" /></svg>
     </button>
@@ -133,6 +136,7 @@ function signOut() {
 .navItem:hover:not(.soon):not(.active) { background: var(--nav-hover); }
 .navItem.active { background: var(--nav-active); }
 .navItem.soon { opacity: .45; cursor: default; }
+.sidebar.locked .navItem { opacity: .35; cursor: not-allowed; pointer-events: none; }
 .navIcon { flex: 0 0 var(--sidebar); display: grid; place-items: center; }
 .navLabel { display: none; white-space: nowrap; font-size: 13px; color: #d5e0ec; }
 .sidebar.expanded .navLabel { display: inline-flex; align-items: center; gap: 8px; }

@@ -22,7 +22,7 @@ async function load() {
   loading.value = true; error.value = ''
   try {
     data.value = await listAudit({ page: page.value, page_size: 25, action: actionFilter.value })
-  } catch (e) { error.value = e instanceof ApiError ? e.detail : 'Falha ao carregar' }
+  } catch (e) { error.value = e instanceof ApiError ? e.detail : t('errors.load') }
   finally { loading.value = false }
 }
 
@@ -88,7 +88,7 @@ onMounted(() => { document.documentElement.removeAttribute('data-entity'); load(
     </section>
 
     <div class="pagination">
-      <span class="pageInfo mono">{{ data.total }} registros</span>
+      <span class="pageInfo mono">{{ data.total }} {{ t('misc.records') }}</span>
       <button class="pageBtn" :disabled="page <= 1" @click="go(page - 1)">{{ t('common.prev') }}</button>
       <span class="pageInfo mono">{{ page }} / {{ pageCount }}</span>
       <button class="pageBtn" :disabled="page >= pageCount" @click="go(page + 1)">{{ t('common.next') }}</button>

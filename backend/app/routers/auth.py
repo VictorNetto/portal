@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 
 from app import audit, security
 from app.db import get_session
-from app.deps import get_current_user
+from app.deps import get_current_user_allow_password_change
 from app.models.enums import AuditAction
 from app.models.user import User
 from app.schemas.auth import (
@@ -77,7 +77,7 @@ def refresh(body: RefreshRequest, session: Session = Depends(get_session)) -> Ac
 
 
 @router.get("/me", response_model=CurrentUser)
-def me(user: User = Depends(get_current_user)) -> User:
+def me(user: User = Depends(get_current_user_allow_password_change)) -> User:
     return user
 
 
@@ -85,7 +85,7 @@ def me(user: User = Depends(get_current_user)) -> User:
 def change_password(
     body: ChangePasswordRequest,
     request: Request,
-    user: User = Depends(get_current_user),
+    user: User = Depends(get_current_user_allow_password_change),
     session: Session = Depends(get_session),
 ) -> None:
     if user.password_hash is None or not security.verify_password(
@@ -98,6 +98,12 @@ def change_password(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="New password must be at least 8 characters",
+        )
+
+    if body.new_password == body.current_password:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="New password must differ from the current one",
         )
 
     user.password_hash = security.hash_password(body.new_password)

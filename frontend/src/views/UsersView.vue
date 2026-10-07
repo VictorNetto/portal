@@ -23,7 +23,7 @@ const creating = ref(false)
 async function load() {
   loading.value = true; error.value = ''
   try { users.value = await listUsers() }
-  catch (e) { error.value = e instanceof ApiError ? e.detail : 'Falha ao carregar' }
+  catch (e) { error.value = e instanceof ApiError ? e.detail : t('errors.load') }
   finally { loading.value = false }
 }
 
@@ -34,28 +34,28 @@ async function create() {
     showCreate.value = false
     draft.value = { username: '', password: '', role: 'reader_all' }
     await load()
-  } catch (e) { error.value = e instanceof ApiError ? e.detail : 'Falha ao criar' }
+  } catch (e) { error.value = e instanceof ApiError ? e.detail : t('errors.create') }
   finally { creating.value = false }
 }
 
 async function changeRole(u, role) {
   error.value = ''
   try { await updateUser(u.id, { role }); await load() }
-  catch (e) { error.value = e instanceof ApiError ? e.detail : 'Falha ao atualizar'; await load() }
+  catch (e) { error.value = e instanceof ApiError ? e.detail : t('errors.update'); await load() }
 }
 
 async function toggleActive(u) {
   error.value = ''
   try { await updateUser(u.id, { is_active: !u.is_active }); await load() }
-  catch (e) { error.value = e instanceof ApiError ? e.detail : 'Falha ao atualizar' }
+  catch (e) { error.value = e instanceof ApiError ? e.detail : t('errors.update') }
 }
 
 async function resetPw(u) {
-  const pw = prompt(`Nova senha para ${u.username} (mín. 8 caracteres):`)
+  const pw = prompt(t('misc.resetPrompt', { user: u.username }))
   if (!pw) return
   error.value = ''
   try { await resetUserPassword(u.id, pw); await load() }
-  catch (e) { error.value = e instanceof ApiError ? e.detail : 'Falha ao redefinir' }
+  catch (e) { error.value = e instanceof ApiError ? e.detail : t('errors.reset') }
 }
 
 onMounted(() => {
@@ -76,14 +76,14 @@ onMounted(() => {
       </button>
     </div>
 
-    <p v-if="!isAdmin" class="notice">Apenas administradores podem gerenciar usuários.</p>
+    <p v-if="!isAdmin" class="notice">{{ t('misc.onlyAdmins') }}</p>
 
     <section v-if="showCreate" class="panel formCard">
       <div class="formRow">
         <div class="field"><label>{{ t('users.username') }}</label>
           <input v-model="draft.username" /></div>
         <div class="field"><label>{{ t('users.password') }}</label>
-          <input v-model="draft.password" type="password" placeholder="mín. 8" /></div>
+          <input v-model="draft.password" type="password" :placeholder="t('misc.passwordPlaceholder')" /></div>
         <div class="field"><label>{{ t('users.role') }}</label>
           <select v-model="draft.role">
             <option v-for="r in ROLES" :key="r" :value="r">{{ t('roles.' + r) }}</option>

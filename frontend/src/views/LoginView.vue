@@ -3,6 +3,7 @@ import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import { ApiError } from '../api'
+import { t } from '../i18n'
 
 const auth = useAuthStore()
 const router = useRouter()
@@ -19,7 +20,7 @@ async function submit() {
     await auth.login(username.value, password.value)
     router.push('/')
   } catch (e) {
-    error.value = e instanceof ApiError ? e.detail || 'Login failed' : 'Network error'
+    error.value = e instanceof ApiError ? e.detail || t('errors.login') : t('errors.network')
   } finally {
     busy.value = false
   }
@@ -29,19 +30,19 @@ async function submit() {
 <template>
   <div class="login-wrap">
     <form class="card" @submit.prevent="submit">
-      <h1>Portal Red Team</h1>
-      <p class="sub">Entre para continuar</p>
+      <h1>{{ t('brand') }}</h1>
+      <p class="sub">{{ t('login.subtitle') }}</p>
 
-      <label>Usuário</label>
+      <label>{{ t('login.username') }}</label>
       <input v-model="username" autocomplete="username" autofocus />
 
-      <label>Senha</label>
+      <label>{{ t('login.password') }}</label>
       <input v-model="password" type="password" autocomplete="current-password" />
 
       <p v-if="error" class="error">{{ error }}</p>
 
       <button :disabled="busy || !username || !password">
-        {{ busy ? 'Entrando…' : 'Entrar' }}
+        {{ busy ? t('login.busy') : t('login.submit') }}
       </button>
     </form>
   </div>

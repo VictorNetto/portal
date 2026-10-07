@@ -116,16 +116,8 @@ function focusAndTrigger() {
 }
 defineExpose({ focusAndTrigger })
 
-const HELP_LINES = [
-  'Digite / para ver as chaves de filtro.',
-  'status:draft — status exato',
-  'cvss:7 — CVSS maior ou igual a 7 (0–10, 1 casa decimal)',
-  'id:CVE — identificador contém',
-  'source:nuclei — fonte contém',
-  'texto — busca livre no identificador',
-  '-chave:valor — negação (exclui)',
-  'Vários termos são combinados com E (AND).',
-]
+// Computed so the help follows the selected language.
+const HELP_LINES = computed(() => [1, 2, 3, 4, 5, 6, 7, 8].map((n) => t('filter.line' + n)))
 </script>
 
 <template>
@@ -134,7 +126,7 @@ const HELP_LINES = [
       ref="inputEl"
       v-model="text"
       class="mono field"
-      placeholder="Filtrar"
+      :placeholder="t('filter.placeholder')"
       @input="onInput"
       @keydown="onKeydown"
       @blur="() => setTimeout(() => (dismissed = true), 120)"
@@ -144,7 +136,7 @@ const HELP_LINES = [
     <button v-if="hasText" class="adorn clear" @click="clearAll">{{ t('common.clear') }}</button>
     <span v-else class="adorn help" tabindex="0">{{ t('common.help') }}
       <span class="tip">
-        <strong>Filtro</strong>
+        <strong>{{ t('filter.title') }}</strong>
         <span v-for="(line, i) in HELP_LINES" :key="i">{{ line }}</span>
       </span>
     </span>

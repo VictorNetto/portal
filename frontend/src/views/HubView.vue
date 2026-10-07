@@ -92,7 +92,7 @@ const dynamicFilterValues = computed(() => ({ operator: operatorValues.value }))
 async function load() {
   loading.value = true; error.value = ''
   try { vulns.value = await listVulns() }
-  catch (e) { error.value = e instanceof ApiError ? e.detail : 'Falha ao carregar' }
+  catch (e) { error.value = e instanceof ApiError ? e.detail : t('errors.load') }
   finally { loading.value = false }
 }
 
@@ -152,9 +152,9 @@ function goCreate() { router.push('/vulnerabilities/new') }
 
 async function removeRow(id) {
   menuFor.value = null
-  if (!confirm('Excluir esta vulnerabilidade?')) return
+  if (!confirm(t('vuln.confirmDelete'))) return
   try { await deleteVuln(id); if (preview.value?.id === id) preview.value = null; await load() }
-  catch (e) { error.value = e instanceof ApiError ? e.detail : 'Falha ao excluir' }
+  catch (e) { error.value = e instanceof ApiError ? e.detail : t('errors.delete') }
 }
 
 // CVSS severity bucket for coloring (hi ≥ 7, me ≥ 4, else lo).
@@ -248,7 +248,7 @@ onMounted(load)
                    :checked="selected.has(v.id)" @change="toggleRow(v.id)" /></td>
               <td class="val idcell" @click="openPreview(v)">{{ v.identifier || '—' }}</td>
               <td @click="openPreview(v)">
-                <span class="pill" :class="'s-' + v.status">{{ v.status }}</span>
+                <span class="pill" :class="'s-' + v.status">{{ t('status.' + v.status) }}</span>
               </td>
               <td @click="openPreview(v)">
                 <span v-if="v.cvss_score != null" class="cvss" :class="sevClass(v.cvss_score)">{{ v.cvss_score }}</span>
@@ -285,7 +285,7 @@ onMounted(load)
     <aside class="details" :class="{ open: preview }">
       <div v-if="preview" class="detailsInner">
         <div class="detailsTop">
-          <span class="detailsId mono">{{ preview.internal_id || preview.identifier || 'Rascunho' }}</span>
+          <span class="detailsId mono">{{ preview.internal_id || preview.identifier || t('vuln.draft') }}</span>
           <div class="detailsActions">
             <button class="btn" @click="goDetail(preview.id)">{{ t('rowActions.detail') }}</button>
             <button class="btn" @click="closePreview">{{ t('common.close') }}</button>
@@ -294,7 +294,7 @@ onMounted(load)
         <div class="detailCols">
           <div>
             <div class="kv"><label>{{ t('cols.status') }}</label>
-              <span class="pill" :class="'s-' + preview.status">{{ preview.status }}</span></div>
+              <span class="pill" :class="'s-' + preview.status">{{ t('status.' + preview.status) }}</span></div>
             <div class="kv"><label>{{ t('cols.cvss') }}</label>
               <span v-if="preview.cvss_score != null" class="cvss" :class="sevClass(preview.cvss_score)">{{ preview.cvss_score }}</span>
               <span v-else>—</span></div>

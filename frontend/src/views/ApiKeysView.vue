@@ -20,7 +20,7 @@ const copied = ref(false)
 async function load() {
   loading.value = true; error.value = ''
   try { keys.value = await listApiKeys() }
-  catch (e) { error.value = e instanceof ApiError ? e.detail : 'Falha ao carregar' }
+  catch (e) { error.value = e instanceof ApiError ? e.detail : t('errors.load') }
   finally { loading.value = false }
 }
 
@@ -33,7 +33,7 @@ async function create() {
     showCreate.value = false
     draft.value = { label: '', role: 'writer_all' }
     await load()
-  } catch (e) { error.value = e instanceof ApiError ? e.detail : 'Falha ao criar' }
+  } catch (e) { error.value = e instanceof ApiError ? e.detail : t('errors.create') }
   finally { creating.value = false }
 }
 
@@ -42,10 +42,10 @@ async function copyKey() {
 }
 
 async function revoke(k) {
-  if (!confirm(`Revogar a chave "${k.label}"?`)) return
+  if (!confirm(t('misc.confirmRevoke', { label: k.label }))) return
   error.value = ''
   try { await revokeApiKey(k.id); await load() }
-  catch (e) { error.value = e instanceof ApiError ? e.detail : 'Falha ao revogar' }
+  catch (e) { error.value = e instanceof ApiError ? e.detail : t('errors.revoke') }
 }
 
 const isRevoked = (k) => !!k.revoked_at
@@ -82,7 +82,7 @@ onMounted(() => {
     <section v-if="showCreate" class="panel formCard">
       <div class="formRow">
         <div class="field"><label>{{ t('apiKeys.label') }}</label>
-          <input v-model="draft.label" placeholder="ex.: scanner-ci" /></div>
+          <input v-model="draft.label" :placeholder="t('misc.keyPlaceholder')" /></div>
         <div class="field"><label>{{ t('apiKeys.role') }}</label>
           <select v-model="draft.role">
             <option v-for="r in ROLES" :key="r" :value="r">{{ t('roles.' + r) }}</option>

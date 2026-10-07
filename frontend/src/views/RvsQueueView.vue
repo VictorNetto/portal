@@ -13,7 +13,7 @@ const saving = ref({})
 async function load() {
   loading.value = true; error.value = ''
   try { items.value = await rvsQueue() }
-  catch (e) { error.value = e instanceof ApiError ? e.detail : 'Falha ao carregar' }
+  catch (e) { error.value = e instanceof ApiError ? e.detail : t('errors.load') }
   finally { loading.value = false }
 }
 
@@ -27,7 +27,7 @@ async function submit(v) {
     delete rvsInputs.value[v.id]
     await load()
   } catch (e) {
-    error.value = e instanceof ApiError ? e.detail : 'Falha ao registrar'
+    error.value = e instanceof ApiError ? e.detail : t('errors.register')
   } finally {
     saving.value = { ...saving.value, [v.id]: false }
   }

@@ -65,7 +65,7 @@ async function load() {
   if (isNew.value) return
   loading.value = true; error.value = ''
   try { vuln.value = await getVuln(id.value); syncForm() }
-  catch (e) { error.value = e instanceof ApiError ? e.detail : 'Falha ao carregar' }
+  catch (e) { error.value = e instanceof ApiError ? e.detail : t('errors.load') }
   finally { loading.value = false }
 }
 
@@ -93,31 +93,31 @@ async function save() {
     }
     const body = { version: vuln.value.version, ...bodyFromForm([...editableFields.value]) }
     if (canEdit('operators')) body.operator_ids = [...selectedOps.value]
-    vuln.value = await updateVuln(id.value, body); syncForm(); notice.value = 'Salvo.'
+    vuln.value = await updateVuln(id.value, body); syncForm(); notice.value = t('vuln.saved')
   } catch (e) {
     if (e instanceof ApiError && e.status === 409) { error.value = e.detail; await load() }
-    else error.value = e instanceof ApiError ? e.detail : 'Falha ao salvar'
+    else error.value = e instanceof ApiError ? e.detail : t('errors.save')
   } finally { saving.value = false }
 }
 
 async function doSend() {
   error.value = ''; notice.value = ''
-  try { vuln.value = await sendVuln(id.value); syncForm(); notice.value = 'Enviado — ID interno atribuído.' }
-  catch (e) { error.value = e instanceof ApiError ? e.detail : 'Falha ao enviar' }
+  try { vuln.value = await sendVuln(id.value); syncForm(); notice.value = t('vuln.sent') }
+  catch (e) { error.value = e instanceof ApiError ? e.detail : t('errors.send') }
 }
 
 const isSavedLocal = computed(() => vuln.value?.status === 'saved_local')
 async function doDispatch() {
-  if (!confirm('Disparar esta vulnerabilidade para o blue team?')) return
+  if (!confirm(t('vuln.confirmDispatch'))) return
   error.value = ''; notice.value = ''
-  try { vuln.value = await dispatchVuln(id.value); syncForm(); notice.value = 'Disparada.' }
-  catch (e) { error.value = e instanceof ApiError ? e.detail : 'Falha ao disparar' }
+  try { vuln.value = await dispatchVuln(id.value); syncForm(); notice.value = t('vuln.dispatched') }
+  catch (e) { error.value = e instanceof ApiError ? e.detail : t('errors.dispatch') }
 }
 
 async function remove() {
-  if (!confirm('Excluir esta vulnerabilidade?')) return
+  if (!confirm(t('vuln.confirmDelete'))) return
   try { await deleteVuln(id.value); router.push('/hub') }
-  catch (e) { error.value = e instanceof ApiError ? e.detail : 'Falha ao excluir' }
+  catch (e) { error.value = e instanceof ApiError ? e.detail : t('errors.delete') }
 }
 
 onMounted(load)
@@ -129,12 +129,12 @@ watch(() => route.fullPath, () => load())
   <AppShell>
     <div class="pageTop">
       <div class="titleBlock">
-        <span class="ctxchip">Vulnerabilidade</span>
+        <span class="ctxchip">{{ t('vuln.chip') }}</span>
         <h1 :class="{ mono: !isNew }">
           {{ isNew ? t('hub.createVuln') : (vuln?.internal_id || t('cols.identifier')) }}
         </h1>
-        <p v-if="vuln">{{ vuln.status }} · v{{ vuln.version }}</p>
-        <p v-else-if="isNew">Rascunho novo</p>
+        <p v-if="vuln">{{ t('status.' + vuln.status) }} · v{{ vuln.version }}</p>
+        <p v-else-if="isNew">{{ t('vuln.newDraft') }}</p>
       </div>
       <div class="pageActions">
         <button v-if="!isNew && isDraft" class="btn primary" @click="doSend">{{ t('rowActions.send') }}</button>
@@ -145,20 +145,20 @@ watch(() => route.fullPath, () => load())
     </div>
 
     <section class="panel editor">
-      <p v-if="loading" class="muted">Carregando…</p>
+      <p v-if="loading" class="muted">{{ t('vuln.loading') }}</p>
       <template v-else>
         <p v-if="!editableFields.size" class="locked">
-          Bloqueada no status “{{ vuln.status }}” — nenhum campo é editável.
+          {{ t('vuln.locked', { status: t('status.' + vuln.status) }) }}
         </p>
 
         <div class="grid">
           <label>{{ t('cols.identifier') }}</label>
           <input v-model="form.identifier" :disabled="!canEdit('identifier')" />
-          <label>CWE</label>
+          <label>{{ t('vuln.cwe') }}</label>
           <input v-model="form.cwe" :disabled="!canEdit('cwe')" />
           <label>{{ t('cols.cvss') }}</label>
           <input v-model="form.cvss_score" type="number" step="0.1" min="0" max="10" :disabled="!canEdit('cvss_score')" />
-          <label>CVSS vector</label>
+          <label>{{ t('vuln.cvssVector') }}</label>
           <input v-model="form.cvss_vector" :disabled="!canEdit('cvss_vector')" />
           <label>{{ t('cols.source') }}</label>
           <input v-model="form.source" :disabled="!canEdit('source')" />
@@ -171,19 +171,19 @@ watch(() => route.fullPath, () => load())
             </button>
             <span v-if="!allUsers.length" class="muted">—</span>
           </div>
-          <label>Descrição</label>
+          <label>{{ t('vuln.description') }}</label>
           <textarea v-model="form.description" rows="3" :disabled="!canEdit('description')" />
-          <label>Detalhe do achado</label>
+          <label>{{ t('vuln.findingDetail') }}</label>
           <textarea v-model="form.finding_detail" rows="3" :disabled="!canEdit('finding_detail')" />
-          <label>Mitigação</label>
+          <label>{{ t('vuln.mitigation') }}</label>
           <textarea v-model="form.mitigation" rows="3" :disabled="!canEdit('mitigation')" />
-          <label>Notas internas</label>
+          <label>{{ t('vuln.internalNotes') }}</label>
           <textarea v-model="form.internal_notes" rows="2" :disabled="!canEdit('internal_notes')" />
         </div>
 
         <div class="footer">
           <button class="btn primary" :disabled="saving || !editableFields.size" @click="save">
-            {{ saving ? 'Salvando…' : (isNew ? 'Criar rascunho' : 'Salvar') }}
+            {{ saving ? t('vuln.saving') : (isNew ? t('vuln.createDraft') : t('vuln.save')) }}
           </button>
           <span v-if="notice" class="ok">{{ notice }}</span>
           <span v-if="error" class="err">{{ error }}</span>
