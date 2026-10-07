@@ -77,8 +77,16 @@ def _safe_filename(raw: str | None) -> str:
     return name[:255] or "file"
 
 
-def get_editable_vuln(session: Session, vuln_id: uuid.UUID) -> Vulnerability:
-    vuln = vuln_svc.get_standalone(session, vuln_id)
+def get_editable_vuln(
+    session: Session, vuln_id: uuid.UUID, user: User | None = None
+) -> Vulnerability:
+    vuln = vuln_svc.get_visible(session, vuln_id)
+    if vuln_svc.is_in_report(vuln):
+        # Inside a draft report: same rule as the vuln's own fields (§3) — the
+        # caller must hold the report lock.
+        if user is not None:
+            vuln_svc._require_report_lock(session, vuln, user)
+        return vuln
     if vuln.status not in _ATTACHABLE:
         raise HTTPException(
             status.HTTP_409_CONFLICT,
@@ -88,7 +96,7 @@ def get_editable_vuln(session: Session, vuln_id: uuid.UUID) -> Vulnerability:
 
 
 def list_for_vuln(session: Session, vuln_id: uuid.UUID) -> list[Attachment]:
-    vuln_svc.get_standalone(session, vuln_id)  # 404 if missing/deleted
+    vuln_svc.get_visible(session, vuln_id)  # 404 if missing/deleted
     return list(
         session.scalars(
             select(Attachment)
@@ -102,6 +110,11 @@ def get(session: Session, attachment_id: uuid.UUID) -> Attachment:
     att = session.get(Attachment, attachment_id)
     if att is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Attachment not found")
+    # Files of a deleted vulnerability must stop being readable.
+    if att.vulnerability_id is not None:
+        owner = session.get(Vulnerability, att.vulnerability_id)
+        if owner is None or owner.deleted_at is not None:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "Attachment not found")
     return att
 
 
@@ -113,7 +126,7 @@ def add(
     user: User,
     request: Request,
 ) -> Attachment:
-    vuln = get_editable_vuln(session, vuln_id)
+    vuln = get_editable_vuln(session, vuln_id, user)
 
     filename = _safe_filename(upload.filename)
     ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
@@ -178,7 +191,7 @@ def remove(session: Session, attachment_id: uuid.UUID, user: User, request: Requ
     att = get(session, attachment_id)
     if att.vulnerability_id is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Attachment not found")
-    get_editable_vuln(session, att.vulnerability_id)
+    get_editable_vuln(session, att.vulnerability_id, user)
 
     key, filename, vuln_id = att.s3_key, att.original_filename, att.vulnerability_id
     session.delete(att)

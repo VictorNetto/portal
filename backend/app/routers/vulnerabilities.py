@@ -62,7 +62,7 @@ def get_vuln(
     _: User = Depends(get_current_user),
     session: Session = Depends(get_session),
 ) -> VulnOut:
-    return svc.get_standalone(session, vuln_id)
+    return svc.get_visible(session, vuln_id)
 
 
 @router.patch("/{vuln_id}", response_model=VulnOut)
