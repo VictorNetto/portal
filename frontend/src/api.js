@@ -78,6 +78,10 @@ export const sendVuln = (id) => api(`/vulnerabilities/${id}/send`, { method: 'PO
 export const dispatchVuln = (id) => api(`/vulnerabilities/${id}/dispatch`, { method: 'POST' })
 export const setVulnRvs = (id, rvsId) =>
   api(`/vulnerabilities/${id}/rvs`, { method: 'POST', body: { rvs_id: rvsId } })
+export const transitionVuln = (id, to) =>
+  api(`/vulnerabilities/${id}/transition`, { method: 'POST', body: { to } })
+export const correctVuln = (id, to, reason) =>
+  api(`/vulnerabilities/${id}/correction`, { method: 'POST', body: { to, reason } })
 export const rvsQueue = () => api('/rvs-queue')
 export const deleteVuln = (id) => api(`/vulnerabilities/${id}`, { method: 'DELETE' })
 

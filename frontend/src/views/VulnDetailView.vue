@@ -3,11 +3,13 @@ import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
   getVuln, createVuln, updateVuln, sendVuln, dispatchVuln, deleteVuln, listUsers,
-  listAttachments, uploadAttachment, deleteAttachment, fetchAttachmentBlob, ApiError,
+  listAttachments, uploadAttachment, deleteAttachment, fetchAttachmentBlob,
+  transitionVuln, correctVuln, ApiError,
 } from '../api'
 import { attachmentPath } from '../markdown'
 import { t } from '../i18n'
 import { vField } from '../directives'
+import { useAuthStore } from '../stores/auth'
 import AppShell from '../components/AppShell.vue'
 import MarkdownEditor from '../components/MarkdownEditor.vue'
 import CvssInput from '../components/CvssInput.vue'
@@ -17,6 +19,9 @@ import VulnTimeline from '../components/VulnTimeline.vue'
 
 const route = useRoute()
 const router = useRouter()
+const auth = useAuthStore()
+const isAdmin = computed(() => auth.user?.role === 'admin')
+const isWriter = computed(() => ['admin', 'writer_all'].includes(auth.user?.role))
 const isNew = computed(() => route.name === 'vuln-new')
 
 // This is always a vulnerability view -> green accent.
@@ -210,6 +215,48 @@ async function doDispatch() {
   catch (e) { error.value = e instanceof ApiError ? e.detail : t('errors.dispatch') }
 }
 
+// --- Lifecycle after acknowledgment (waiting fix -> retest -> fixed) ---------
+const NEXT_ACTIONS = {
+  acknowledged: [{ to: 'waiting_fix', label: 'transitions.toWaitingFix' }],
+  waiting_fix: [{ to: 'pending_retest', label: 'transitions.toRetest' }],
+  pending_retest: [
+    { to: 'waiting_fix', label: 'transitions.retestFailed' },
+    { to: 'fixed', label: 'transitions.retestPassed', primary: true },
+  ],
+}
+const nextActions = computed(() => (isWriter.value && vuln.value ? NEXT_ACTIONS[vuln.value.status] || [] : []))
+
+async function doTransition(action) {
+  error.value = ''; notice.value = ''
+  try {
+    vuln.value = await transitionVuln(id.value, action.to)
+    syncForm()
+    notice.value = t('transitions.done', { status: t('status.' + action.to) })
+  } catch (e) { error.value = e instanceof ApiError ? e.detail : t('errors.update'); await load() }
+}
+
+// --- Admin correction (D6): move back to an earlier status -------------------
+const ORDER = ['saved_local', 'dispatched', 'acknowledged', 'waiting_fix', 'pending_retest', 'fixed']
+const correctionTargets = computed(() => {
+  const i = ORDER.indexOf(vuln.value?.status)
+  return i > 0 ? ORDER.slice(0, i) : []
+})
+const showCorrection = ref(false)
+const corr = ref({ to: '', reason: '' })
+function openCorrection() {
+  corr.value = { to: correctionTargets.value[correctionTargets.value.length - 1] || '', reason: '' }
+  showCorrection.value = !showCorrection.value
+}
+async function applyCorrection() {
+  error.value = ''; notice.value = ''
+  try {
+    vuln.value = await correctVuln(id.value, corr.value.to, corr.value.reason)
+    syncForm()
+    showCorrection.value = false
+    notice.value = t('correction.done', { status: t('status.' + corr.value.to) })
+  } catch (e) { error.value = e instanceof ApiError ? e.detail : t('errors.update') }
+}
+
 async function remove() {
   if (!confirm(t('vuln.confirmDelete'))) return
   try { await deleteVuln(id.value); router.push('/hub') }
@@ -329,6 +376,11 @@ watch(() => route.fullPath, () => {
       <div class="pageActions">
         <button v-if="!isNew" class="btn danger" @click="remove">{{ t('rowActions.delete') }}</button>
         <button class="btn" @click="router.push('/hub')">{{ t('vform.cancel') }}</button>
+        <button v-if="isAdmin && correctionTargets.length" class="btn" @click="openCorrection">
+          {{ t('correction.button') }}
+        </button>
+        <button v-for="a in nextActions" :key="a.to" class="btn" :class="{ primary: a.primary }"
+                @click="doTransition(a)">{{ t(a.label) }}</button>
         <button v-if="isSavedLocal" class="btn" @click="doDispatch">{{ t('actions.dispatch') }}</button>
         <button v-if="isDraft" class="btn" :disabled="saving" @click="doSend">{{ t('vform.send') }}</button>
         <button class="btn primary" :disabled="saving || !editableFields.size" @click="save">
@@ -336,6 +388,29 @@ watch(() => route.fullPath, () => {
         </button>
       </div>
     </div>
+
+    <section v-if="showCorrection" class="panel card correction">
+      <h2 class="secTitle">{{ t('correction.title') }}</h2>
+      <p class="hint">{{ t('correction.hint') }}</p>
+      <div class="corrRow">
+        <div class="f">
+          <label>{{ t('correction.target') }}</label>
+          <select v-model="corr.to">
+            <option v-for="s in correctionTargets" :key="s" :value="s">{{ t('status.' + s) }}</option>
+          </select>
+        </div>
+        <div class="f grow">
+          <label>{{ t('correction.reason') }}</label>
+          <input v-model="corr.reason" :placeholder="t('correction.reasonPh')" maxlength="500" />
+        </div>
+        <div class="corrActions">
+          <button class="btn" @click="showCorrection = false">{{ t('vform.cancel') }}</button>
+          <button class="btn primary" :disabled="corr.reason.trim().length < 5" @click="applyCorrection">
+            {{ t('correction.apply') }}
+          </button>
+        </div>
+      </div>
+    </section>
 
     <p v-if="notice" class="ok msg">{{ notice }}</p>
     <p v-if="error" class="err msg">{{ error }}</p>
@@ -498,6 +573,9 @@ input.invalid { border-color: var(--danger); }
 .refRow { display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: start; }
 .addRef { margin: 12px 0 0; }
 
+.corrRow { display: flex; gap: 14px; align-items: flex-end; flex-wrap: wrap; }
+.corrRow .grow { flex: 1 1 280px; }
+.corrActions { display: flex; gap: 8px; }
 .opchips { display: flex; flex-wrap: wrap; gap: 8px; min-height: 32px; align-items: center; }
 .opchip { border: 1px solid var(--line-2); background: var(--panel); color: var(--text-2); border-radius: var(--radius); padding: 4px 12px; font-size: 13px; }
 .opchip:hover:not(:disabled):not(.on) { background: var(--hover); }
