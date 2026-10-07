@@ -1,29 +1,72 @@
-/* Design tokens — console/terminal theme (FRONTEND_SPEC §3; values from the
-   operations_hub prototype :root). Single source of truth for the palette. */
+/* Design tokens — Stark light theme.
+   Structured for a future dark-mode toggle: components reference only these
+   semantic tokens, never raw colors. A dark theme would re-declare the same
+   token names under a [data-theme="dark"] selector without touching components.
+
+   The accent is entity-driven: green for vulnerabilities, indigo for reports.
+   Set --accent / --accent-soft on a scope (e.g. [data-entity="reports"]) to
+   flip the active-context color. */
 :root {
-  color-scheme: dark;
+  color-scheme: light;
 
-  --bg: #06110f;
-  --panel: #071512;
-  --line: #1f3e38;
-  --line2: #2a5a4a;
-  --text: #dce7df;
-  --muted: #8fa49a;
+  /* Surfaces */
+  --bg: #ffffff;            /* app background (stark = white) */
+  --panel: #ffffff;         /* cards / header / rail */
+  --panel-2: #fafbfc;       /* subtle raised (table header, hovers base) */
+  --hover: #f7f9fb;         /* row hover */
 
-  --green: #42e67b;
-  --amber: #f5a742;
-  --red: #ff6b5f;
-  --blue: #58a6ff;
-  --purple: #b084f5;
+  /* Lines */
+  --line: #eceef1;          /* hairline borders */
+  --line-2: #e2e5ea;        /* slightly stronger (inputs, chips) */
 
-  --shadow: 0 18px 50px rgba(0, 0, 0, .45);
-  --header: 64px;
-  --sidebar: 64px;
-  --sidebar-expanded: 255px;
-  --radius: 8px;
+  /* Text */
+  --text: #111827;          /* primary */
+  --text-2: #2b3442;        /* body / table cells */
+  --muted: #6b7686;         /* labels, secondary */
+  --dim: #9aa4b2;           /* placeholders, inactive icons */
 
-  --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  /* Accent — defaults to the vulnerabilities (green) context */
+  --accent: #16a34a;
+  --accent-soft: #e8f6ee;
+  --accent-contrast: #ffffff;  /* text on a filled accent button */
+
+  /* Status (semantic, light pills) */
+  --st-draft-fg: #64748b;  --st-draft-bg: #eef1f4;
+  --st-local-fg: #0369a1;  --st-local-bg: #e0f2fe;
+  --st-dispatch-fg: #7c3aed; --st-dispatch-bg: #ede9fe;
+  --st-ack-fg: #0e7490;    --st-ack-bg: #cffafe;
+  --st-wait-fg: #b45309;   --st-wait-bg: #fef3c7;
+  --st-retest-fg: #a16207; --st-retest-bg: #fef9c3;
+  --st-fixed-fg: #15803d;  --st-fixed-bg: #dcfce7;
+
+  /* Severity (CVSS) */
+  --sev-hi: #dc2626;
+  --sev-me: #d97706;
+  --sev-lo: #64748b;
+
+  --danger: #dc2626;
+  --danger-soft: #fee2e2;
+
+  /* Layout dimensions */
+  --header: 60px;
+  --sidebar: 56px;
+  --sidebar-expanded: 240px;
+
+  /* Shape */
+  --radius: 10px;
+  --radius-sm: 8px;
+
+  --shadow: 0 1px 2px rgba(16, 24, 40, .06), 0 1px 3px rgba(16, 24, 40, .04);
+  --shadow-pop: 0 8px 28px rgba(16, 24, 40, .12);
+
+  --mono: ui-monospace, "SFMono-Regular", Menlo, Monaco, Consolas, "Liberation Mono", monospace;
   --sans: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+/* Reports context flips the accent to indigo. Applied on a scope element. */
+[data-entity="reports"] {
+  --accent: #4f46e5;
+  --accent-soft: #ecebfd;
 }
 
 * { box-sizing: border-box; }
@@ -34,23 +77,17 @@ html, body {
   color: var(--text);
   font-family: var(--sans);
   font-size: 14px;
-  background:
-    radial-gradient(circle at 20% 10%, rgba(38, 120, 75, .12), transparent 25%),
-    linear-gradient(180deg, #07110f, #04100e);
+  background: var(--bg);
+  -webkit-font-smoothing: antialiased;
 }
 
 button, input, select, textarea { font: inherit; color: inherit; }
 button { cursor: pointer; }
 .mono { font-family: var(--mono); }
 
-/* Console-style scrollbars (§3.8) */
-* { scrollbar-width: thin; scrollbar-color: rgba(66, 230, 123, .55) rgba(7, 19, 17, .9); }
+/* Light, unobtrusive scrollbars */
+* { scrollbar-width: thin; scrollbar-color: #cbd2db transparent; }
 ::-webkit-scrollbar { width: 10px; height: 10px; }
-::-webkit-scrollbar-track { background: #071512; border-left: 1px solid rgba(65, 110, 91, .22); }
-::-webkit-scrollbar-thumb {
-  background: linear-gradient(180deg, rgba(66, 230, 123, .65), rgba(47, 191, 104, .42));
-  border: 2px solid #071512; border-radius: 999px;
-}
-::-webkit-scrollbar-thumb:hover {
-  background: linear-gradient(180deg, rgba(66, 230, 123, .85), rgba(47, 191, 104, .62));
-}
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #d3d9e0; border: 2px solid var(--bg); border-radius: 999px; }
+::-webkit-scrollbar-thumb:hover { background: #bcc4ce; }

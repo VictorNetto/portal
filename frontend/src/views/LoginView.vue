@@ -48,24 +48,24 @@ async function submit() {
 </template>
 
 <style scoped>
-.login-wrap { min-height: 100vh; display: grid; place-items: center; }
+.login-wrap { min-height: 100vh; display: grid; place-items: center; background: var(--panel-2); }
 .card {
-  width: 330px; display: flex; flex-direction: column; gap: .4rem;
-  background: rgba(7, 19, 17, .9); border: 1px solid var(--line2); border-radius: var(--radius);
-  padding: 2.2rem; box-shadow: var(--shadow);
+  width: 340px; display: flex; flex-direction: column; gap: .4rem;
+  background: var(--panel); border: 1px solid var(--line); border-radius: 14px;
+  padding: 2.4rem; box-shadow: var(--shadow-pop);
 }
-h1 { margin: 0; font-size: 1.3rem; font-family: var(--mono); color: #f0fff6; }
-.sub { margin: 0 0 1rem; color: var(--muted); font-size: .9rem; }
-label { font-size: .75rem; color: var(--muted); margin-top: .5rem; }
+h1 { margin: 0; font-size: 1.25rem; font-weight: 650; color: var(--text); }
+.sub { margin: .2rem 0 1.2rem; color: var(--muted); font-size: .9rem; }
+label { font-size: .78rem; color: var(--muted); margin-top: .6rem; }
 input {
-  background: #0b0f14; border: 1px solid var(--line); border-radius: 6px;
-  padding: .55rem .6rem; color: var(--text); font-size: .95rem; font-family: var(--mono);
+  background: var(--panel); border: 1px solid var(--line-2); border-radius: var(--radius-sm);
+  padding: .6rem .7rem; color: var(--text); font-size: .95rem;
 }
-input:focus { outline: none; border-color: var(--green); }
+input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
 button {
-  margin-top: 1rem; padding: .6rem; border: 1px solid #4df587; border-radius: 6px;
-  background: linear-gradient(180deg, #48df7d, #2fbf68); color: #03120a; font-weight: 600;
+  margin-top: 1.2rem; padding: .65rem; border: 0; border-radius: var(--radius-sm);
+  background: var(--accent); color: #fff; font-weight: 600; box-shadow: var(--shadow);
 }
 button:disabled { opacity: .5; cursor: not-allowed; }
-.error { color: var(--red); font-size: .85rem; margin: .3rem 0 0; }
+.error { color: var(--danger); font-size: .85rem; margin: .4rem 0 0; }
 </style>

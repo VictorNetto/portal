@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { getVuln, createVuln, updateVuln, sendVuln, deleteVuln, ApiError } from '../api'
 import { t } from '../i18n'
@@ -8,6 +8,10 @@ import AppShell from '../components/AppShell.vue'
 const route = useRoute()
 const router = useRouter()
 const isNew = computed(() => route.name === 'vuln-new')
+
+// This is always a vulnerability view -> green accent.
+document.documentElement.setAttribute('data-entity', 'vulns')
+onUnmounted(() => document.documentElement.removeAttribute('data-entity'))
 const id = route.params.id
 
 const vuln = ref(null)
@@ -92,7 +96,8 @@ onMounted(load)
   <AppShell>
     <div class="pageTop">
       <div class="titleBlock">
-        <h1 class="mono">
+        <span class="ctxchip"><span class="dot"></span>Vulnerabilidade</span>
+        <h1>
           {{ isNew ? t('hub.createVuln') : (vuln?.internal_id || t('cols.identifier')) }}
         </h1>
         <p v-if="vuln">{{ vuln.status }} · v{{ vuln.version }}</p>
@@ -147,27 +152,29 @@ onMounted(load)
 
 <style scoped>
 .pageTop { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 18px; }
-.titleBlock h1 { margin: 0 0 6px; font-weight: 500; font-size: 26px; color: #f0fff6; }
-.titleBlock p { margin: 0; color: var(--muted); text-transform: uppercase; font-size: .8rem; letter-spacing: .04em; }
+.ctxchip { display: inline-flex; align-items: center; gap: 7px; padding: 4px 10px; border-radius: 999px; background: var(--accent-soft); color: var(--accent); font-size: 12px; font-weight: 600; margin-bottom: 10px; }
+.ctxchip .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); }
+.titleBlock h1 { margin: 0 0 4px; font-weight: 650; font-size: 22px; color: var(--text); font-family: var(--mono); letter-spacing: -.01em; }
+.titleBlock p { margin: 0; color: var(--muted); text-transform: uppercase; font-size: .78rem; letter-spacing: .04em; }
 .pageActions { display: flex; gap: 10px; }
 
-.btn { border: 1px solid var(--line2); background: #071512; border-radius: 6px; height: 38px; padding: 0 16px; color: var(--text); display: inline-flex; align-items: center; gap: 8px; }
-.btn:hover { border-color: var(--green); color: var(--green); }
-.btn.primary { background: linear-gradient(180deg, #48df7d, #2fbf68); border-color: #4df587; color: #03120a; font-weight: 600; }
-.btn.primary:hover { color: #03120a; }
-.btn.danger { color: #ff8d83; }
-.btn.danger:hover { border-color: var(--red); color: var(--red); }
+.btn { border: 1px solid var(--line-2); background: var(--panel); border-radius: var(--radius-sm); height: 36px; padding: 0 14px; color: var(--text-2); display: inline-flex; align-items: center; gap: 8px; font-weight: 500; }
+.btn:hover { border-color: var(--dim); background: var(--hover); }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; box-shadow: var(--shadow); }
+.btn.primary:hover { filter: brightness(1.05); }
+.btn.danger { color: var(--danger); }
+.btn.danger:hover { border-color: var(--danger); background: var(--danger-soft); }
 .btn:disabled { opacity: .5; cursor: not-allowed; }
 
-.panel { background: rgba(7, 19, 17, .82); border: 1px solid rgba(65, 110, 91, .45); border-radius: var(--radius); }
-.editor { padding: 1.4rem 1.6rem; max-width: 820px; }
-.locked { background: #241a0c; border: 1px solid rgba(245, 167, 66, .5); color: var(--amber); padding: .6rem .8rem; border-radius: 6px; }
-.grid { display: grid; grid-template-columns: max-content 1fr; gap: .7rem 1.2rem; align-items: start; margin-bottom: 1.4rem; }
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); }
+.editor { padding: 1.5rem 1.7rem; max-width: 820px; }
+.locked { background: var(--st-wait-bg); border: 1px solid #fde68a; color: var(--st-wait-fg); padding: .6rem .8rem; border-radius: var(--radius-sm); }
+.grid { display: grid; grid-template-columns: max-content 1fr; gap: .8rem 1.4rem; align-items: start; margin-bottom: 1.4rem; }
 label { color: var(--muted); font-size: .85rem; padding-top: .5rem; }
-input, textarea { background: #0b0f14; border: 1px solid var(--line); border-radius: 6px; padding: .5rem .65rem; color: var(--text); width: 100%; font-family: var(--mono); font-size: .9rem; }
-input:focus, textarea:focus { outline: none; border-color: var(--green); }
-input:disabled, textarea:disabled { opacity: .45; cursor: not-allowed; }
+input, textarea { background: var(--panel); border: 1px solid var(--line-2); border-radius: var(--radius-sm); padding: .5rem .65rem; color: var(--text); width: 100%; font-family: var(--mono); font-size: .9rem; }
+input:focus, textarea:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+input:disabled, textarea:disabled { background: var(--panel-2); color: var(--muted); cursor: not-allowed; }
 textarea { resize: vertical; }
 .footer { display: flex; align-items: center; gap: 1rem; }
-.ok { color: var(--green); } .err { color: var(--red); } .muted { color: var(--muted); }
+.ok { color: var(--accent); } .err { color: var(--danger); } .muted { color: var(--muted); }
 </style>

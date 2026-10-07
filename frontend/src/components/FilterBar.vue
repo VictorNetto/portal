@@ -163,46 +163,44 @@ const HELP_LINES = [
 <style scoped>
 .filterbar { position: relative; display: flex; align-items: center; width: 100%; min-width: 180px; }
 .field {
-  flex: 1; background: #0b0f14; border: 1px solid var(--line); border-radius: 6px;
-  padding: .5rem 2rem .5rem .6rem; color: var(--text); font-size: .9rem;
+  flex: 1; background: var(--panel); border: 1px solid var(--line-2); border-radius: var(--radius-sm);
+  padding: .5rem 2rem .5rem .7rem; color: var(--text); font-size: .9rem; height: 36px;
 }
-.field:focus { outline: none; border-color: var(--green); }
+.field::placeholder { color: var(--dim); }
+.field:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
 
 .adorn {
   position: absolute; right: 8px; width: 20px; height: 20px; border-radius: 50%;
   display: grid; place-items: center; font-size: .85rem; line-height: 1; border: 0;
 }
 .adorn.help {
-  color: var(--muted); border: 1px solid var(--line2); background: transparent; cursor: help;
+  color: var(--muted); border: 1px solid var(--line-2); background: var(--panel); cursor: help;
 }
-.adorn.help:hover, .adorn.help:focus { color: var(--green); border-color: var(--green); outline: none; }
+.adorn.help:hover, .adorn.help:focus { color: var(--accent); border-color: var(--accent); outline: none; }
 .adorn.clear {
   color: var(--muted); background: transparent; font-size: 1.1rem; cursor: pointer;
 }
-.adorn.clear:hover { color: var(--red); }
+.adorn.clear:hover { color: var(--danger); }
 
 /* Delayed tooltip for the ? help. */
 .tip {
   position: absolute; top: 28px; right: 0; width: 300px; z-index: 70;
   display: flex; flex-direction: column; gap: 4px;
-  background: #071211; border: 1px solid rgba(66, 230, 123, .4); border-radius: 8px;
-  box-shadow: var(--shadow); padding: 10px 12px; color: var(--text); font-size: .78rem;
+  background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-pop); padding: 10px 12px; color: var(--text-2); font-size: .78rem;
   opacity: 0; visibility: hidden; transition: opacity .12s ease; transition-delay: 0s;
   text-align: left; font-family: var(--sans);
 }
-.tip strong { color: var(--green); font-size: .82rem; margin-bottom: 2px; }
+.tip strong { color: var(--accent); font-size: .82rem; margin-bottom: 2px; }
 .adorn.help:hover .tip, .adorn.help:focus .tip { opacity: 1; visibility: visible; transition-delay: .5s; }
 
 .menu {
   position: absolute; top: 42px; left: 0; z-index: 60; margin: 0; padding: 6px; list-style: none;
-  /* Auto width to fit the content; never narrower than the input, never
-     spilling past a sensible max. Tall enough to show all items without a
-     scrollbar for the small lists we have. */
   min-width: 160px; width: max-content; max-width: 420px;
-  background: #071211; border: 1px solid rgba(66, 230, 123, .4); border-radius: 8px; box-shadow: var(--shadow);
+  background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius-sm); box-shadow: var(--shadow-pop);
   max-height: min(70vh, 460px); overflow: auto;
 }
 .menu li { display: flex; align-items: baseline; gap: 10px; padding: 7px 12px; border-radius: 6px; cursor: pointer; white-space: nowrap; }
-.menu li.active, .menu li:hover { background: rgba(66, 230, 123, .12); }
-.menu li .mono { color: var(--green); }
+.menu li.active, .menu li:hover { background: var(--hover); }
+.menu li .mono { color: var(--accent); }
 </style>

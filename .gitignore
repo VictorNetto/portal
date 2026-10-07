@@ -38,3 +38,6 @@ minio-data/
 .DS_Store
 Thumbs.db
 *.swp
+
+# Local design scratch (theme mockups, not product)
+sandbox/
