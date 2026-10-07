@@ -28,7 +28,7 @@ const selected = ref(new Set())
 const preview = ref(null)
 
 // Pagination (§5.12)
-const pageSize = ref(5)
+const pageSize = ref(50) // fixed; not user-selectable
 const page = ref(1)
 
 // Single-line filter/find (the FilterBar). "/" focuses it and opens the menu.
@@ -124,7 +124,13 @@ function closePreview() { preview.value = null }
 
 // Row action menu (§5.9 three-dots)
 const menuFor = ref(null)
-function toggleMenu(id) { menuFor.value = menuFor.value === id ? null : id }
+const menuUp = ref(false)
+function toggleMenu(id, ev) {
+  menuFor.value = menuFor.value === id ? null : id
+  // Flip the menu upward when there isn't room for it below the button.
+  const rect = ev?.currentTarget?.getBoundingClientRect()
+  menuUp.value = !!rect && window.innerHeight - rect.bottom < 170
+}
 
 function goDetail(id) { router.push(`/vulnerabilities/${id}`) }
 function goCreate() { router.push('/vulnerabilities/new') }
@@ -191,6 +197,14 @@ onMounted(load)
     </section>
 
     <template v-else>
+      <div class="pagination top">
+        <span class="pageInfo mono">{{ t('hub.showing') }} {{ rangeLabel }}</span>
+        <button class="pageBtn" :disabled="page <= 1" @click="page--">{{ t('common.prev') }}</button>
+        <button v-for="n in pageCount" :key="n" class="pageBtn"
+                :class="{ active: n === page }" @click="page = n">{{ n }}</button>
+        <button class="pageBtn" :disabled="page >= pageCount" @click="page++">{{ t('common.next') }}</button>
+      </div>
+
       <section class="panel tablePanel">
         <table>
           <thead>
@@ -222,8 +236,8 @@ onMounted(load)
               <td class="val" @click="openPreview(v)">{{ v.source || '—' }}</td>
               <td style="text-align:center" @click.stop>
                 <div class="rowActionWrap">
-                  <button class="link rowBtn" @click="toggleMenu(v.id)">{{ t('common.rowMenu') }}</button>
-                  <div v-if="menuFor === v.id" class="rowMenuInline">
+                  <button class="link rowBtn" @click="toggleMenu(v.id, $event)">{{ t('common.rowMenu') }}</button>
+                  <div v-if="menuFor === v.id" class="rowMenuInline" :class="{ up: menuUp }">
                     <button @click="openPreview(v); menuFor = null">{{ t('rowActions.view') }}</button>
                     <button @click="goDetail(v.id)">{{ t('rowActions.detail') }}</button>
                     <button @click="goDetail(v.id)">{{ t('rowActions.edit') }}</button>
@@ -240,18 +254,6 @@ onMounted(load)
       </section>
 
       <p v-if="error" class="err">{{ error }}</p>
-
-      <div class="pagination">
-        <span class="pageInfo mono">{{ t('hub.showing') }} {{ rangeLabel }}</span>
-        <label class="muted">{{ t('hub.rows') }}</label>
-        <select class="pageSelect" v-model.number="pageSize" @change="page = 1">
-          <option>5</option><option>10</option><option>15</option>
-        </select>
-        <button class="pageBtn" :disabled="page <= 1" @click="page--">{{ t('common.prev') }}</button>
-        <button v-for="n in pageCount" :key="n" class="pageBtn"
-                :class="{ active: n === page }" @click="page = n">{{ n }}</button>
-        <button class="pageBtn" :disabled="page >= pageCount" @click="page++">{{ t('common.next') }}</button>
-      </div>
     </template>
 
     <!-- Bottom details panel (§6/§7) -->
@@ -292,6 +294,9 @@ onMounted(load)
 .hubFilter { flex: 1 1 auto; min-width: 0; margin-bottom: 8px; }
 .toolbar { display: flex; gap: 10px; align-items: center; flex: 0 0 auto; margin-bottom: 8px; }
 .selectionHint { color: var(--muted); font-size: 12px; }
+.pagination.top { margin: 0 0 12px; }
+/* Visible overflow so the row action menu isn't clipped near the bottom. */
+.tablePanel { overflow: visible; }
 .stub { padding: 3rem; text-align: center; color: var(--muted); }
 
 table { table-layout: fixed; }
@@ -314,6 +319,7 @@ tr.selected td, tr.preview td { background: var(--accent-soft); }
   display: flex; flex-direction: column;
   background: var(--panel); border-radius: var(--radius); box-shadow: var(--shadow-pop); padding: 4px; z-index: 50; text-align: left;
 }
+.rowMenuInline.up { top: auto; bottom: 24px; }
 .rowMenuInline button { width: 100%; height: 30px; border: 0; background: transparent; color: var(--text-2); text-align: left; border-radius: var(--radius-sm); padding: 0 10px; font-size: 13px; }
 .rowMenuInline button:hover { background: var(--hover); }
 .rowMenuInline button.danger { color: var(--danger); }
