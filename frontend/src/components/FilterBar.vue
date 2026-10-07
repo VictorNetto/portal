@@ -2,13 +2,17 @@
 import { ref, computed, nextTick } from 'vue'
 import { FILTER_KEYS } from '../filterQuery'
 
-const props = defineProps({ modelValue: String })
+const props = defineProps({
+  modelValue: String,
+  // Dynamic value sets for enumerable keys whose values aren't static,
+  // e.g. { operator: ['alice', 'bob'] }. Resolved by the parent from data.
+  dynamicValues: { type: Object, default: () => ({}) },
+})
 const emit = defineEmits(['update:modelValue'])
 
 const inputEl = ref(null)
-const menuOpen = ref(false)
 const activeIdx = ref(0)
-const menuNegate = ref(false) // set when the menu was opened via "-/"
+const dismissed = ref(false) // set by Escape; cleared on next input
 
 const text = computed({
   get: () => props.modelValue,
@@ -17,69 +21,97 @@ const text = computed({
 
 const hasText = computed(() => (text.value || '').length > 0)
 
-// The menu always lists all keys; its contents do NOT depend on live text, so
-// it renders reliably the moment it is opened.
-const suggestions = computed(() => {
-  const neg = menuNegate.value ? '-' : ''
-  return FILTER_KEYS.map((k) => ({
-    label: `${k.key}:`,
-    desc: k.desc,
-    insert: `${neg}${k.key}:`,
-  }))
-})
+const KEY_LIST = FILTER_KEYS.map((k) => k.key)
+const KEY_DESC = Object.fromEntries(FILTER_KEYS.map((k) => [k.key, k.desc]))
+const KEY_DEF = Object.fromEntries(FILTER_KEYS.map((k) => [k.key, k]))
 
-function openMenu(negate) {
-  menuNegate.value = negate
-  activeIdx.value = 0
-  menuOpen.value = true
+function valuesFor(key) {
+  const def = KEY_DEF[key]
+  if (!def || !def.enumerable) return null
+  // Prefer a dynamic set (e.g. operators from loaded rows) when provided.
+  if (props.dynamicValues[key]?.length) return props.dynamicValues[key]
+  return def.values
 }
 
-function applySuggestion(s) {
-  // Replace the trailing "/" or "-/" fragment with the chosen "key:".
-  const base = (text.value || '').replace(/[-]?\/?$/, '')
-  text.value = base + s.insert
-  menuOpen.value = false
+// Follows the SecTools model: the menu is derived from the CURRENT term (last
+// whitespace-delimited chunk). Two modes:
+//   key mode   — term is "/..." or "-/..."  -> list matching filter keys
+//   value mode — term is "[-]key:partial" and key is enumerable -> list values
+const term = computed(() => ((text.value || '').match(/(\S*)$/) || ['', ''])[1])
+
+const autocomplete = computed(() => {
+  if (dismissed.value) return null
+  const t = term.value
+
+  // key mode
+  const negate = t[0] === '-' && t[1] === '/'
+  const slashIndex = negate ? 1 : t[0] === '/' ? 0 : -1
+  if (slashIndex !== -1) {
+    const needle = t.slice(slashIndex + 1).toLowerCase()
+    const options = KEY_LIST.filter((k) => k.startsWith(needle))
+    if (!options.length) return null
+    return { mode: 'key', negate, options }
+  }
+
+  // value mode: "[-]key:partial" — show ALL of the key's values (no filtering
+  // by the typed partial).
+  const neg2 = t[0] === '-' && t.length > 1
+  const body = neg2 ? t.slice(1) : t
+  const colon = body.indexOf(':')
+  if (colon > 0) {
+    const key = body.slice(0, colon).toLowerCase()
+    const vals = valuesFor(key)
+    if (vals && vals.length) return { mode: 'value', negate: neg2, key, options: vals }
+  }
+  return null
+})
+
+function applyAutocomplete(choice) {
+  const ac = autocomplete.value
+  if (!ac) return
+  const base = (text.value || '').replace(/\S*$/, '')
+  if (ac.mode === 'key') {
+    // after choosing a key, keep the menu open so its value menu can show
+    text.value = base + (ac.negate ? '-' : '') + choice + ':'
+    dismissed.value = false
+  } else {
+    // value mode: complete the token (no trailing space) and close the menu
+    text.value = base + (ac.negate ? '-' : '') + ac.key + ':' + choice
+    dismissed.value = true
+  }
   activeIdx.value = 0
   nextTick(() => inputEl.value?.focus())
 }
 
 function onInput() {
-  // Close the menu once the user types past the "/" trigger.
-  const frag = ((text.value || '').match(/(\S*)$/) || ['', ''])[1]
-  if (frag !== '/' && frag !== '-/') menuOpen.value = false
+  dismissed.value = false
+  activeIdx.value = 0
 }
 
 function onKeydown(e) {
-  if (menuOpen.value) {
-    const list = suggestions.value
-    if (e.key === 'ArrowDown') { e.preventDefault(); activeIdx.value = (activeIdx.value + 1) % list.length; return }
-    if (e.key === 'ArrowUp') { e.preventDefault(); activeIdx.value = (activeIdx.value - 1 + list.length) % list.length; return }
-    if (e.key === 'Enter' || e.key === 'Tab') { e.preventDefault(); applySuggestion(list[activeIdx.value]); return }
-    if (e.key === 'Escape') { e.preventDefault(); menuOpen.value = false; return }
-  }
-  // "/" opens the key menu when at a token boundary (start, after a space, or
-  // after a leading "-" for negation).
-  if (e.key === '/') {
-    const cur = text.value || ''
-    const frag = (cur.match(/(\S*)$/) || ['', ''])[1]
-    if (frag === '') openMenu(false)
-    else if (frag === '-') openMenu(true)
-  }
+  const ac = autocomplete.value
+  if (!ac) return
+  const n = ac.options.length
+  if (e.key === 'ArrowDown') { e.preventDefault(); activeIdx.value = (activeIdx.value + 1) % n }
+  else if (e.key === 'ArrowUp') { e.preventDefault(); activeIdx.value = (activeIdx.value - 1 + n) % n }
+  else if (e.key === 'Enter' || e.key === 'Tab') { e.preventDefault(); applyAutocomplete(ac.options[activeIdx.value]) }
+  else if (e.key === 'Escape') { e.preventDefault(); dismissed.value = true }
 }
 
 function clearAll() {
   text.value = ''
+  dismissed.value = false
   nextTick(() => inputEl.value?.focus())
 }
 
-// Parent calls this when the user presses "/" outside the input: focus the bar
-// and inject "/" so the key menu appears.
+// Parent calls this when the user presses "/" outside the input.
 function focusAndTrigger() {
   inputEl.value?.focus()
   const cur = text.value || ''
   const needsSpace = cur.length && !cur.endsWith(' ')
   text.value = cur + (needsSpace ? ' /' : '/')
-  nextTick(() => openMenu(false))
+  dismissed.value = false
+  activeIdx.value = 0
 }
 defineExpose({ focusAndTrigger })
 
@@ -104,7 +136,7 @@ const HELP_LINES = [
       placeholder="Filtrar"
       @input="onInput"
       @keydown="onKeydown"
-      @blur="() => setTimeout(() => (menuOpen = false), 120)"
+      @blur="() => setTimeout(() => (dismissed = true), 120)"
     />
 
     <!-- trailing adornment: ? (help) when empty, × (clear) when there's text -->
@@ -116,20 +148,20 @@ const HELP_LINES = [
       </span>
     </span>
 
-    <!-- key suggestion menu (only on "/" or "-/") -->
-    <ul v-if="menuOpen && suggestions.length" class="menu">
-      <li v-for="(s, i) in suggestions" :key="s.insert"
+    <!-- autocomplete menu: keys (term "/" or "-/") or values (term "key:…").
+         Shows only the name — no description or key suffix. -->
+    <ul v-if="autocomplete" class="menu">
+      <li v-for="(opt, i) in autocomplete.options" :key="opt"
           :class="{ active: i === activeIdx }"
-          @mousedown.prevent="applySuggestion(s)">
-        <span class="mono">{{ s.label }}</span>
-        <em>{{ s.desc }}</em>
+          @mousedown.prevent="applyAutocomplete(opt)">
+        <span class="mono">{{ opt }}</span>
       </li>
     </ul>
   </div>
 </template>
 
 <style scoped>
-.filterbar { position: relative; display: flex; align-items: center; min-width: 320px; }
+.filterbar { position: relative; display: flex; align-items: center; width: 100%; min-width: 180px; }
 .field {
   flex: 1; background: #0b0f14; border: 1px solid var(--line); border-radius: 6px;
   padding: .5rem 2rem .5rem .6rem; color: var(--text); font-size: .9rem;
@@ -162,12 +194,15 @@ const HELP_LINES = [
 .adorn.help:hover .tip, .adorn.help:focus .tip { opacity: 1; visibility: visible; transition-delay: .5s; }
 
 .menu {
-  position: absolute; top: 42px; left: 0; right: 0; z-index: 60; margin: 0; padding: 6px; list-style: none;
+  position: absolute; top: 42px; left: 0; z-index: 60; margin: 0; padding: 6px; list-style: none;
+  /* Auto width to fit the content; never narrower than the input, never
+     spilling past a sensible max. Tall enough to show all items without a
+     scrollbar for the small lists we have. */
+  min-width: 160px; width: max-content; max-width: 420px;
   background: #071211; border: 1px solid rgba(66, 230, 123, .4); border-radius: 8px; box-shadow: var(--shadow);
-  max-height: 260px; overflow: auto;
+  max-height: min(70vh, 460px); overflow: auto;
 }
-.menu li { display: flex; align-items: baseline; gap: 10px; padding: 7px 10px; border-radius: 6px; cursor: pointer; }
+.menu li { display: flex; align-items: baseline; gap: 10px; padding: 7px 12px; border-radius: 6px; cursor: pointer; white-space: nowrap; }
 .menu li.active, .menu li:hover { background: rgba(66, 230, 123, .12); }
 .menu li .mono { color: var(--green); }
-.menu li em { color: var(--muted); font-style: normal; font-size: .76rem; }
 </style>

@@ -25,7 +25,13 @@ const pageSize = ref(5)
 const page = ref(1)
 
 // Single-line filter/find (the FilterBar). "/" focuses it and opens the menu.
-const query = ref('')
+// Filter text is isolated per entity tab: switching tabs shows that tab's own
+// filter, and switching back restores it.
+const queries = ref({ vulns: '', reports: '' })
+const query = computed({
+  get: () => queries.value[entity.value],
+  set: (v) => { queries.value[entity.value] = v },
+})
 const filterBar = ref(null)
 watch(query, () => { page.value = 1 })
 
@@ -50,6 +56,21 @@ const filteredVulns = computed(() => {
   }
   return rows
 })
+
+// Distinct operator usernames across loaded vulns, for the operator: value
+// menu. (Until operator assignment exists this is typically empty.)
+const operatorValues = computed(() => {
+  const set = new Set()
+  for (const v of vulns.value) {
+    const ops = Array.isArray(v.operators) ? v.operators : []
+    for (const o of ops) {
+      const name = typeof o === 'string' ? o : o?.username
+      if (name) set.add(name)
+    }
+  }
+  return [...set].sort()
+})
+const dynamicFilterValues = computed(() => ({ operator: operatorValues.value }))
 
 async function load() {
   loading.value = true; error.value = ''
@@ -135,8 +156,13 @@ onMounted(load)
           {{ t('hub.tabReports') }}
         </button>
       </div>
+
+      <!-- Filter bar occupies the space between the tabs and the Criar button.
+           Future: each entity (vulns/reports) will carry its own filter state. -->
+      <FilterBar ref="filterBar" class="hubFilter" v-model="query"
+                 :dynamic-values="dynamicFilterValues" />
+
       <div class="toolbar">
-        <FilterBar ref="filterBar" v-model="query" />
         <span v-if="selected.size" class="selectionHint mono">
           {{ selected.size }} {{ t('hub.selected') }}
         </span>
@@ -245,11 +271,15 @@ onMounted(load)
 .titleBlock h1 { margin: 0 0 6px; font-weight: 500; font-size: 28px; color: #f0fff6; }
 .titleBlock p { margin: 0; color: var(--muted); }
 
-.hubTop { display: flex; align-items: end; margin-bottom: 16px; gap: 18px; }
-.tabs { display: flex; gap: 24px; align-items: center; }
+.hubTop { display: flex; align-items: center; margin-bottom: 16px; gap: 24px; }
+.tabs { display: flex; gap: 24px; align-items: center; flex: 0 0 auto; }
 .tab { border: 0; background: transparent; color: var(--muted); padding: 12px 0 11px; font-size: 16px; border-bottom: 2px solid transparent; }
 .tab.active { color: var(--green); border-color: var(--green); }
-.toolbar { margin-left: auto; display: flex; gap: 12px; align-items: center; }
+
+/* Filter bar fills the space between the tabs and the toolbar (gaps from
+   .hubTop's gap). */
+.hubFilter { flex: 1 1 auto; min-width: 0; }
+.toolbar { display: flex; gap: 12px; align-items: center; flex: 0 0 auto; }
 .selectionHint { color: var(--muted); font-size: 12px; align-self: center; }
 
 .btn {
