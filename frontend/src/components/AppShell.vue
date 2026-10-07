@@ -1,5 +1,5 @@
 <script setup>
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import { t } from '../i18n'
@@ -9,17 +9,20 @@ const route = useRoute()
 const auth = useAuthStore()
 const expanded = ref(false)
 
-// Nav items. `to` navigates; `soon` marks not-yet-built destinations (stubbed).
-const navItems = [
+// Nav items. `to` navigates; `soon` marks not-yet-built destinations (stubbed);
+// `adminOnly` hides the item from non-admins.
+const allNavItems = [
   { icon: '⌂', label: 'nav.hub', to: '/hub' },
   { icon: '＋', label: 'nav.createVuln', to: '/vulnerabilities/new' },
   { icon: '＋', label: 'nav.createReport', soon: true },
   { icon: '▤', label: 'nav.rvsQueue', soon: true },
   { icon: '☷', label: 'nav.audit', soon: true },
-  { icon: '♙', label: 'nav.users', soon: true },
-  { icon: '⚿', label: 'nav.apiKeys', soon: true },
+  { icon: '♙', label: 'nav.users', to: '/users', adminOnly: true },
+  { icon: '⚿', label: 'nav.apiKeys', soon: true, adminOnly: true },
   { icon: '⚙', label: 'nav.settings', soon: true },
 ]
+const navItems = computed(() =>
+  allNavItems.filter((i) => !i.adminOnly || auth.user?.role === 'admin'))
 
 function isActive(item) {
   if (!item.to) return false
