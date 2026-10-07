@@ -8,6 +8,34 @@ export function setAccessToken(token) {
   accessToken = token
 }
 
+// --- Session refresh -------------------------------------------------------
+// Access tokens are short-lived (15 min). On a 401 we ask the auth store for a
+// new one once (refresh tokens last days) and retry; if that fails, the session
+// is over and the app is told to go back to the login page.
+let refreshHandler = null
+export function setRefreshHandler(fn) {
+  refreshHandler = fn
+}
+let refreshing = null // shared so parallel 401s trigger a single refresh
+
+async function refreshAccessToken() {
+  if (!refreshHandler) return false
+  refreshing ??= refreshHandler().finally(() => { refreshing = null })
+  return refreshing
+}
+
+// fetch + bearer token + one transparent refresh-and-retry on 401.
+async function authedFetch(url, init = {}, auth = true) {
+  const send = () => fetch(url, {
+    ...init,
+    headers: { ...init.headers, ...(auth && accessToken ? { Authorization: `Bearer ${accessToken}` } : {}) },
+  })
+  let res = await send()
+  if (res.status === 401 && auth && await refreshAccessToken()) res = await send()
+  if (res.status === 401 && auth) window.dispatchEvent(new Event('session-expired'))
+  return res
+}
+
 export class ApiError extends Error {
   constructor(status, detail) {
     super(detail || `HTTP ${status}`)
@@ -20,13 +48,12 @@ export async function api(path, { method = 'GET', body, auth = true } = {}) {
   // FormData (file uploads) must set its own multipart Content-Type boundary.
   const isForm = typeof FormData !== 'undefined' && body instanceof FormData
   const headers = isForm ? {} : { 'Content-Type': 'application/json' }
-  if (auth && accessToken) headers.Authorization = `Bearer ${accessToken}`
 
-  const res = await fetch(`${BASE}${path}`, {
+  const res = await authedFetch(`${BASE}${path}`, {
     method,
     headers,
     body: body === undefined ? undefined : (isForm ? body : JSON.stringify(body)),
-  })
+  }, auth)
 
   if (res.status === 204) return null
   const data = await res.json().catch(() => null)
@@ -87,9 +114,7 @@ export const deleteAttachment = (id) => api(`/attachments/${id}`, { method: 'DEL
 // File content needs the bearer token, so <img src> / <a href> can't point at
 // it directly. Fetch it as a Blob and hand out object URLs instead.
 export async function fetchAttachmentBlob(id) {
-  const res = await fetch(`${BASE}/attachments/${id}/content`, {
-    headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {},
-  })
+  const res = await authedFetch(`${BASE}/attachments/${id}/content`)
   if (!res.ok) throw new ApiError(res.status, null)
   return res.blob()
 }

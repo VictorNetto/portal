@@ -23,3 +23,9 @@ window.addEventListener('password-change-required', () => {
   if (auth.user) auth.user.must_change_password = true
   if (router.currentRoute.value.name !== 'profile') router.push({ name: 'profile' })
 })
+
+// Refresh failed (or no valid refresh token): the session is over.
+window.addEventListener('session-expired', () => {
+  auth.logout()
+  if (router.currentRoute.value.name !== 'login') router.push({ name: 'login' })
+})
