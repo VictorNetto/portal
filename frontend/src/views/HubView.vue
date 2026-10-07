@@ -1,17 +1,17 @@
 <script setup>
 import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
-import { listVulns, deleteVuln, ApiError } from '../api'
+import { listVulns, deleteVuln, listReports, deleteReport, ApiError } from '../api'
 import { t } from '../i18n'
 import AppShell from '../components/AppShell.vue'
 import FilterBar from '../components/FilterBar.vue'
 import VulnTimeline from '../components/VulnTimeline.vue'
 import { parseQuery } from '../filterQuery'
-import { fmtDate, fmtDateTime } from '../dates'
+import { fmtDate, fmtDateTime, fmtPlainDate } from '../dates'
 
 const router = useRouter()
 
-// Entity switcher (§5.4). Reports tab is present but stubbed (no backend yet).
+// Entity switcher (§5.4): vulnerabilities or reports.
 const entity = ref('vulns')
 
 // Drive the global accent: reports -> indigo, vulns -> green. Sets a data
@@ -22,6 +22,7 @@ watch(entity, (e) => {
 onUnmounted(() => document.documentElement.removeAttribute('data-entity'))
 
 const vulns = ref([])
+const reports = ref([])
 const loading = ref(true)
 const error = ref('')
 
@@ -43,6 +44,13 @@ const query = computed({
 })
 const filterBar = ref(null)
 watch(query, () => { page.value = 1 })
+// Each tab starts clean: first page, nothing selected or previewed.
+watch(entity, () => {
+  page.value = 1
+  preview.value = null
+  menuFor.value = null
+  selected.value = new Set()
+})
 
 function onKeydown(e) {
   const tag = e.target.tagName
@@ -76,11 +84,27 @@ const filteredVulns = computed(() => {
   return rows
 })
 
-// Distinct operator usernames across loaded vulns, for the operator: value
-// menu. (Until operator assignment exists this is typically empty.)
+// Reports reuse the same filter grammar by exposing report fields under the
+// names it understands: id/text -> "OP-0001 name client", source -> client, cvss -> max.
+const filteredReports = computed(() => {
+  let rows = reports.value.map((r) => ({
+    ...r,
+    identifier: [r.internal_id, r.name, r.client_name].filter(Boolean).join(' '),
+    source: r.client_name,
+    cvss_score: r.max_cvss,
+  }))
+  if (query.value.trim()) {
+    const { predicate } = parseQuery(query.value)
+    rows = rows.filter(predicate)
+  }
+  return rows
+})
+const activeRows = computed(() => (entity.value === 'vulns' ? filteredVulns.value : filteredReports.value))
+
+// Distinct operator usernames across the loaded rows, for the operator: value menu.
 const operatorValues = computed(() => {
   const set = new Set()
-  for (const v of vulns.value) {
+  for (const v of (entity.value === 'vulns' ? vulns.value : reports.value)) {
     const ops = Array.isArray(v.operators) ? v.operators : []
     for (const o of ops) {
       const name = typeof o === 'string' ? o : o?.username
@@ -93,16 +117,20 @@ const dynamicFilterValues = computed(() => ({ operator: operatorValues.value }))
 
 async function load() {
   loading.value = true; error.value = ''
-  try { vulns.value = await listVulns() }
+  try {
+    const [v, r] = await Promise.all([listVulns(), listReports()])
+    vulns.value = v
+    reports.value = r
+  }
   catch (e) { error.value = e instanceof ApiError ? e.detail : t('errors.load') }
   finally { loading.value = false }
 }
 
-const total = computed(() => filteredVulns.value.length)
+const total = computed(() => activeRows.value.length)
 const pageCount = computed(() => Math.max(1, Math.ceil(total.value / pageSize.value)))
 const pageRows = computed(() => {
   const start = (page.value - 1) * pageSize.value
-  return filteredVulns.value.slice(start, start + pageSize.value)
+  return activeRows.value.slice(start, start + pageSize.value)
 })
 const rangeLabel = computed(() => {
   if (!total.value) return `0 ${t('hub.of')} 0`
@@ -161,14 +189,23 @@ function toggleMenu(id, ev) {
 }
 
 function goDetail(id) { router.push(`/vulnerabilities/${id}`) }
-function goCreate() { router.push('/vulnerabilities/new') }
+function goReport(id) { router.push(`/reports/${id}`) }
+function goCreate() { router.push(entity.value === 'vulns' ? '/vulnerabilities/new' : '/reports/new') }
 
 async function removeRow(id) {
   menuFor.value = null
-  if (!confirm(t('vuln.confirmDelete'))) return
-  try { await deleteVuln(id); if (preview.value?.id === id) preview.value = null; await load() }
+  const isVuln = entity.value === 'vulns'
+  if (!confirm(t(isVuln ? 'vuln.confirmDelete' : 'reports.confirmDelete'))) return
+  try {
+    await (isVuln ? deleteVuln(id) : deleteReport(id))
+    if (preview.value?.id === id) preview.value = null
+    await load()
+  }
   catch (e) { error.value = e instanceof ApiError ? e.detail : t('errors.delete') }
 }
+
+const period = (r) => (r.start_date || r.end_date)
+  ? `${fmtPlainDate(r.start_date)} – ${fmtPlainDate(r.end_date)}` : '—'
 
 // CVSS severity bucket for coloring (hi ≥ 7, me ≥ 4, else lo).
 const sevClass = (score) => {
@@ -223,12 +260,6 @@ onMounted(load)
       </div>
     </div>
 
-    <!-- Reports tab: stub until the backend exists -->
-    <section v-if="entity === 'reports'" class="panel stub">
-      <p>{{ t('hub.tabReports') }} — {{ t('comingSoon') }}</p>
-    </section>
-
-    <template v-else>
       <div class="pagination top">
         <span class="pageInfo mono">{{ t('hub.showing') }} {{ rangeLabel }}</span>
         <button class="pageBtn" :disabled="page <= 1" @click="page--">{{ t('common.prev') }}</button>
@@ -237,8 +268,8 @@ onMounted(load)
         <button class="pageBtn" :disabled="page >= pageCount" @click="page++">{{ t('common.next') }}</button>
       </div>
 
-      <section class="panel tablePanel" @scroll="menuFor = null">
-        <table>
+      <section v-if="entity === 'vulns'" class="panel tablePanel" @scroll="menuFor = null">
+        <table class="vtable">
           <thead>
             <tr>
               <th><input type="checkbox" class="check" :checked="allChecked"
@@ -288,13 +319,65 @@ onMounted(load)
         </table>
       </section>
 
+      <section v-else class="panel tablePanel" @scroll="menuFor = null">
+        <table class="rtable">
+          <thead>
+            <tr>
+              <th><input type="checkbox" class="check" :checked="allChecked"
+                         :indeterminate.prop="someChecked" @change="toggleAll" /></th>
+              <th>{{ t('rcols.name') }}</th>
+              <th>{{ t('cols.status') }}</th>
+              <th>{{ t('rcols.risk') }}</th>
+              <th>{{ t('cols.operators') }}</th>
+              <th>{{ t('rcols.client') }}</th>
+              <th>{{ t('rcols.vulns') }}</th>
+              <th>{{ t('cols.updatedAt') }}</th>
+              <th style="text-align:center">{{ t('cols.actions') }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="r in pageRows" :key="r.id"
+                :class="{ selected: selected.has(r.id), preview: preview?.id === r.id }">
+              <td @click.stop><input type="checkbox" class="check"
+                   :checked="selected.has(r.id)" @change="toggleRow(r.id)" /></td>
+              <td class="val" @click="openPreview(r)">
+                <span class="idcell">{{ r.internal_id }}</span> <span class="rname">{{ r.name }}</span>
+              </td>
+              <td @click="openPreview(r)">
+                <span class="pill" :class="'s-' + r.status">{{ t('status.' + r.status) }}</span>
+              </td>
+              <td @click="openPreview(r)">
+                <span v-if="r.max_cvss != null" class="cvss" :class="sevClass(r.max_cvss)">{{ r.max_cvss }}</span>
+                <span v-else>—</span>
+              </td>
+              <td class="val" @click="openPreview(r)">{{ opNames(r) }}</td>
+              <td class="val" @click="openPreview(r)">{{ r.client_name || '—' }}</td>
+              <td class="dateCell" @click="openPreview(r)">{{ r.vuln_count }}</td>
+              <td class="dateCell" :title="fullDate(r.updated_at)" @click="openPreview(r)">{{ fmtDate(r.updated_at) }}</td>
+              <td style="text-align:center" @click.stop>
+                <div class="rowActionWrap">
+                  <button class="link rowBtn" @click="toggleMenu(r.id, $event)">{{ t('common.rowMenu') }}</button>
+                  <div v-if="menuFor === r.id" class="rowMenuInline" :style="menuPos">
+                    <button @click="openPreview(r); menuFor = null">{{ t('rowActions.view') }}</button>
+                    <button @click="goReport(r.id)">{{ t('rowActions.open') }}</button>
+                    <button v-if="r.status === 'draft'" class="danger" @click="removeRow(r.id)">{{ t('rowActions.delete') }}</button>
+                  </div>
+                </div>
+              </td>
+            </tr>
+            <tr v-if="!loading && !pageRows.length">
+              <td colspan="9" class="empty">{{ t('hub.emptyReports') }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
       <p v-if="error" class="err">{{ error }}</p>
-    </template>
     </div>
 
     <!-- Bottom details panel (§6/§7) -->
     <aside ref="detailsEl" class="details" :class="{ open: preview }">
-      <div v-if="preview" class="detailsInner">
+      <div v-if="preview && entity === 'vulns'" class="detailsInner">
         <div class="detailsTop">
           <div class="headline">
             <span class="detailsId mono" :title="preview.identifier || ''">
@@ -329,6 +412,40 @@ onMounted(load)
         </h2>
         <VulnTimeline :vuln="preview" compact class="drawerTimeline" />
       </div>
+
+      <div v-else-if="preview" class="detailsInner">
+        <div class="detailsTop">
+          <div class="headline">
+            <span class="detailsId" :title="preview.name">{{ preview.name }}</span>
+          </div>
+          <div class="detailsActions">
+            <span class="pill statusPill" :class="'s-' + preview.status">{{ t('status.' + preview.status) }}</span>
+            <span class="updated" :title="fullDate(preview.updated_at)">
+              {{ t('cols.updatedAt') }} {{ fmtDateTime(preview.updated_at) }}
+            </span>
+            <button class="btn" @click="goReport(preview.id)">{{ t('rowActions.open') }}</button>
+            <button class="btn" @click="closePreview">{{ t('common.close') }}</button>
+          </div>
+        </div>
+        <h2 class="metaLine">
+          <span class="m"><span class="k">ID</span><span class="mono v">{{ preview.internal_id }}</span></span>
+          <span class="m"><span class="k">{{ t('rcols.client') }}</span><span class="v">{{ preview.client_name || '—' }}</span></span>
+          <span class="m"><span class="k">{{ t('rcols.period') }}</span><span class="v">{{ period(preview) }}</span></span>
+          <span class="m"><span class="k">{{ t('rcols.vulns') }}</span><span class="v">{{ preview.vuln_count }}</span></span>
+          <span class="m"><span class="k">{{ t('rcols.risk') }}</span>
+            <span v-if="preview.max_cvss != null" class="cvss" :class="sevClass(preview.max_cvss)">{{ preview.max_cvss }}</span>
+            <span v-else>—</span></span>
+        </h2>
+        <h2 class="opsLine">
+          <template v-if="preview.operators?.length">
+            <span v-for="o in preview.operators" :key="o.id" class="op">{{ o.username }}</span>
+          </template>
+          <span v-else class="none">—</span>
+        </h2>
+        <p v-if="preview.lock" class="lockLine">
+          {{ t('reports.editingBy', { user: preview.lock.holder_username }) }}
+        </p>
+      </div>
     </aside>
   </AppShell>
 </template>
@@ -353,14 +470,25 @@ th { border-bottom: 0; }
 .stub { padding: 3rem; text-align: center; color: var(--muted); }
 
 table { table-layout: fixed; }
-th:nth-child(1), td:nth-child(1) { width: 48px; }
-th:nth-child(2), td:nth-child(2) { width: 300px; }
-th:nth-child(3), td:nth-child(3) { width: 150px; }
-th:nth-child(4), td:nth-child(4) { width: 90px; }
-th:nth-child(5), td:nth-child(5) { width: 220px; }
-th:nth-child(6), td:nth-child(6) { width: 120px; }
-th:nth-child(7), td:nth-child(7), th:nth-child(8), td:nth-child(8) { width: 120px; }
-th:nth-child(9), td:nth-child(9) { width: 96px; }
+.vtable th:nth-child(1), .vtable td:nth-child(1) { width: 48px; }
+.vtable th:nth-child(2), .vtable td:nth-child(2) { width: 300px; }
+.vtable th:nth-child(3), .vtable td:nth-child(3) { width: 150px; }
+.vtable th:nth-child(4), .vtable td:nth-child(4) { width: 90px; }
+.vtable th:nth-child(5), .vtable td:nth-child(5) { width: 220px; }
+.vtable th:nth-child(6), .vtable td:nth-child(6) { width: 120px; }
+.vtable th:nth-child(7), .vtable td:nth-child(7), .vtable th:nth-child(8), .vtable td:nth-child(8) { width: 120px; }
+.vtable th:nth-child(9), .vtable td:nth-child(9) { width: 96px; }
+.rtable th:nth-child(1), .rtable td:nth-child(1) { width: 48px; }
+.rtable th:nth-child(2), .rtable td:nth-child(2) { width: 340px; }
+.rtable th:nth-child(3), .rtable td:nth-child(3) { width: 140px; }
+.rtable th:nth-child(4), .rtable td:nth-child(4) { width: 90px; }
+.rtable th:nth-child(5), .rtable td:nth-child(5) { width: 200px; }
+.rtable th:nth-child(6), .rtable td:nth-child(6) { width: 180px; }
+.rtable th:nth-child(7), .rtable td:nth-child(7) { width: 90px; }
+.rtable th:nth-child(8), .rtable td:nth-child(8) { width: 120px; }
+.rtable th:nth-child(9), .rtable td:nth-child(9) { width: 96px; }
+.rname { color: var(--text); }
+.lockLine { margin: 4px 0 0; font-size: 12px; color: var(--st-wait-fg); }
 .dateCell { color: var(--muted); font-variant-numeric: tabular-nums; }
 th, td { white-space: nowrap; }
 .val { overflow: hidden; text-overflow: ellipsis; }

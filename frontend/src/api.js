@@ -131,3 +131,31 @@ export function attachmentObjectUrl(id) {
   }
   return blobUrlCache.get(id)
 }
+
+// --- Reports ---
+export const listReports = () => api('/reports')
+export const getReport = (id) => api(`/reports/${id}`)
+export const createReport = (body) => api('/reports', { method: 'POST', body })
+export const updateReport = (id, body) => api(`/reports/${id}`, { method: 'PATCH', body })
+export const deleteReport = (id) => api(`/reports/${id}`, { method: 'DELETE' })
+export const acquireReportLock = (id) => api(`/reports/${id}/lock`, { method: 'POST' })
+export const heartbeatReport = (id) => api(`/reports/${id}/lock/heartbeat`, { method: 'POST' })
+export const releaseReportLock = (id) => api(`/reports/${id}/lock`, { method: 'DELETE' })
+export const forceReleaseReport = (id) => api(`/reports/${id}/lock/force-release`, { method: 'POST' })
+export const addReportSection = (id, body) => api(`/reports/${id}/sections`, { method: 'POST', body })
+export const updateReportSection = (id, sid, body) =>
+  api(`/reports/${id}/sections/${sid}`, { method: 'PATCH', body })
+export const deleteReportSection = (id, sid) =>
+  api(`/reports/${id}/sections/${sid}`, { method: 'DELETE' })
+export const reorderReportSections = (id, ids) =>
+  api(`/reports/${id}/sections/reorder`, { method: 'POST', body: { ids } })
+export const createReportVuln = (id, body) =>
+  api(`/reports/${id}/vulnerabilities`, { method: 'POST', body })
+
+// Best-effort lock release while the page is closing (a normal fetch may be cancelled).
+export function releaseReportLockOnExit(id) {
+  if (!accessToken) return
+  fetch(`${BASE}/reports/${id}/lock`, {
+    method: 'DELETE', keepalive: true, headers: { Authorization: `Bearer ${accessToken}` },
+  }).catch(() => {})
+}

@@ -26,3 +26,11 @@ export function fmtDateTime(iso) {
   const d = parseUtc(iso)
   return d ? d.toLocaleString(tag()) : '—'
 }
+
+// "YYYY-MM-DD" (a calendar date, no time zone): format without shifting the day.
+export function fmtPlainDate(value) {
+  if (!value) return '—'
+  const [y, m, day] = String(value).slice(0, 10).split('-').map(Number)
+  if (!y || !m || !day) return '—'
+  return new Date(y, m - 1, day).toLocaleDateString(tag())
+}

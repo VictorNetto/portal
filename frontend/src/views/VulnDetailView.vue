@@ -1,12 +1,14 @@
 <script setup>
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { useRoute, useRouter, onBeforeRouteLeave } from 'vue-router'
 import {
   getVuln, createVuln, updateVuln, sendVuln, dispatchVuln, deleteVuln, listUsers,
   listAttachments, uploadAttachment, deleteAttachment, fetchAttachmentBlob,
-  transitionVuln, correctVuln, ApiError,
+  transitionVuln, correctVuln, getReport, createReportVuln, acquireReportLock,
+  heartbeatReport, releaseReportLock, ApiError,
 } from '../api'
 import { attachmentPath } from '../markdown'
+import { fmtTime } from '../dates'
 import { t } from '../i18n'
 import { vField } from '../directives'
 import { useAuthStore } from '../stores/auth'
@@ -22,7 +24,7 @@ const router = useRouter()
 const auth = useAuthStore()
 const isAdmin = computed(() => auth.user?.role === 'admin')
 const isWriter = computed(() => ['admin', 'writer_all'].includes(auth.user?.role))
-const isNew = computed(() => route.name === 'vuln-new')
+const isNew = computed(() => ['vuln-new', 'report-vuln-new'].includes(route.name))
 
 // This is always a vulnerability view -> green accent.
 document.documentElement.setAttribute('data-entity', 'vulns')
@@ -39,6 +41,16 @@ const blankForm = () => ({
 })
 
 const vuln = ref(null)
+
+// A vuln inside a draft report is edited under that report's lock (SPEC §3): it is
+// read-only unless this user holds the lock, and it is saved through the report.
+const reportCtx = ref(null)
+const reportId = computed(() =>
+  route.params.rid || (vuln.value && vuln.value.status === 'draft' ? vuln.value.report_id : null) || null)
+const inReport = computed(() => !!reportId.value)
+const rLock = computed(() => reportCtx.value?.lock || null)
+const lockMine = computed(() => !!rLock.value?.mine)
+const lockOther = computed(() => !!rLock.value && !rLock.value.mine)
 const form = ref(blankForm())
 const loading = ref(!isNew.value)
 const saving = ref(false)
@@ -59,6 +71,9 @@ const attachError = ref('')
 const ALL_FIELDS = ['identifier', 'cwe', 'description', 'finding_detail', 'mitigation',
   'references', 'cvss_score', 'cvss_vector', 'source', 'internal_notes', 'operators']
 const editableFields = computed(() => {
+  if (inReport.value) {
+    return reportCtx.value?.status === 'draft' && lockMine.value ? new Set(ALL_FIELDS) : new Set()
+  }
   if (isNew.value) return new Set(ALL_FIELDS)
   const s = vuln.value?.status
   if (s === 'draft' || s === 'saved_local') return new Set(ALL_FIELDS)
@@ -66,9 +81,10 @@ const editableFields = computed(() => {
   return new Set(['internal_notes', 'operators'])
 })
 const canEdit = (f) => editableFields.value.has(f)
-const isDraft = computed(() => isNew.value || vuln.value?.status === 'draft')
+const isDraft = computed(() => !inReport.value && (isNew.value || vuln.value?.status === 'draft'))
 const isSavedLocal = computed(() => vuln.value?.status === 'saved_local')
-const attachEditable = computed(() => isNew.value || ['draft', 'saved_local'].includes(vuln.value?.status))
+const attachEditable = computed(() =>
+  inReport.value ? lockMine.value : (isNew.value || ['draft', 'saved_local'].includes(vuln.value?.status)))
 
 // --- Validation -----------------------------------------------------------
 const REQUIRED = ['identifier', 'description', 'finding_detail', 'mitigation']
@@ -102,6 +118,11 @@ function resetForNew() {
   loading.value = false
 }
 
+async function loadReportCtx() {
+  if (!reportId.value) { reportCtx.value = null; return }
+  try { reportCtx.value = await getReport(reportId.value) } catch { reportCtx.value = null }
+}
+
 async function loadAttachments() {
   if (!vuln.value) { attachments.value = []; return }
   try { attachments.value = await listAttachments(vuln.value.id) } catch { /* non-fatal */ }
@@ -110,7 +131,7 @@ async function loadAttachments() {
 async function load() {
   // users for the operator picker, regardless of new/edit
   try { allUsers.value = await listUsers() } catch { /* non-fatal */ }
-  if (isNew.value) return resetForNew()
+  if (isNew.value) { resetForNew(); await loadReportCtx(); return }
   // Don't flash the loading state when we just created this very record.
   if (vuln.value?.id !== id.value) loading.value = true
   error.value = ''
@@ -118,6 +139,7 @@ async function load() {
     vuln.value = await getVuln(id.value)
     syncForm()
     await loadAttachments()
+    await loadReportCtx()
   } catch (e) { error.value = e instanceof ApiError ? e.detail : t('errors.load') }
   finally { loading.value = false }
 }
@@ -162,7 +184,9 @@ async function persist() {
   if (isNew.value) {
     const body = bodyFromForm(ALL_FIELDS)
     body.operator_ids = [...selectedOps.value]
-    const created = await createVuln(body)
+    const created = inReport.value
+      ? await createReportVuln(reportId.value, body)
+      : await createVuln(body)
     // Set before navigating so the route change doesn't trigger a reload that
     // would flash the form away or overwrite what the user types meanwhile.
     vuln.value = created
@@ -259,7 +283,7 @@ async function applyCorrection() {
 
 async function remove() {
   if (!confirm(t('vuln.confirmDelete'))) return
-  try { await deleteVuln(id.value); router.push('/hub') }
+  try { await deleteVuln(id.value); router.push(inReport.value ? `/reports/${reportId.value}` : '/hub') }
   catch (e) { error.value = e instanceof ApiError ? e.detail : t('errors.delete') }
 }
 
@@ -348,6 +372,34 @@ async function copyMarkdown(a) {
   try { await navigator.clipboard.writeText(md) } catch { /* clipboard unavailable */ }
 }
 
+// --- Report lock (only relevant for vulns inside a draft report) -------------
+async function takeLock() {
+  error.value = ''
+  try { reportCtx.value = await acquireReportLock(reportId.value) }
+  catch (e) { error.value = e instanceof ApiError ? e.detail : t('errors.update'); await loadReportCtx() }
+}
+let beat = null
+function stopBeat() { if (beat) { clearInterval(beat); beat = null } }
+watch(lockMine, (mine) => {
+  stopBeat()
+  if (!mine) return
+  beat = setInterval(async () => {
+    if (document.hidden) return
+    try { reportCtx.value = await heartbeatReport(reportId.value) }
+    catch { await loadReportCtx(); error.value = t('rpt.lockLost') }
+  }, 60_000)
+}, { immediate: true })
+onUnmounted(stopBeat)
+// Keep the lock when moving between the report and its own vulnerabilities;
+// release it when leaving for anywhere else.
+const KEEP_LOCK_ROUTES = ['report-detail', 'vuln-detail', 'report-vuln-new']
+onBeforeRouteLeave(async (to) => {
+  if (inReport.value && lockMine.value && !KEEP_LOCK_ROUTES.includes(to.name)) {
+    try { await releaseReportLock(reportId.value) } catch { /* ignore */ }
+  }
+})
+const leave = () => router.push(inReport.value ? `/reports/${reportId.value}` : '/hub')
+
 onMounted(load)
 // Navigating between new <-> a created detail reuses this component.
 watch(() => route.fullPath, () => {
@@ -360,8 +412,16 @@ watch(() => route.fullPath, () => {
     <nav class="crumbs">
       <a @click="router.push('/hub')">{{ t('vform.breadcrumbRoot') }}</a>
       <span>›</span>
-      <a @click="router.push('/hub')">{{ t('vform.breadcrumbSection') }}</a>
-      <span>›</span>
+      <template v-if="inReport">
+        <a @click="router.push('/hub')">{{ t('hub.tabReports') }}</a>
+        <span>›</span>
+        <a @click="leave">{{ reportCtx?.internal_id || '…' }}</a>
+        <span>›</span>
+      </template>
+      <template v-else>
+        <a @click="router.push('/hub')">{{ t('vform.breadcrumbSection') }}</a>
+        <span>›</span>
+      </template>
       <strong>{{ isNew ? t('vform.createTitle') : (vuln?.internal_id || vuln?.identifier || t('vuln.draft')) }}</strong>
     </nav>
 
@@ -375,7 +435,7 @@ watch(() => route.fullPath, () => {
       </div>
       <div class="pageActions">
         <button v-if="!isNew" class="btn danger" @click="remove">{{ t('rowActions.delete') }}</button>
-        <button class="btn" @click="router.push('/hub')">{{ t('vform.cancel') }}</button>
+        <button class="btn" @click="leave">{{ inReport ? t('rpt.back') : t('vform.cancel') }}</button>
         <button v-if="isAdmin && correctionTargets.length" class="btn" @click="openCorrection">
           {{ t('correction.button') }}
         </button>
@@ -412,6 +472,14 @@ watch(() => route.fullPath, () => {
       </div>
     </section>
 
+    <p v-if="inReport && reportCtx && reportCtx.status === 'draft'" class="banner"
+       :class="lockMine ? 'mine' : 'other'">
+      <template v-if="lockMine">{{ t('vrep.editing', { report: reportCtx.internal_id, time: fmtTime(rLock.expires_at) }) }}</template>
+      <template v-else-if="lockOther">{{ t('vrep.lockedBy', { user: rLock.holder_username, report: reportCtx.internal_id }) }}</template>
+      <template v-else>{{ t('vrep.readOnly', { report: reportCtx.internal_id }) }}
+        <button v-if="isWriter" class="link" @click="takeLock">{{ t('rpt.edit') }}</button></template>
+    </p>
+
     <p v-if="notice" class="ok msg">{{ notice }}</p>
     <p v-if="error" class="err msg">{{ error }}</p>
 
@@ -421,7 +489,7 @@ watch(() => route.fullPath, () => {
         {{ t('vuln.locked', { status: t('status.' + (vuln?.status || 'dispatching')) }) }}
       </p>
 
-      <section v-if="vuln" class="panel card">
+      <section v-if="vuln && !inReport" class="panel card">
         <h2 class="secTitle">{{ t('timeline.title') }}</h2>
         <VulnTimeline :vuln="vuln" />
       </section>
@@ -573,6 +641,10 @@ input.invalid { border-color: var(--danger); }
 .refRow { display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: start; }
 .addRef { margin: 12px 0 0; }
 
+.banner { margin: 0 0 16px; padding: 9px 14px; border-radius: var(--radius); font-size: 13px; }
+.banner.mine { background: var(--accent-soft); color: var(--accent); }
+.banner.other { background: var(--st-wait-bg); color: var(--st-wait-fg); }
+.banner .link { margin-left: 12px; }
 .corrRow { display: flex; gap: 14px; align-items: flex-end; flex-wrap: wrap; }
 .corrRow .grow { flex: 1 1 280px; }
 .corrActions { display: flex; gap: 8px; }
