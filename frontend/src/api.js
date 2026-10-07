@@ -53,3 +53,8 @@ export const createUser = (body) => api('/users', { method: 'POST', body })
 export const updateUser = (id, body) => api(`/users/${id}`, { method: 'PATCH', body })
 export const resetUserPassword = (id, newPassword) =>
   api(`/users/${id}/reset-password`, { method: 'POST', body: { new_password: newPassword } })
+
+// --- API keys ---
+export const listApiKeys = () => api('/api-keys')
+export const createApiKey = (body) => api('/api-keys', { method: 'POST', body })
+export const revokeApiKey = (id) => api(`/api-keys/${id}/revoke`, { method: 'POST' })

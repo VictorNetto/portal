@@ -18,7 +18,7 @@ const allNavItems = [
   { icon: '▤', label: 'nav.rvsQueue', to: '/rvs-queue' },
   { icon: '☷', label: 'nav.audit', soon: true },
   { icon: '♙', label: 'nav.users', to: '/users', adminOnly: true },
-  { icon: '⚿', label: 'nav.apiKeys', soon: true, adminOnly: true },
+  { icon: '⚿', label: 'nav.apiKeys', to: '/api-keys', adminOnly: true },
   { icon: '⚙', label: 'nav.settings', soon: true },
 ]
 const navItems = computed(() =>

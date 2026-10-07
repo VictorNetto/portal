@@ -5,6 +5,7 @@ import HubView from './views/HubView.vue'
 import VulnDetailView from './views/VulnDetailView.vue'
 import UsersView from './views/UsersView.vue'
 import RvsQueueView from './views/RvsQueueView.vue'
+import ApiKeysView from './views/ApiKeysView.vue'
 
 // Routes follow FRONTEND_SPEC §4.1.
 const routes = [
@@ -15,6 +16,7 @@ const routes = [
   { path: '/vulnerabilities/:id', name: 'vuln-detail', component: VulnDetailView },
   { path: '/users', name: 'users', component: UsersView, meta: { adminOnly: true } },
   { path: '/rvs-queue', name: 'rvs-queue', component: RvsQueueView },
+  { path: '/api-keys', name: 'api-keys', component: ApiKeysView, meta: { adminOnly: true } },
 ]
 
 const router = createRouter({
