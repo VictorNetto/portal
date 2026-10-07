@@ -44,5 +44,19 @@ class Settings(BaseSettings):
     minio_bucket: str = "attachments"
     minio_secure: bool = False  # True once TLS is in front of MinIO
 
+    # --- Dispatch (SPEC §12) ---
+    # "stub" only logs (default, safe for dev). "smtp" sends real email.
+    dispatch_transport: str = "stub"  # stub | smtp
+    # Comma-separated recipients of every dispatch package.
+    dispatch_to: str = ""
+    smtp_host: str = ""
+    smtp_port: int = 587
+    smtp_user: str = ""
+    smtp_password: str = ""
+    smtp_from: str = ""
+    smtp_starttls: bool = True   # upgrade a plain connection (port 587)
+    smtp_ssl: bool = False       # implicit TLS from the start (port 465)
+    smtp_timeout_seconds: int = 60
+
 
 settings = Settings()
