@@ -2,37 +2,102 @@
 
 A self-hosted web platform for a professional red team to **manage, document, and report** security vulnerabilities and assessment operations. It is an internal management tool for ~20 operators — not an offensive/attack tool.
 
-**Intended stack (per spec):** Python (FastAPI) · PostgreSQL · MinIO (local S3) · Vue SPA · Tailwind CSS · Docker · Azure Communication Services (email).
+**Stack:** Python (FastAPI, SQLAlchemy 2, Alembic) · PostgreSQL 16 · Vue 3 (Vite, Pinia) · nginx · Docker Compose · ReportLab / python-docx / openpyxl for documents · SMTP for dispatch.
+
+## What works today
+
+| Area | Highlights |
+|---|---|
+| **Vulnerabilities** | Draft → sent → dispatched → acknowledged (RVS id) → waiting fix → retest loop → fixed; field locks per status; optimistic concurrency; admin status correction with audit; operators; timeline |
+| **Reports** | OP-xxxx ids, write lock (10 min idle, admin force-release), Markdown sections, free-form extra sections, vulnerabilities inside the report, evidence files, two-phase dispatch with retry |
+| **Editor** | Markdown editor with preview, line gutter, image paste/drop (stored as attachments), safe renderer |
+| **Attachments** | Pluggable storage (local volume or S3/MinIO), type/content validation, 50 MB cap, proxied + audited reads |
+| **Exports** | PDF, Excel and Word for reports; PDF/Word for a vulnerability; batch ZIP/Excel from the Hub. Internal notes are never exported |
+| **Dispatch** | Decoupled dispatcher: `stub` (default, logs only) or `smtp` (real email with PDF + Excel + non-image files) |
+| **Ingest API** | `POST /ingest/vulnerabilities` with API keys for scanners — see [docs/INGEST_API.md](docs/INGEST_API.md) |
+| **Administration** | Users and roles (admin · writer_all · reader_all · auditor), forced password change on first login, API keys, audit log viewer |
+| **Hub** | Vulnerabilities / Reports tabs, filter language, details drawer with timeline, row and batch actions, RVS queue |
+| **i18n** | PT-BR and EN (language selector in the profile menu) |
+
+## Quick start (development)
+
+```bash
+cp .env.example .env            # once; edit as needed
+docker compose up -d --build    # db, api (reload), web (Vite HMR), nginx
+```
+
+Open **http://localhost:8080**. On the first start an `admin` user is created with a **random password printed in the api logs** (`docker compose logs api`); set `FIRST_ADMIN_PASSWORD` in `.env` before the first start to choose one. New and reset users must change their password at first login.
+
+Database migrations live in `backend/migrations` (Alembic). The API image does not bundle them; run them with the folder mounted:
+
+```bash
+docker compose run --rm -v "$PWD/backend:/work" -w /work -e PYTHONPATH=/work api alembic upgrade head
+```
+
+### Services
+
+| Service | Role |
+|---|---|
+| `nginx` | The only published port (8080). `/api/*` → backend, everything else → Vite |
+| `api` | FastAPI (the backend owns no `/api` prefix; nginx strips it) |
+| `web` | Vue dev server with hot reload |
+| `db` | PostgreSQL, data in the `db-data` volume |
+| *(files)* | Attachments in the `attachments-data` volume (`STORAGE_BACKEND=local`) |
+
+> MinIO is optional: set `STORAGE_BACKEND=s3` and the `MINIO_*` variables to use any S3-compatible server. See decision **D9** in [docs/DECISIONS.md](docs/DECISIONS.md) for why local storage is the default.
+
+### Configuration (`.env`)
+
+See [.env.example](.env.example). The ones you will touch: `FIRST_ADMIN_PASSWORD`, `JWT_SECRET` (**must** be changed outside dev), `STORAGE_BACKEND`, and for real email `DISPATCH_TRANSPORT=smtp` + `DISPATCH_TO` + `SMTP_*`.
+
+## Tests
+
+The backend has an integration suite that drives the running API over HTTP and uses the same dev database (everything it creates is named `pytest-…` and cleaned up at the end):
+
+```bash
+docker compose exec api pip install pytest httpx pypdf    # once per container
+docker compose exec api python -m pytest tests -q
+```
+
+It covers authentication and the forced password change, the vulnerability lifecycle and corrections, attachments (validation and access rules), the report lock, sections, dispatch (including the failure → retry path), exports, and the ingest API. By default it logs in as `admin` / `12345678`; override with `TEST_ADMIN_USER` / `TEST_ADMIN_PASSWORD`.
 
 ## Repository layout
 
 ```
+backend/
+  app/            FastAPI app: routers/ (HTTP), services/ (business rules), models/, schemas/,
+                  render.py (PDF/Excel/Word), dispatcher.py, storage.py, security.py
+  migrations/     Alembic migrations
+  tests/          pytest integration suite
+frontend/
+  src/            views/, components/ (Markdown editor, timeline, ...), i18n.js, api.js, router.js
+nginx/            Reverse proxy config
 docs/
-  specs/                        Canonical, current specifications
-    SPEC.md                     Backend/system spec (entity model, lifecycles, dispatcher, API)
-    FRONTEND_SPEC.md            Frontend spec (routes, pages, visual system, API contract)
-    vulnerability_hub_escopo_priorizacao.md   Scope & prioritization notes (PT-BR)
-  DECISIONS.md                  Resolved edge-case design decisions (D1–D8) + rationale
-  DEPLOYMENT.md                 Deployment & networking plan + IT-request checklist
-  archive/                      Superseded earlier spec versions (kept for history)
-
-prototypes/
-  operations_hub.html           Operations Hub (main post-login workspace) prototype
-  vulnerability_creation.html   Create Vulnerability page prototype (latest iteration)
-  archive/                      Earlier prototype iterations
+  specs/          Canonical specifications (SPEC.md, FRONTEND_SPEC.md)
+  DECISIONS.md    Resolved design decisions D1–D9 with rationale
+  DEPLOYMENT.md   Deployment & networking plan + IT-request checklist
+  INGEST_API.md   Contract for scanners / pipelines
+prototypes/       Original HTML prototypes of the screens
 ```
+
+## Core concepts
+
+- **Vulnerability** — a finding; standalone (`report_id = NULL`) or owned by a report. Inside a draft report it has no life of its own and is edited under the report's lock; once the report is dispatched it joins the normal list.
+- **Report** — an operation: metadata, narrative sections, its vulnerabilities and an evidence bundle, dispatched as a unit.
+- **Dispatch** — two phases (decision D2): everything moves to `dispatching` in one transaction, then the package is rendered and delivered; a delivery failure leaves it in `dispatching` so it can be retried.
+- **RVS** — the blue team's own tracking id, entered after dispatch to move a vulnerability to `acknowledged`.
+- **Operator** — a platform user assigned to vulnerabilities/reports.
 
 ## Which file is "the" spec?
 
-- `docs/specs/SPEC.md` — latest system spec (was `SPEC 2.md`; adds the `source` field over the prior version).
-- `docs/specs/FRONTEND_SPEC.md` — latest frontend spec (was `FRONTEND_SPEC (2).md`; most complete, includes the change log and Actions section).
+- `docs/specs/SPEC.md` — the system spec.
+- `docs/specs/FRONTEND_SPEC.md` — the frontend spec.
 
 Earlier numbered duplicates are preserved under the respective `archive/` folders and are not authoritative.
 
-## Core concepts (from the spec)
+## Known gaps
 
-- **Vulnerability** — a finding; standalone (`report_id = NULL`) or owned by a report.
-- **Report** — a collection of vulnerabilities, dispatched as a unit.
-- **Dispatch** — outbound delivery via the decoupled **Dispatcher** service (email today, ServiceNow-ready).
-- **RVS** — the blue team's own tracking record ID, entered after dispatch to move a vuln to `acknowledged`.
-- **Operator** — a platform user assigned to vulnerabilities/reports.
+- Several **permission constraints** (who may delete, dispatch or reassign what) are catalogued but not yet decided — the current rule is "any writer".
+- Date-based filters in the Hub (`created:`, `updated:`…) are designed but waiting on a product decision.
+- `DISPATCH_TRANSPORT=smtp` is verified against a test SMTP server only; Azure Communication Services is not wired.
+- Production packaging (TLS, built frontend, no hot reload) follows [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) and is not scripted yet.

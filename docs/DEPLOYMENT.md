@@ -90,6 +90,10 @@ LAN/VPN-only removes public-internet hardening (public cert automation, DDoS, ag
 
 ---
 
+### Attachment storage and backups
+
+With `STORAGE_BACKEND=local` (the default, decision D9) uploaded files live in the `attachments-data` Docker volume, **not** in PostgreSQL. A backup of the database alone loses every attachment and evidence file, so back up that volume together with the database (and restore them as a pair). With `STORAGE_BACKEND=s3` the files live in the object store, which needs its own backup/replication.
+
 ## 7. Deploy loop (once built)
 
 One-time on the server: install Docker, create the production `.env` (real secrets — never in git), obtain + install the PKI cert.

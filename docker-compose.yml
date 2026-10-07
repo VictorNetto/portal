@@ -52,6 +52,7 @@ services:
     env_file: .env
     volumes:
       - ./backend/app:/app/app   # live-reload: edit code on Windows, see it instantly
+      - ./backend/tests:/app/tests   # integration tests (run inside this container)
       - attachments-data:/data/attachments   # uploaded files (STORAGE_BACKEND=local)
     depends_on:
       db:
