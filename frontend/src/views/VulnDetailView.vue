@@ -1,7 +1,7 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { getVuln, createVuln, updateVuln, sendVuln, deleteVuln, ApiError } from '../api'
+import { getVuln, createVuln, updateVuln, sendVuln, deleteVuln, listUsers, ApiError } from '../api'
 import { t } from '../i18n'
 import AppShell from '../components/AppShell.vue'
 
@@ -24,15 +24,20 @@ const saving = ref(false)
 const error = ref('')
 const notice = ref('')
 
+// Operators
+const allUsers = ref([])
+const selectedOps = ref(new Set())  // user ids
+
 // Field-lock rules (SPEC §4), mirrored for UX; server enforces regardless.
+// `operators` is an assignment, editable except while dispatching.
 const editableFields = computed(() => {
-  if (isNew.value) return new Set(Object.keys(form.value))
+  if (isNew.value) return new Set([...Object.keys(form.value), 'operators'])
   const s = vuln.value?.status
   if (s === 'draft' || s === 'saved_local')
     return new Set(['identifier', 'cwe', 'description', 'finding_detail',
-      'mitigation', 'cvss_score', 'cvss_vector', 'source', 'internal_notes'])
+      'mitigation', 'cvss_score', 'cvss_vector', 'source', 'internal_notes', 'operators'])
   if (s === 'dispatching') return new Set()
-  return new Set(['internal_notes'])
+  return new Set(['internal_notes', 'operators'])
 })
 const canEdit = (f) => editableFields.value.has(f)
 const isDraft = computed(() => isNew.value || vuln.value?.status === 'draft')
@@ -40,9 +45,19 @@ const isDraft = computed(() => isNew.value || vuln.value?.status === 'draft')
 function syncForm() {
   const v = vuln.value
   for (const k of Object.keys(form.value)) form.value[k] = v[k] ?? ''
+  selectedOps.value = new Set((v.operators || []).map((o) => o.id))
+}
+
+function toggleOp(uid) {
+  if (!canEdit('operators')) return
+  if (selectedOps.value.has(uid)) selectedOps.value.delete(uid)
+  else selectedOps.value.add(uid)
+  selectedOps.value = new Set(selectedOps.value)
 }
 
 async function load() {
+  // load users for the picker regardless (new or edit)
+  try { allUsers.value = await listUsers() } catch { /* non-fatal */ }
   if (isNew.value) return
   loading.value = true; error.value = ''
   try { vuln.value = await getVuln(id); syncForm() }
@@ -53,6 +68,7 @@ async function load() {
 function bodyFromForm(fields) {
   const body = {}
   for (const f of fields) {
+    if (f === 'operators') continue // handled separately as operator_ids
     let val = form.value[f]
     if (f === 'cvss_score') val = val === '' ? null : Number(val)
     else val = val === '' ? null : val
@@ -65,11 +81,14 @@ async function save() {
   saving.value = true; error.value = ''; notice.value = ''
   try {
     if (isNew.value) {
-      const created = await createVuln(bodyFromForm(Object.keys(form.value)))
+      const body = bodyFromForm(Object.keys(form.value))
+      body.operator_ids = [...selectedOps.value]
+      const created = await createVuln(body)
       router.replace(`/vulnerabilities/${created.id}`)
       return
     }
     const body = { version: vuln.value.version, ...bodyFromForm([...editableFields.value]) }
+    if (canEdit('operators')) body.operator_ids = [...selectedOps.value]
     vuln.value = await updateVuln(id, body); syncForm(); notice.value = 'Salvo.'
   } catch (e) {
     if (e instanceof ApiError && e.status === 409) { error.value = e.detail; await load() }
@@ -128,6 +147,15 @@ onMounted(load)
           <input v-model="form.cvss_vector" :disabled="!canEdit('cvss_vector')" />
           <label>{{ t('cols.source') }}</label>
           <input v-model="form.source" :disabled="!canEdit('source')" />
+          <label>{{ t('cols.operators') }}</label>
+          <div class="opchips" :class="{ locked: !canEdit('operators') }">
+            <button v-for="u in allUsers" :key="u.id" type="button" class="opchip"
+                    :class="{ on: selectedOps.has(u.id) }"
+                    :disabled="!canEdit('operators')" @click="toggleOp(u.id)">
+              {{ u.username }}
+            </button>
+            <span v-if="!allUsers.length" class="muted">—</span>
+          </div>
           <label>Descrição</label>
           <textarea v-model="form.description" rows="3" :disabled="!canEdit('description')" />
           <label>Detalhe do achado</label>
@@ -175,6 +203,11 @@ input, textarea { background: var(--panel); border: 1px solid var(--line-2); bor
 input:focus, textarea:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
 input:disabled, textarea:disabled { background: var(--panel-2); color: var(--muted); cursor: not-allowed; }
 textarea { resize: vertical; }
+.opchips { display: flex; flex-wrap: wrap; gap: 8px; padding-top: 2px; }
+.opchip { border: 1px solid var(--line-2); background: var(--panel); color: var(--text-2); border-radius: 999px; padding: 4px 12px; font-size: 13px; }
+.opchip:hover:not(:disabled) { border-color: var(--dim); }
+.opchip.on { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); font-weight: 600; }
+.opchip:disabled { cursor: default; opacity: .7; }
 .footer { display: flex; align-items: center; gap: 1rem; }
 .ok { color: var(--accent); } .err { color: var(--danger); } .muted { color: var(--muted); }
 </style>

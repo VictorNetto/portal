@@ -142,6 +142,11 @@ const sevClass = (score) => {
   return n >= 7 ? 'hi' : n >= 4 ? 'me' : 'lo'
 }
 
+const opNames = (v) => {
+  const ops = Array.isArray(v.operators) ? v.operators : []
+  return ops.length ? ops.map((o) => o.username).join(', ') : '—'
+}
+
 onMounted(load)
 </script>
 
@@ -213,7 +218,7 @@ onMounted(load)
                 <span v-if="v.cvss_score != null" class="cvss" :class="sevClass(v.cvss_score)">{{ v.cvss_score }}</span>
                 <span v-else>—</span>
               </td>
-              <td class="val" @click="openPreview(v)">—</td>
+              <td class="val" @click="openPreview(v)">{{ opNames(v) }}</td>
               <td class="val" @click="openPreview(v)">{{ v.source || '—' }}</td>
               <td style="text-align:center" @click.stop>
                 <div class="rowActionWrap">
