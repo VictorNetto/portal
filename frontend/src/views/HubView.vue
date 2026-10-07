@@ -381,22 +381,22 @@ tr.selected td, tr.preview td { background: var(--accent-soft); }
 .details {
   position: fixed; left: var(--sidebar); right: 0; bottom: 0;
   background: var(--panel); border-top: 1px solid var(--line-2);
-  z-index: 18; padding: 12px 32px 10px; max-height: 60vh; overflow: auto;
+  z-index: 18; padding: 14px 32px 14px; max-height: 60vh; overflow: auto;
   transform: translateY(100%); transition: transform .15s ease;
 }
 .details.open { transform: translateY(0); }
-.detailsTop { display: flex; align-items: center; gap: 16px; margin-bottom: 6px; }
+.detailsTop { display: flex; align-items: center; gap: 16px; margin-bottom: 10px; }
 .headline { display: flex; align-items: center; gap: 14px; min-width: 0; flex: 1 1 auto; }
 .detailsId { font-size: 17px; color: var(--accent); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
 .headline .pill { flex: 0 0 auto; }
 .updated { flex: 0 0 auto; font-size: 12px; color: var(--dim); }
 .detailsActions { margin-left: auto; display: flex; align-items: center; gap: 8px; }
-.metaLine, .opsLine { margin: 0 0 4px; font-size: 13px; font-weight: 300; color: var(--text-2); }
+.metaLine, .opsLine { margin: 0 0 8px; font-size: 13px; font-weight: 300; color: var(--text-2); }
 .metaLine { display: flex; flex-wrap: wrap; gap: 2px 28px; }
 .metaLine .k { margin-right: 8px; font-size: 12px; color: var(--muted); }
 .metaLine .v { word-break: break-all; }
 .opsLine { display: flex; flex-wrap: wrap; gap: 6px; }
 .op { padding: 1px 9px; border: 1px solid var(--line-2); border-radius: var(--radius); font-size: 12px; color: var(--text-2); }
 .none { color: var(--dim); }
-.drawerTimeline { margin-top: 10px; }
+.drawerTimeline { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line); }
 </style>
