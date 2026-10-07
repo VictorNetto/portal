@@ -3,6 +3,7 @@ import { ref, computed, onMounted } from 'vue'
 import { listAudit, ApiError } from '../api'
 import { t } from '../i18n'
 import AppShell from '../components/AppShell.vue'
+import { fmtDateTime } from '../dates'
 
 const data = ref({ items: [], total: 0, page: 1, page_size: 25 })
 const loading = ref(true)
@@ -75,7 +76,7 @@ onMounted(() => { document.documentElement.removeAttribute('data-entity'); load(
         </thead>
         <tbody>
           <tr v-for="e in data.items" :key="e.id">
-            <td class="mono dim">{{ new Date(e.created_at).toLocaleString() }}</td>
+            <td class="mono dim">{{ fmtDateTime(e.created_at) }}</td>
             <td class="actor">{{ e.actor }}</td>
             <td><span class="act" :class="actionClass(e.action)">{{ e.action }}</span></td>
             <td class="dim">{{ e.entity_type || '—' }}</td>

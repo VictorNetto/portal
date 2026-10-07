@@ -13,6 +13,7 @@ import MarkdownEditor from '../components/MarkdownEditor.vue'
 import CvssInput from '../components/CvssInput.vue'
 import MultiValueInput from '../components/MultiValueInput.vue'
 import AttachmentsPanel from '../components/AttachmentsPanel.vue'
+import VulnTimeline from '../components/VulnTimeline.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -344,6 +345,11 @@ watch(() => route.fullPath, () => {
       <p v-if="!editableFields.size" class="locked">
         {{ t('vuln.locked', { status: t('status.' + (vuln?.status || 'dispatching')) }) }}
       </p>
+
+      <section v-if="vuln" class="panel card">
+        <h2 class="secTitle">{{ t('timeline.title') }}</h2>
+        <VulnTimeline :vuln="vuln" />
+      </section>
 
       <section class="panel card">
         <h2 class="secTitle">{{ t('vform.general') }}</h2>

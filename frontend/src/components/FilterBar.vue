@@ -84,6 +84,11 @@ function applyAutocomplete(choice) {
   nextTick(() => inputEl.value?.focus())
 }
 
+// Close the menu shortly after blur so a click on a menu item still registers.
+function onBlur() {
+  setTimeout(() => { dismissed.value = true }, 120)
+}
+
 function onInput() {
   dismissed.value = false
   activeIdx.value = 0
@@ -129,7 +134,7 @@ const HELP_LINES = computed(() => [1, 2, 3, 4, 5, 6, 7, 8].map((n) => t('filter.
       :placeholder="t('filter.placeholder')"
       @input="onInput"
       @keydown="onKeydown"
-      @blur="() => setTimeout(() => (dismissed = true), 120)"
+      @blur="onBlur"
     />
 
     <!-- trailing adornment: ? (help) when empty, × (clear) when there's text -->

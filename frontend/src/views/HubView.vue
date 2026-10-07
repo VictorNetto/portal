@@ -5,7 +5,9 @@ import { listVulns, deleteVuln, ApiError } from '../api'
 import { t } from '../i18n'
 import AppShell from '../components/AppShell.vue'
 import FilterBar from '../components/FilterBar.vue'
+import VulnTimeline from '../components/VulnTimeline.vue'
 import { parseQuery } from '../filterQuery'
+import { fmtDate, fmtDateTime } from '../dates'
 
 const router = useRouter()
 
@@ -164,8 +166,7 @@ const sevClass = (score) => {
 }
 
 // dd/mm/aaaa in the list; full local timestamp on hover.
-const fmtDate = (iso) => (iso ? new Date(iso).toLocaleDateString('pt-BR') : '—')
-const fullDate = (iso) => (iso ? new Date(iso).toLocaleString('pt-BR') : '')
+const fullDate = (iso) => (iso ? fmtDateTime(iso) : '')
 
 const opNames = (v) => {
   const ops = Array.isArray(v.operators) ? v.operators : []
@@ -290,20 +291,19 @@ onMounted(load)
             <button class="btn" @click="closePreview">{{ t('common.close') }}</button>
           </div>
         </div>
-        <div class="detailCols">
-          <div>
-            <div class="kv"><label>{{ t('cols.status') }}</label>
-              <span class="pill" :class="'s-' + preview.status">{{ t('status.' + preview.status) }}</span></div>
-            <div class="kv"><label>{{ t('cols.cvss') }}</label>
-              <span v-if="preview.cvss_score != null" class="cvss" :class="sevClass(preview.cvss_score)">{{ preview.cvss_score }}</span>
-              <span v-else>—</span></div>
-          </div>
-          <div>
-            <div class="kv"><label>{{ t('cols.identifier') }}</label>
-              <span class="val">{{ preview.identifier || '—' }}</span></div>
-            <div class="kv"><label>{{ t('cols.source') }}</label><span>{{ preview.source || '—' }}</span></div>
-          </div>
+        <div class="detailFields">
+          <div class="kv"><label>{{ t('cols.status') }}</label>
+            <span class="pill" :class="'s-' + preview.status">{{ t('status.' + preview.status) }}</span></div>
+          <div class="kv"><label>{{ t('cols.cvss') }}</label>
+            <span v-if="preview.cvss_score != null" class="cvss" :class="sevClass(preview.cvss_score)">{{ preview.cvss_score }}</span>
+            <span v-else>—</span></div>
+          <div class="kv"><label>{{ t('cols.identifier') }}</label>
+            <span class="val">{{ preview.identifier || '—' }}</span></div>
+          <div class="kv"><label>{{ t('cols.source') }}</label><span>{{ preview.source || '—' }}</span></div>
+          <div class="kv"><label>{{ t('rvs.rvsId') }}</label>
+            <span class="mono">{{ preview.rvs_id || '—' }}</span></div>
         </div>
+        <VulnTimeline :vuln="preview" />
       </div>
     </aside>
   </AppShell>
@@ -321,7 +321,7 @@ onMounted(load)
 /* Only the list scrolls; title, tabs/filter and pagination stay put. While the
    details panel is open the page shrinks above it. */
 .hubPage { height: 100%; display: flex; flex-direction: column; }
-.hubPage.withDetails { padding-bottom: max(30vh, 220px); }
+.hubPage.withDetails { padding-bottom: max(30vh, 290px); }
 .hubPage > * { flex: 0 0 auto; }
 .hubPage > .tablePanel { flex: 0 1 auto; min-height: 0; overflow: auto; }
 .pagination.top { margin: 0 0 12px; }
@@ -356,16 +356,16 @@ tr.selected td, tr.preview td { background: var(--accent-soft); }
 .rowMenuInline button.danger { color: var(--danger); }
 
 .details {
-  position: fixed; left: var(--sidebar); right: 0; bottom: 0; height: 30vh; min-height: 220px;
+  position: fixed; left: var(--sidebar); right: 0; bottom: 0; height: max(30vh, 290px);
   background: var(--panel); border-top: 1px solid var(--line-2);
-  z-index: 18; padding: 20px 32px;
+  z-index: 18; padding: 16px 32px; overflow: auto;
   transform: translateY(100%); transition: transform .15s ease;
 }
 .details.open { transform: translateY(0); }
-.detailsTop { display: flex; align-items: center; margin-bottom: 18px; }
+.detailsTop { display: flex; align-items: center; margin-bottom: 14px; }
 .detailsId { font-size: 17px; color: var(--accent); }
 .detailsActions { margin-left: auto; display: flex; align-items: center; gap: 8px; }
-.detailCols { display: grid; grid-template-columns: 1fr 1fr; gap: 56px; max-width: 700px; }
-.kv { margin-bottom: 16px; }
+.detailFields { display: flex; flex-wrap: wrap; gap: 8px 48px; margin-bottom: 18px; }
+.kv { margin-bottom: 0; }
 .kv label { display: block; color: var(--muted); margin-bottom: 6px; font-size: 12px; }
 </style>

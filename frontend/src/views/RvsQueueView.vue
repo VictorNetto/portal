@@ -3,6 +3,7 @@ import { ref, onMounted } from 'vue'
 import { rvsQueue, setVulnRvs, ApiError } from '../api'
 import { t } from '../i18n'
 import AppShell from '../components/AppShell.vue'
+import { fmtDateTime } from '../dates'
 
 const items = ref([])
 const loading = ref(true)
@@ -71,7 +72,7 @@ onMounted(() => {
               <span v-if="v.cvss_score != null" class="cvss" :class="sevClass(v.cvss_score)">{{ v.cvss_score }}</span>
               <span v-else>—</span>
             </td>
-            <td class="muted">{{ v.dispatched_at ? new Date(v.dispatched_at).toLocaleString() : '—' }}</td>
+            <td class="muted">{{ fmtDateTime(v.dispatched_at) }}</td>
             <td>
               <form class="rvsForm" @submit.prevent="submit(v)">
                 <input v-model="rvsInputs[v.id]" :placeholder="t('rvs.placeholder')" />
