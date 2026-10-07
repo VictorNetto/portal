@@ -8,6 +8,7 @@ const emit = defineEmits(['update:modelValue'])
 const inputEl = ref(null)
 const menuOpen = ref(false)
 const activeIdx = ref(0)
+const menuNegate = ref(false) // set when the menu was opened via "-/"
 
 const text = computed({
   get: () => props.modelValue,
@@ -16,23 +17,10 @@ const text = computed({
 
 const hasText = computed(() => (text.value || '').length > 0)
 
-// The fragment currently being typed (last whitespace-delimited chunk).
-const currentFragment = computed(() => {
-  const m = (text.value || '').match(/(\S*)$/)
-  return m ? m[1] : ''
-})
-
-// Menu opens ONLY when the current fragment is "/" (keys) or "-/" (negated keys).
-const triggerState = computed(() => {
-  const f = currentFragment.value
-  if (f === '/') return { show: true, negate: false }
-  if (f === '-/') return { show: true, negate: true }
-  return { show: false, negate: false }
-})
-
+// The menu always lists all keys; its contents do NOT depend on live text, so
+// it renders reliably the moment it is opened.
 const suggestions = computed(() => {
-  if (!triggerState.value.show) return []
-  const neg = triggerState.value.negate ? '-' : ''
+  const neg = menuNegate.value ? '-' : ''
   return FILTER_KEYS.map((k) => ({
     label: `${k.key}:`,
     desc: k.desc,
@@ -40,47 +28,42 @@ const suggestions = computed(() => {
   }))
 })
 
-function maybeOpenMenu() {
-  if (triggerState.value.show) {
-    menuOpen.value = true
-    activeIdx.value = 0
-  } else {
-    menuOpen.value = false
-  }
+function openMenu(negate) {
+  menuNegate.value = negate
+  activeIdx.value = 0
+  menuOpen.value = true
 }
-
-function onInput() { maybeOpenMenu() }
 
 function applySuggestion(s) {
   // Replace the trailing "/" or "-/" fragment with the chosen "key:".
-  const base = (text.value || '').replace(/(\S*)$/, '')
+  const base = (text.value || '').replace(/[-]?\/?$/, '')
   text.value = base + s.insert
-  nextTick(() => {
-    inputEl.value?.focus()
-    menuOpen.value = false
-    activeIdx.value = 0
-  })
+  menuOpen.value = false
+  activeIdx.value = 0
+  nextTick(() => inputEl.value?.focus())
+}
+
+function onInput() {
+  // Close the menu once the user types past the "/" trigger.
+  const frag = ((text.value || '').match(/(\S*)$/) || ['', ''])[1]
+  if (frag !== '/' && frag !== '-/') menuOpen.value = false
 }
 
 function onKeydown(e) {
-  // Navigate/close the menu when it's open.
   if (menuOpen.value) {
     const list = suggestions.value
-    if (list.length) {
-      if (e.key === 'ArrowDown') { e.preventDefault(); activeIdx.value = (activeIdx.value + 1) % list.length; return }
-      if (e.key === 'ArrowUp') { e.preventDefault(); activeIdx.value = (activeIdx.value - 1 + list.length) % list.length; return }
-      if (e.key === 'Enter' || e.key === 'Tab') { e.preventDefault(); applySuggestion(list[activeIdx.value]); return }
-    }
+    if (e.key === 'ArrowDown') { e.preventDefault(); activeIdx.value = (activeIdx.value + 1) % list.length; return }
+    if (e.key === 'ArrowUp') { e.preventDefault(); activeIdx.value = (activeIdx.value - 1 + list.length) % list.length; return }
+    if (e.key === 'Enter' || e.key === 'Tab') { e.preventDefault(); applySuggestion(list[activeIdx.value]); return }
     if (e.key === 'Escape') { e.preventDefault(); menuOpen.value = false; return }
   }
-  // Pressing "/" opens the key menu immediately when at a token boundary
-  // (start of input, or right after a space, optionally after a leading "-").
+  // "/" opens the key menu when at a token boundary (start, after a space, or
+  // after a leading "-" for negation).
   if (e.key === '/') {
     const cur = text.value || ''
     const frag = (cur.match(/(\S*)$/) || ['', ''])[1]
-    if (frag === '' || frag === '-') {
-      nextTick(() => { menuOpen.value = true; activeIdx.value = 0 })
-    }
+    if (frag === '') openMenu(false)
+    else if (frag === '-') openMenu(true)
   }
 }
 
@@ -96,7 +79,7 @@ function focusAndTrigger() {
   const cur = text.value || ''
   const needsSpace = cur.length && !cur.endsWith(' ')
   text.value = cur + (needsSpace ? ' /' : '/')
-  nextTick(maybeOpenMenu)
+  nextTick(() => openMenu(false))
 }
 defineExpose({ focusAndTrigger })
 
