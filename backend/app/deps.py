@@ -7,17 +7,18 @@ the bearer access token, loads the user, and rejects inactive accounts.
 
 import uuid
 from collections.abc import Callable
+from datetime import UTC, datetime
 
 import jwt
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, Header, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.db import get_session
 from app.models.enums import UserRole
-from app.models.user import User
-from app.security import decode_token
+from app.models.user import ApiKey, User
+from app.security import decode_token, hash_api_key
 
 # auto_error=False so we can raise our own 401 with a clear message.
 _bearer = HTTPBearer(auto_error=False)
@@ -81,3 +82,28 @@ def require_roles(*roles: UserRole) -> Callable[..., User]:
         return user
 
     return checker
+
+
+def get_api_key(
+    x_api_key: str | None = Header(default=None),
+    session: Session = Depends(get_session),
+) -> ApiKey:
+    """Authenticate a machine caller by `X-API-Key` (SPEC §10.1, D7).
+
+    Used only by the ingest endpoints. One generic 401 for every failure (missing,
+    unknown, revoked, expired) so the response doesn't reveal which keys exist.
+    """
+    unauthorized = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Invalid or missing API key",
+        headers={"WWW-Authenticate": "ApiKey"},
+    )
+    if not x_api_key:
+        raise unauthorized
+    key = session.scalar(select(ApiKey).where(ApiKey.key_hash == hash_api_key(x_api_key)))
+    now = datetime.now(UTC).replace(tzinfo=None)
+    if key is None or key.revoked_at is not None or (key.expires_at and key.expires_at <= now):
+        raise unauthorized
+    key.last_used_at = now
+    session.commit()  # record usage even if the request is later rejected
+    return key
