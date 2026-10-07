@@ -6,7 +6,7 @@ from fastapi import FastAPI
 
 from app.config import settings
 from app.db import SessionLocal
-from app.routers import api_keys, audit, auth, users, vulnerabilities
+from app.routers import api_keys, attachments, audit, auth, users, vulnerabilities
 from app.seed import seed_first_admin
 
 
@@ -29,6 +29,7 @@ app.include_router(vulnerabilities.router)
 app.include_router(vulnerabilities.rvs_router)
 app.include_router(api_keys.router)
 app.include_router(audit.router)
+app.include_router(attachments.router)
 
 
 @app.get("/health")

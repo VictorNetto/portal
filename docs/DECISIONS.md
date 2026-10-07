@@ -96,3 +96,19 @@ While a report is `dispatching` it is **locked from editing**. Nothing ever read
 **Operational note:** watch `audit_logs` growth. The table is append-only with a `bigserial` PK and indexed on `(entity_type, entity_id)` and `(created_at)` (§15.11–12). If volume becomes a problem post-MVP, address it with **retention/archival or partitioning** — not by dropping read capture. List-view reads should log the *query/listing* access, not one row per item returned, to keep volume proportional to user actions.
 
 **Why:** Confidentiality and traceability outweigh table-size concerns, which are solvable operationally without sacrificing the security signal.
+
+---
+
+## D9 — Attachment storage: pluggable backend, local volume by default ✅
+
+**Context:** the spec calls for MinIO, but every route to the image is closed from the dev network: Docker Hub (`minio/minio`) is blocked by the org proxy, GHCR denies, Quay returns 401, and `dl.min.io` no longer serves binaries.
+
+**Decision:** storage sits behind a small interface (`app/storage.py`: `put` / `open` / `delete`) with two backends, selected by `STORAGE_BACKEND`:
+- `local` (default) — files on the `attachments-data` Docker volume. Needs only official images.
+- `s3` — any S3-compatible server via the `minio` SDK (`MINIO_*` settings). Verified against a `moto` S3 server; not yet against a real MinIO.
+
+Files are never exposed directly: the API proxies every read, so authentication and per-read audit logging (D8) always apply. Uploads are validated by extension allowlist + magic bytes (client Content-Type ignored); SVG is excluded; 50 MB cap; attachments follow the vuln's content-field lock (draft / saved_local only).
+
+**Why:** unblocks attachments now without changing any endpoint; production can pick `s3` (MinIO or an equivalent such as SeaweedFS/Garage) later with a config change.
+
+**Open:** the local volume must be included in backups when this backend is used in production (`docs/DEPLOYMENT.md`).

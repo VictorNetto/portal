@@ -33,7 +33,11 @@ class Settings(BaseSettings):
     # Async URL used by SQLAlchemy. Host "db" is the Compose service name.
     database_url: str = "postgresql+psycopg://portal:portal@db:5432/portal"
 
-    # --- Object storage (MinIO) ---
+    # --- Object storage ---
+    # "local" keeps files on a volume (default, no extra service). "s3" uses an
+    # S3-compatible server (MinIO per the spec) configured by the minio_* values.
+    storage_backend: str = "local"  # local | s3
+    storage_local_path: str = "/data/attachments"
     minio_endpoint: str = "minio:9000"
     minio_access_key: str = "portal"
     minio_secret_key: str = "portal-dev-secret"
