@@ -3,6 +3,10 @@ import { createPinia } from 'pinia'
 import App from './App.vue'
 import router from './router'
 import { useAuthStore } from './stores/auth'
+// Inter is bundled (no request to a font CDN: the portal makes no external calls).
+import '@fontsource/inter/300.css'
+import '@fontsource/inter/400.css'
+import '@fontsource/inter/500.css'
 import './style.css'
 
 const app = createApp(App)

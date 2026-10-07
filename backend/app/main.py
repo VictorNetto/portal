@@ -10,15 +10,36 @@ from app.routers import api_keys, attachments, audit, auth, ingest, reports, use
 from app.seed import seed_first_admin
 
 
+DEV_JWT_SECRET = "dev-only-insecure-change-me"
+
+
+def check_production_config() -> None:
+    """Refuse to run in production with settings that are only safe for development."""
+    if settings.environment != "production":
+        return
+    problems = []
+    if settings.jwt_secret == DEV_JWT_SECRET or len(settings.jwt_secret) < 32:
+        problems.append("JWT_SECRET must be set to a random value of at least 32 characters")
+    if problems:
+        raise RuntimeError("Unsafe production configuration: " + "; ".join(problems))
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    check_production_config()
     # First-run admin seed (§10.1). Runs once at startup; no-op if users exist.
     with SessionLocal() as session:
         seed_first_admin(session)
     yield
 
 
-app = FastAPI(title=settings.app_name, lifespan=lifespan)
+# The interactive API docs are a development aid; production does not expose them.
+_prod = settings.environment == "production"
+app = FastAPI(
+    title=settings.app_name, lifespan=lifespan,
+    docs_url=None if _prod else "/docs", redoc_url=None if _prod else "/redoc",
+    openapi_url=None if _prod else "/openapi.json",
+)
 
 # NOTE: the backend owns NO "/api" prefix. nginx maps the public "/api/*" to
 # the backend root (proxy_pass http://api:8000/), so "/api/auth/login" arrives
