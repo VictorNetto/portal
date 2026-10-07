@@ -29,7 +29,7 @@ async function submit() {
 <template>
   <div class="login-wrap">
     <form class="card" @submit.prevent="submit">
-      <h1>⌁ Portal Red Team</h1>
+      <h1>Portal Red Team</h1>
       <p class="sub">Entre para continuar</p>
 
       <label>Usuário</label>
@@ -50,22 +50,19 @@ async function submit() {
 <style scoped>
 .login-wrap { min-height: 100vh; display: grid; place-items: center; background: var(--panel-2); }
 .card {
-  width: 340px; display: flex; flex-direction: column; gap: .4rem;
-  background: var(--panel); border: 1px solid var(--line); border-radius: 14px;
-  padding: 2.4rem; box-shadow: var(--shadow-pop);
+  width: 340px; display: flex; flex-direction: column; gap: 4px;
+  background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius);
+  padding: 36px;
 }
-h1 { margin: 0; font-size: 1.25rem; font-weight: 650; color: var(--text); }
-.sub { margin: .2rem 0 1.2rem; color: var(--muted); font-size: .9rem; }
-label { font-size: .78rem; color: var(--muted); margin-top: .6rem; }
-input {
-  background: var(--panel); border: 1px solid var(--line-2); border-radius: var(--radius-sm);
-  padding: .6rem .7rem; color: var(--text); font-size: .95rem;
-}
-input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+h1 { margin: 0; font-size: 22px; font-weight: 300; color: var(--text); }
+.sub { margin: 4px 0 18px; color: var(--muted); font-size: 13px; }
+label { font-size: 12px; color: var(--muted); margin-top: 10px; }
+input { height: 36px; font-size: 14px; }
 button {
-  margin-top: 1.2rem; padding: .65rem; border: 0; border-radius: var(--radius-sm);
-  background: var(--accent); color: #fff; font-weight: 600; box-shadow: var(--shadow);
+  margin-top: 20px; height: 36px; border: 0; border-radius: var(--radius);
+  background: var(--accent); color: var(--accent-contrast); font-weight: 400;
 }
-button:disabled { opacity: .5; cursor: not-allowed; }
-.error { color: var(--danger); font-size: .85rem; margin: .4rem 0 0; }
+button:hover:not(:disabled) { filter: brightness(.93); }
+button:disabled { opacity: .45; cursor: not-allowed; }
+.error { color: var(--danger); font-size: 13px; margin: 6px 0 0; }
 </style>

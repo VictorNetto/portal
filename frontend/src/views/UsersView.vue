@@ -72,14 +72,14 @@ onMounted(() => {
         <p>{{ t('users.subtitle') }}</p>
       </div>
       <button v-if="isAdmin" class="btn primary" @click="showCreate = !showCreate">
-        ＋ {{ t('users.newUser') }}
+        {{ t('users.newUser') }}
       </button>
     </div>
 
     <p v-if="!isAdmin" class="notice">Apenas administradores podem gerenciar usuários.</p>
 
-    <section v-if="showCreate" class="panel createCard">
-      <div class="createRow">
+    <section v-if="showCreate" class="panel formCard">
+      <div class="formRow">
         <div class="field"><label>{{ t('users.username') }}</label>
           <input v-model="draft.username" /></div>
         <div class="field"><label>{{ t('users.password') }}</label>
@@ -88,7 +88,7 @@ onMounted(() => {
           <select v-model="draft.role">
             <option v-for="r in ROLES" :key="r" :value="r">{{ t('roles.' + r) }}</option>
           </select></div>
-        <div class="createActions">
+        <div class="formActions">
           <button class="btn" @click="showCreate = false">{{ t('users.cancel') }}</button>
           <button class="btn primary" :disabled="creating || !draft.username || draft.password.length < 8" @click="create">
             {{ t('users.create') }}
@@ -144,39 +144,9 @@ onMounted(() => {
 </template>
 
 <style scoped>
-.pageTop { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 18px; }
-.titleBlock h1 { margin: 0 0 4px; font-weight: 650; font-size: 24px; color: var(--text); letter-spacing: -.01em; }
-.titleBlock p { margin: 0; color: var(--muted); font-size: 13px; }
-.notice { color: var(--muted); background: var(--panel-2); border: 1px solid var(--line); padding: .7rem 1rem; border-radius: var(--radius-sm); }
-
-.btn { border: 1px solid var(--line-2); background: var(--panel); border-radius: var(--radius-sm); height: 36px; padding: 0 14px; color: var(--text-2); display: inline-flex; align-items: center; gap: 8px; font-weight: 500; }
-.btn:hover { border-color: var(--dim); background: var(--hover); }
-.btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; box-shadow: var(--shadow); }
-.btn:disabled { opacity: .5; cursor: not-allowed; }
-
-.panel { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; }
-.createCard { padding: 1.1rem 1.3rem; margin-bottom: 16px; }
-.createRow { display: flex; gap: 14px; align-items: flex-end; flex-wrap: wrap; }
-.field { display: flex; flex-direction: column; gap: 5px; }
-.field label { font-size: .78rem; color: var(--muted); }
-.field input, .field select, .roleSel { background: var(--panel); border: 1px solid var(--line-2); border-radius: var(--radius-sm); padding: .5rem .6rem; color: var(--text); font-size: .9rem; height: 36px; }
-.field input:focus, .field select:focus, .roleSel:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
-.createActions { display: flex; gap: 8px; margin-left: auto; }
-
-table { width: 100%; border-collapse: collapse; }
-th { text-align: left; color: #7a8698; font-weight: 600; font-size: 11px; letter-spacing: .04em; text-transform: uppercase; padding: 11px 16px; border-bottom: 1px solid var(--line); background: var(--panel-2); }
-td { padding: 12px 16px; border-bottom: 1px solid var(--line); color: var(--text-2); font-size: 13px; }
-tbody tr:last-child td { border-bottom: 0; }
-.uname { font-weight: 500; color: var(--text); }
-.flag { margin-left: 8px; font-size: 10.5px; color: var(--st-wait-fg); background: var(--st-wait-bg); padding: 1px 6px; border-radius: 999px; font-weight: 600; }
-.roleSel { height: 32px; padding: 0 8px; }
-.pill { font-size: 11px; padding: 3px 9px; border-radius: 999px; font-weight: 600; }
-.pill.on { color: var(--st-fixed-fg); background: var(--st-fixed-bg); }
-.pill.off { color: var(--st-draft-fg); background: var(--st-draft-bg); }
+.notice { color: var(--muted); background: var(--panel-2); border: 1px solid var(--line); padding: .7rem 1rem; border-radius: var(--radius); }
+.uname { color: var(--text); }
+.flag { margin-left: 8px; font-size: 11px; color: var(--st-wait-fg); background: var(--st-wait-bg); padding: 1px 6px; border-radius: var(--radius-sm); }
+.roleSel { height: 28px; padding: 0 6px; }
 .actions { text-align: right; }
-.link { background: none; border: 0; color: var(--accent); font-weight: 500; font-size: 13px; margin-left: 14px; }
-.link:hover { text-decoration: underline; }
-.link.danger { color: var(--danger); }
-.empty { text-align: center; color: var(--muted); padding: 2rem; }
-.err { color: var(--danger); } .muted { color: var(--muted); }
 </style>

@@ -129,18 +129,18 @@ watch(() => route.fullPath, () => load())
   <AppShell>
     <div class="pageTop">
       <div class="titleBlock">
-        <span class="ctxchip"><span class="dot"></span>Vulnerabilidade</span>
-        <h1>
+        <span class="ctxchip">Vulnerabilidade</span>
+        <h1 :class="{ mono: !isNew }">
           {{ isNew ? t('hub.createVuln') : (vuln?.internal_id || t('cols.identifier')) }}
         </h1>
         <p v-if="vuln">{{ vuln.status }} · v{{ vuln.version }}</p>
         <p v-else-if="isNew">Rascunho novo</p>
       </div>
       <div class="pageActions">
-        <button v-if="!isNew && isDraft" class="btn primary" @click="doSend">↗ {{ t('rowActions.send') }}</button>
-        <button v-if="isSavedLocal" class="btn primary" @click="doDispatch">⇈ {{ t('actions.dispatch') }}</button>
-        <button v-if="!isNew" class="btn danger" @click="remove">⌫ {{ t('rowActions.delete') }}</button>
-        <button class="btn" @click="router.push('/hub')">‹ {{ t('nav.hub') }}</button>
+        <button v-if="!isNew && isDraft" class="btn primary" @click="doSend">{{ t('rowActions.send') }}</button>
+        <button v-if="isSavedLocal" class="btn primary" @click="doDispatch">{{ t('actions.dispatch') }}</button>
+        <button v-if="!isNew" class="btn danger" @click="remove">{{ t('rowActions.delete') }}</button>
+        <button class="btn" @click="router.push('/hub')">{{ t('nav.hub') }}</button>
       </div>
     </div>
 
@@ -194,35 +194,21 @@ watch(() => route.fullPath, () => load())
 </template>
 
 <style scoped>
-.pageTop { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 18px; }
-.ctxchip { display: inline-flex; align-items: center; gap: 7px; padding: 4px 10px; border-radius: 999px; background: var(--accent-soft); color: var(--accent); font-size: 12px; font-weight: 600; margin-bottom: 10px; }
-.ctxchip .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); }
-.titleBlock h1 { margin: 0 0 4px; font-weight: 650; font-size: 22px; color: var(--text); font-family: var(--mono); letter-spacing: -.01em; }
-.titleBlock p { margin: 0; color: var(--muted); text-transform: uppercase; font-size: .78rem; letter-spacing: .04em; }
-.pageActions { display: flex; gap: 10px; }
+.ctxchip { display: inline-block; padding: 2px 9px; border-radius: var(--radius-sm); background: var(--accent-soft); color: var(--accent); font-size: 12px; margin-bottom: 10px; }
+.titleBlock h1.mono { font-size: 22px; }
+.titleBlock p { text-transform: uppercase; font-size: 12px; letter-spacing: .04em; }
+.pageActions { display: flex; gap: 8px; }
 
-.btn { border: 1px solid var(--line-2); background: var(--panel); border-radius: var(--radius-sm); height: 36px; padding: 0 14px; color: var(--text-2); display: inline-flex; align-items: center; gap: 8px; font-weight: 500; }
-.btn:hover { border-color: var(--dim); background: var(--hover); }
-.btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; box-shadow: var(--shadow); }
-.btn.primary:hover { filter: brightness(1.05); }
-.btn.danger { color: var(--danger); }
-.btn.danger:hover { border-color: var(--danger); background: var(--danger-soft); }
-.btn:disabled { opacity: .5; cursor: not-allowed; }
-
-.panel { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); }
-.editor { padding: 1.5rem 1.7rem; max-width: 820px; }
-.locked { background: var(--st-wait-bg); border: 1px solid #fde68a; color: var(--st-wait-fg); padding: .6rem .8rem; border-radius: var(--radius-sm); }
-.grid { display: grid; grid-template-columns: max-content 1fr; gap: .8rem 1.4rem; align-items: start; margin-bottom: 1.4rem; }
-label { color: var(--muted); font-size: .85rem; padding-top: .5rem; }
-input, textarea { background: var(--panel); border: 1px solid var(--line-2); border-radius: var(--radius-sm); padding: .5rem .65rem; color: var(--text); width: 100%; font-family: var(--mono); font-size: .9rem; }
-input:focus, textarea:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
-input:disabled, textarea:disabled { background: var(--panel-2); color: var(--muted); cursor: not-allowed; }
-textarea { resize: vertical; }
+.editor { padding: 24px 28px; max-width: 820px; }
+.locked { background: var(--st-wait-bg); color: var(--st-wait-fg); padding: .6rem .8rem; border-radius: var(--radius); margin: 0 0 16px; }
+.grid { display: grid; grid-template-columns: max-content 1fr; gap: 14px 24px; align-items: start; margin-bottom: 24px; }
+label { color: var(--muted); font-size: 13px; padding-top: 7px; }
+input, textarea { width: 100%; font-family: var(--mono); font-size: 13px; }
 .opchips { display: flex; flex-wrap: wrap; gap: 8px; padding-top: 2px; }
-.opchip { border: 1px solid var(--line-2); background: var(--panel); color: var(--text-2); border-radius: 999px; padding: 4px 12px; font-size: 13px; }
-.opchip:hover:not(:disabled) { border-color: var(--dim); }
-.opchip.on { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); font-weight: 600; }
+.opchip { border: 1px solid var(--line-2); background: var(--panel); color: var(--text-2); border-radius: var(--radius); padding: 4px 12px; font-size: 13px; }
+.opchip:hover:not(:disabled):not(.on) { background: var(--hover); }
+.opchip.on { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
 .opchip:disabled { cursor: default; opacity: .7; }
-.footer { display: flex; align-items: center; gap: 1rem; }
-.ok { color: var(--accent); } .err { color: var(--danger); } .muted { color: var(--muted); }
+.footer { display: flex; align-items: center; gap: 16px; }
+.ok { color: var(--accent); }
 </style>

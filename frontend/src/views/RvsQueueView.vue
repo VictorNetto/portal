@@ -89,23 +89,6 @@ onMounted(() => {
 </template>
 
 <style scoped>
-.pageTop { margin-bottom: 18px; }
-.titleBlock h1 { margin: 0 0 4px; font-weight: 650; font-size: 24px; color: var(--text); letter-spacing: -.01em; }
-.titleBlock p { margin: 0; color: var(--muted); font-size: 13px; }
-.panel { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; }
-table { width: 100%; border-collapse: collapse; }
-th { text-align: left; color: #7a8698; font-weight: 600; font-size: 11px; letter-spacing: .04em; text-transform: uppercase; padding: 11px 16px; border-bottom: 1px solid var(--line); background: var(--panel-2); }
-td { padding: 12px 16px; border-bottom: 1px solid var(--line); color: var(--text-2); font-size: 13px; }
-tbody tr:last-child td { border-bottom: 0; }
-.idcell { font-family: var(--mono); color: var(--accent); font-weight: 500; }
-.cvss { font-family: var(--mono); font-weight: 700; }
-.cvss.hi { color: var(--sev-hi); } .cvss.me { color: var(--sev-me); } .cvss.lo { color: var(--sev-lo); }
 .rvsForm { display: flex; gap: 8px; }
-.rvsForm input { flex: 1; background: var(--panel); border: 1px solid var(--line-2); border-radius: var(--radius-sm); padding: .45rem .6rem; color: var(--text); font-family: var(--mono); font-size: .88rem; }
-.rvsForm input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
-.btn { border: 1px solid var(--line-2); background: var(--panel); border-radius: var(--radius-sm); height: 34px; padding: 0 14px; color: var(--text-2); font-weight: 500; }
-.btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
-.btn:disabled { opacity: .5; cursor: not-allowed; }
-.empty { text-align: center; color: var(--muted); padding: 2.5rem; }
-.muted { color: var(--muted); } .err { color: var(--danger); }
+.rvsForm input { flex: 1; font-family: var(--mono); font-size: 13px; }
 </style>

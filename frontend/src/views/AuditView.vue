@@ -53,7 +53,7 @@ onMounted(() => { document.documentElement.removeAttribute('data-entity'); load(
         <h1>{{ t('audit.title') }}</h1>
         <p>{{ t('audit.subtitle') }}</p>
       </div>
-      <select class="filterSel" v-model="actionFilter" @change="applyFilter">
+      <select v-model="actionFilter" @change="applyFilter">
         <option value="">{{ t('audit.allActions') }}</option>
         <option v-for="a in ACTIONS" :key="a" :value="a">{{ a }}</option>
       </select>
@@ -65,7 +65,7 @@ onMounted(() => { document.documentElement.removeAttribute('data-entity'); load(
       <table>
         <thead>
           <tr>
-            <th style="width:170px">{{ t('audit.when') }}</th>
+            <th style="width:200px">{{ t('audit.when') }}</th>
             <th style="width:120px">{{ t('audit.actor') }}</th>
             <th style="width:150px">{{ t('audit.action') }}</th>
             <th style="width:100px">{{ t('audit.entity') }}</th>
@@ -89,41 +89,22 @@ onMounted(() => { document.documentElement.removeAttribute('data-entity'); load(
 
     <div class="pagination">
       <span class="pageInfo mono">{{ data.total }} registros</span>
-      <button class="pageBtn" :disabled="page <= 1" @click="go(page - 1)">‹</button>
+      <button class="pageBtn" :disabled="page <= 1" @click="go(page - 1)">{{ t('common.prev') }}</button>
       <span class="pageInfo mono">{{ page }} / {{ pageCount }}</span>
-      <button class="pageBtn" :disabled="page >= pageCount" @click="go(page + 1)">›</button>
+      <button class="pageBtn" :disabled="page >= pageCount" @click="go(page + 1)">{{ t('common.next') }}</button>
     </div>
   </AppShell>
 </template>
 
 <style scoped>
-.pageTop { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 18px; }
-.titleBlock h1 { margin: 0 0 4px; font-weight: 650; font-size: 24px; color: var(--text); letter-spacing: -.01em; }
-.titleBlock p { margin: 0; color: var(--muted); font-size: 13px; }
-.filterSel { height: 36px; border: 1px solid var(--line-2); background: var(--panel); border-radius: var(--radius-sm); color: var(--text-2); padding: 0 10px; }
-.filterSel:focus { outline: none; border-color: var(--accent); }
-
-.panel { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; }
-table { width: 100%; border-collapse: collapse; table-layout: fixed; }
-th { text-align: left; color: #7a8698; font-weight: 600; font-size: 11px; letter-spacing: .04em; text-transform: uppercase; padding: 10px 14px; border-bottom: 1px solid var(--line); background: var(--panel-2); }
-td { padding: 9px 14px; border-bottom: 1px solid var(--line); color: var(--text-2); font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-tbody tr:last-child td { border-bottom: 0; }
-.mono { font-family: var(--mono); }
+table { table-layout: fixed; }
+td { padding: 9px 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12.5px; }
+th { padding: 10px 14px; }
 .dim { color: var(--muted); }
-.actor { font-weight: 500; color: var(--text); }
-.detail { color: var(--text-2); }
-.act { font-size: 11px; padding: 2px 8px; border-radius: 999px; font-weight: 600; font-family: var(--mono); }
+.actor { color: var(--text); }
+.act { font-size: 11px; padding: 2px 8px; border-radius: var(--radius-sm); font-family: var(--mono); }
 .act.neutral { color: var(--st-draft-fg); background: var(--st-draft-bg); }
 .act.good { color: var(--st-fixed-fg); background: var(--st-fixed-bg); }
 .act.warn { color: var(--st-wait-fg); background: var(--st-wait-bg); }
 .act.danger { color: var(--danger); background: var(--danger-soft); }
-.empty { text-align: center; color: var(--muted); padding: 2.5rem; white-space: normal; }
-
-.pagination { display: flex; align-items: center; gap: 14px; margin-top: 14px; justify-content: flex-end; }
-.pageInfo { color: var(--muted); font-size: 12px; }
-.pageInfo:first-child { margin-right: auto; }
-.pageBtn { height: 32px; min-width: 32px; border: 1px solid var(--line-2); background: var(--panel); border-radius: var(--radius-sm); color: var(--text-2); }
-.pageBtn:hover:not(:disabled) { background: var(--hover); }
-.pageBtn:disabled { opacity: .4; cursor: not-allowed; }
-.err { color: var(--danger); }
 </style>

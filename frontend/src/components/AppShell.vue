@@ -10,16 +10,17 @@ const auth = useAuthStore()
 const expanded = ref(false)
 
 // Nav items. `to` navigates; `soon` marks not-yet-built destinations (stubbed);
-// `adminOnly` hides the item from non-admins.
+// `adminOnly` / `roles` hide the item from users without access. Icons are thin
+// outline paths (24x24 grid) — the nav rail is the only place icons are used.
 const allNavItems = [
-  { icon: '⌂', label: 'nav.hub', to: '/hub' },
-  { icon: '＋', label: 'nav.createVuln', to: '/vulnerabilities/new' },
-  { icon: '＋', label: 'nav.createReport', soon: true },
-  { icon: '▤', label: 'nav.rvsQueue', to: '/rvs-queue' },
-  { icon: '☷', label: 'nav.audit', to: '/audit-logs', roles: ['admin', 'auditor'] },
-  { icon: '♙', label: 'nav.users', to: '/users', adminOnly: true },
-  { icon: '⚿', label: 'nav.apiKeys', to: '/api-keys', adminOnly: true },
-  { icon: '⚙', label: 'nav.settings', soon: true },
+  { icon: 'M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z', label: 'nav.hub', to: '/hub' },
+  { icon: 'M12 5v14M5 12h14', label: 'nav.createVuln', to: '/vulnerabilities/new' },
+  { icon: 'M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8zM14 3v5h5M12 12v6M9 15h6', label: 'nav.createReport', soon: true },
+  { icon: 'M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01', label: 'nav.rvsQueue', to: '/rvs-queue' },
+  { icon: 'M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z', label: 'nav.audit', to: '/audit-logs', roles: ['admin', 'auditor'] },
+  { icon: 'M16 20v-1.5a3.5 3.5 0 0 0-3.5-3.5h-5A3.5 3.5 0 0 0 4 18.5V20M10 11a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7zM20 20v-1.5a3.5 3.5 0 0 0-2.5-3.35M15 4.2a3.5 3.5 0 0 1 0 6.6', label: 'nav.users', to: '/users', adminOnly: true },
+  { icon: 'M21 2l-2 2m-7.6 7.6a5.5 5.5 0 1 1-7.8 7.8 5.5 5.5 0 0 1 7.8-7.8zm0 0L15.5 7.5m0 0 3 3L22 7l-3-3m-3.5 3.5L19 4', label: 'nav.apiKeys', to: '/api-keys', adminOnly: true },
+  { icon: 'M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0M14 4v4M8 10v4M16 16v4', label: 'nav.settings', soon: true },
 ]
 const navItems = computed(() =>
   allNavItems.filter((i) => {
@@ -31,7 +32,10 @@ const navItems = computed(() =>
 
 function isActive(item) {
   if (!item.to) return false
-  if (item.to === '/hub') return route.path === '/hub' || route.path.startsWith('/vulnerabilities/')
+  if (item.to === '/hub') {
+    return route.path === '/hub' ||
+      (route.path.startsWith('/vulnerabilities/') && route.path !== '/vulnerabilities/new')
+  }
   return route.path === item.to
 }
 
@@ -41,10 +45,6 @@ function go(item) {
   expanded.value = false
 }
 
-function initials(name) {
-  return (name || '?').slice(0, 2).toUpperCase()
-}
-
 function signOut() {
   auth.logout()
   router.push('/login')
@@ -52,21 +52,10 @@ function signOut() {
 </script>
 
 <template>
-  <header class="header">
-    <button class="hamb" @click="expanded = !expanded" aria-label="Menu">☰</button>
-    <div class="brand">
-      <div class="shield">⌁</div>
-      <span class="mono">{{ t('brand') }}</span>
-    </div>
-    <div class="headRight">
-      <button class="headBtn">◎ PT-BR ⌄</button>
-      <div class="bell">♧<span class="badge">0</span></div>
-      <div class="avatar mono">{{ initials(auth.user?.username) }}</div>
-      <button class="headBtn ghost" @click="signOut">{{ t('signOut') }}</button>
-    </div>
-  </header>
-
   <nav class="sidebar" :class="{ expanded }" @mouseleave="expanded = false">
+    <button class="hamb" @click="expanded = !expanded" aria-label="Menu">
+      <svg viewBox="0 0 24 24" class="ico"><path d="M4 7h16M4 12h16M4 17h16" /></svg>
+    </button>
     <button
       v-for="item in navItems"
       :key="item.label"
@@ -74,7 +63,7 @@ function signOut() {
       :class="{ active: isActive(item), soon: item.soon }"
       @click="go(item)"
     >
-      <span class="navIcon">{{ item.icon }}</span>
+      <span class="navIcon"><svg viewBox="0 0 24 24" class="ico"><path :d="item.icon" /></svg></span>
       <span class="navLabel">
         {{ t(item.label) }}
         <small v-if="item.soon" class="soonTag">{{ t('comingSoon') }}</small>
@@ -83,81 +72,67 @@ function signOut() {
     </button>
   </nav>
 
+  <header class="header">
+    <span class="brand">{{ t('brand') }}</span>
+    <div class="headRight">
+      <span class="lang">PT-BR</span>
+      <span class="user">{{ auth.user?.username }}</span>
+      <button class="signout" @click="signOut">{{ t('signOut') }}</button>
+    </div>
+  </header>
+
   <main class="main">
     <slot />
   </main>
 </template>
 
 <style scoped>
-.header {
-  height: var(--header); position: fixed; inset: 0 0 auto 0;
-  display: flex; align-items: center; z-index: 30;
-  background: var(--panel); border-bottom: 1px solid var(--line);
-}
-.hamb {
-  width: var(--sidebar); height: var(--header);
-  display: grid; place-items: center; border: 0; background: transparent;
-  color: var(--muted); font-size: 20px;
-}
-.hamb:hover { color: var(--text); }
-.brand { display: flex; align-items: center; gap: 12px; font-size: 16px; font-weight: 600; color: var(--text); }
-.shield {
-  width: 28px; height: 28px; background: var(--accent); border-radius: 8px;
-  color: #fff; display: grid; place-items: center; font-size: 15px;
-}
-.headRight { margin-left: auto; display: flex; align-items: center; gap: 12px; padding-right: 20px; }
-.headBtn {
-  border: 1px solid var(--line-2); background: var(--panel); border-radius: 8px;
-  height: 32px; padding: 0 12px; display: flex; align-items: center; gap: 8px; color: var(--muted);
-}
-.headBtn:hover { color: var(--text); border-color: var(--dim); }
-.bell { position: relative; font-size: 18px; color: var(--muted); }
-.badge {
-  position: absolute; right: -7px; top: -9px; background: var(--accent); color: #fff;
-  border-radius: 999px; font-size: 10px; padding: 1px 6px;
-}
-.avatar {
-  width: 30px; height: 30px; border-radius: 50%; background: var(--accent-soft);
-  display: grid; place-items: center; color: var(--accent); font-size: 12px; font-weight: 600;
-}
+.ico { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round; }
 
 .sidebar {
-  position: fixed; top: var(--header); left: 0; bottom: 0; width: var(--sidebar);
-  background: var(--panel); z-index: 25;
-  display: flex; flex-direction: column; padding-top: 12px; gap: 4px;
-  border-right: 1px solid var(--line);
-  transition: width .18s ease, box-shadow .18s ease;
+  position: fixed; top: 0; left: 0; bottom: 0; width: var(--sidebar);
+  background: var(--nav-bg); z-index: 40;
+  display: flex; flex-direction: column;
+  transition: width .15s ease;
 }
-.sidebar.expanded { width: var(--sidebar-expanded); box-shadow: var(--shadow-pop); }
+.sidebar.expanded { width: var(--sidebar-expanded); }
+.hamb {
+  height: var(--header); width: var(--sidebar); flex: 0 0 auto;
+  display: grid; place-items: center; border: 0; background: transparent; color: var(--nav-fg);
+}
+.hamb:hover { background: var(--nav-hover); }
 .navItem {
   height: 42px; width: 100%; display: flex; align-items: center;
-  color: var(--muted); border: 0; background: transparent; position: relative; text-align: left;
+  color: var(--nav-fg); border: 0; background: transparent; position: relative; text-align: left;
 }
-.navItem:hover { background: var(--hover); color: var(--text); }
-.navItem.active { color: var(--accent); }
-.navItem.active .navIcon { background: var(--accent-soft); border-radius: 8px; }
-.navItem.soon { color: var(--dim); }
-.navItem.soon:hover { background: transparent; color: var(--dim); cursor: default; }
-.navIcon {
-  flex: 0 0 var(--sidebar); width: 40px; height: 36px; margin: 0 8px;
-  display: grid; place-items: center; font-size: 19px;
-}
-.navLabel { display: none; white-space: nowrap; padding-left: 2px; }
+.navItem:hover:not(.soon):not(.active) { background: var(--nav-hover); }
+.navItem.active { background: var(--nav-active); }
+.navItem.soon { opacity: .45; cursor: default; }
+.navIcon { flex: 0 0 var(--sidebar); display: grid; place-items: center; }
+.navLabel { display: none; white-space: nowrap; font-size: 13px; color: #d5e0ec; }
 .sidebar.expanded .navLabel { display: inline-flex; align-items: center; gap: 8px; }
-.soonTag {
-  font-size: 9.5px; color: var(--muted); border: 1px solid var(--line-2);
-  border-radius: 4px; padding: 0 5px; text-transform: uppercase; letter-spacing: .03em;
-}
+.soonTag { font-size: 10px; color: var(--nav-fg); border: 1px solid rgba(255,255,255,.18); border-radius: 3px; padding: 0 5px; }
 .tip {
   display: none; position: absolute; left: calc(var(--sidebar) + 6px); top: 50%;
   transform: translateY(-50%); background: var(--text); color: #fff;
-  padding: 5px 9px; border-radius: 6px; font-size: 12px;
-  white-space: nowrap; box-shadow: var(--shadow-pop); z-index: 40;
+  padding: 4px 9px; border-radius: 3px; font-size: 12px; white-space: nowrap; z-index: 50;
 }
 .sidebar:not(.expanded) .navItem:hover .tip { display: block; }
 
+.header {
+  height: var(--header); position: fixed; top: 0; left: var(--sidebar); right: 0;
+  display: flex; align-items: center; z-index: 30; padding: 0 24px;
+  background: var(--panel); border-bottom: 1px solid var(--line);
+}
+.brand { font-size: 15px; font-weight: 400; color: var(--text); letter-spacing: .01em; }
+.headRight { margin-left: auto; display: flex; align-items: center; gap: 20px; font-size: 13px; }
+.lang { color: var(--muted); }
+.user { color: var(--text-2); font-family: var(--mono); font-size: 12px; }
+.signout { border: 0; background: transparent; padding: 0; color: var(--muted); font-size: 13px; }
+.signout:hover { color: var(--text); }
+
 .main {
   position: fixed; top: var(--header); left: var(--sidebar); right: 0; bottom: 0;
-  overflow: auto; padding: 28px;
+  overflow: auto; padding: 28px 32px;
 }
 </style>

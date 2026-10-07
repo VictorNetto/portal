@@ -1,6 +1,7 @@
 <script setup>
 import { ref, computed, nextTick } from 'vue'
 import { FILTER_KEYS } from '../filterQuery'
+import { t } from '../i18n'
 
 const props = defineProps({
   modelValue: String,
@@ -140,8 +141,8 @@ const HELP_LINES = [
     />
 
     <!-- trailing adornment: ? (help) when empty, × (clear) when there's text -->
-    <button v-if="hasText" class="adorn clear" @click="clearAll" title="Limpar filtro">×</button>
-    <span v-else class="adorn help" tabindex="0">?
+    <button v-if="hasText" class="adorn clear" @click="clearAll">{{ t('common.clear') }}</button>
+    <span v-else class="adorn help" tabindex="0">{{ t('common.help') }}
       <span class="tip">
         <strong>Filtro</strong>
         <span v-for="(line, i) in HELP_LINES" :key="i">{{ line }}</span>
@@ -162,45 +163,34 @@ const HELP_LINES = [
 
 <style scoped>
 .filterbar { position: relative; display: flex; align-items: center; width: 100%; min-width: 180px; }
-.field {
-  flex: 1; background: var(--panel); border: 1px solid var(--line-2); border-radius: var(--radius-sm);
-  padding: .5rem 2rem .5rem .7rem; color: var(--text); font-size: .9rem; height: 36px;
-}
-.field::placeholder { color: var(--dim); }
-.field:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
-
+.field { flex: 1; height: 32px; padding: 0 64px 0 10px; font-size: 13px; }
 .adorn {
-  position: absolute; right: 8px; width: 20px; height: 20px; border-radius: 50%;
-  display: grid; place-items: center; font-size: .85rem; line-height: 1; border: 0;
+  position: absolute; right: 10px; border: 0; background: transparent; padding: 0;
+  font-size: 12px; color: var(--muted); display: inline-flex; align-items: center;
 }
-.adorn.help {
-  color: var(--muted); border: 1px solid var(--line-2); background: var(--panel); cursor: help;
-}
-.adorn.help:hover, .adorn.help:focus { color: var(--accent); border-color: var(--accent); outline: none; }
-.adorn.clear {
-  color: var(--muted); background: transparent; font-size: 1.1rem; cursor: pointer;
-}
-.adorn.clear:hover { color: var(--danger); }
+.adorn.help { cursor: help; }
+.adorn.help:hover, .adorn.help:focus { color: var(--text); outline: none; }
+.adorn.clear:hover { color: var(--text); }
 
-/* Delayed tooltip for the ? help. */
+/* Delayed tooltip for the help text. */
 .tip {
-  position: absolute; top: 28px; right: 0; width: 300px; z-index: 70;
+  position: absolute; top: 24px; right: 0; width: 300px; z-index: 70;
   display: flex; flex-direction: column; gap: 4px;
-  background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius-sm);
-  box-shadow: var(--shadow-pop); padding: 10px 12px; color: var(--text-2); font-size: .78rem;
+  background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius);
+  box-shadow: var(--shadow-pop); padding: 10px 12px; color: var(--text-2); font-size: 12px;
   opacity: 0; visibility: hidden; transition: opacity .12s ease; transition-delay: 0s;
   text-align: left; font-family: var(--sans);
 }
-.tip strong { color: var(--accent); font-size: .82rem; margin-bottom: 2px; }
+.tip strong { font-weight: 500; font-size: 12px; margin-bottom: 2px; }
 .adorn.help:hover .tip, .adorn.help:focus .tip { opacity: 1; visibility: visible; transition-delay: .5s; }
 
 .menu {
-  position: absolute; top: 42px; left: 0; z-index: 60; margin: 0; padding: 6px; list-style: none;
+  position: absolute; top: 38px; left: 0; z-index: 60; margin: 0; padding: 4px; list-style: none;
   min-width: 160px; width: max-content; max-width: 420px;
-  background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius-sm); box-shadow: var(--shadow-pop);
+  background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow-pop);
   max-height: min(70vh, 460px); overflow: auto;
 }
-.menu li { display: flex; align-items: baseline; gap: 10px; padding: 7px 12px; border-radius: 6px; cursor: pointer; white-space: nowrap; }
+.menu li { display: flex; align-items: baseline; gap: 10px; padding: 6px 12px; border-radius: var(--radius-sm); cursor: pointer; white-space: nowrap; }
 .menu li.active, .menu li:hover { background: var(--hover); }
-.menu li .mono { color: var(--accent); }
+.menu li .mono { color: var(--text-2); }
 </style>
