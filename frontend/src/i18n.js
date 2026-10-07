@@ -217,6 +217,7 @@ const messages = {
       records: 'registros',
     },
     md: {
+      edit: 'Editar',
       preview: 'Visualizar',
       bold: 'Negrito',
       italic: 'Itálico',
