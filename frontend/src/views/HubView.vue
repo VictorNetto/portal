@@ -134,12 +134,17 @@ function closePreview() { preview.value = null }
 
 // Row action menu (§5.9 three-dots)
 const menuFor = ref(null)
-const menuUp = ref(false)
+const menuPos = ref({})
 function toggleMenu(id, ev) {
-  menuFor.value = menuFor.value === id ? null : id
-  // Flip the menu upward when there isn't room for it below the button.
-  const rect = ev?.currentTarget?.getBoundingClientRect()
-  menuUp.value = !!rect && window.innerHeight - rect.bottom < 170
+  if (menuFor.value === id) { menuFor.value = null; return }
+  menuFor.value = id
+  // The menu is position:fixed so the scrolling list can't clip it. Open it
+  // below the button, or above when there isn't room below.
+  const rect = ev.currentTarget.getBoundingClientRect()
+  const right = window.innerWidth - rect.right
+  menuPos.value = window.innerHeight - rect.bottom < 170
+    ? { right: right + 'px', bottom: (window.innerHeight - rect.top + 4) + 'px' }
+    : { right: right + 'px', top: (rect.bottom + 4) + 'px' }
 }
 
 function goDetail(id) { router.push(`/vulnerabilities/${id}`) }
@@ -168,6 +173,7 @@ onMounted(load)
 
 <template>
   <AppShell>
+    <div class="hubPage" :class="{ withDetails: preview }">
     <div class="pageTop">
       <div class="titleBlock">
         <h1>{{ t('hub.title') }}</h1>
@@ -215,7 +221,7 @@ onMounted(load)
         <button class="pageBtn" :disabled="page >= pageCount" @click="page++">{{ t('common.next') }}</button>
       </div>
 
-      <section class="panel tablePanel">
+      <section class="panel tablePanel" @scroll="menuFor = null">
         <table>
           <thead>
             <tr>
@@ -247,7 +253,7 @@ onMounted(load)
               <td style="text-align:center" @click.stop>
                 <div class="rowActionWrap">
                   <button class="link rowBtn" @click="toggleMenu(v.id, $event)">{{ t('common.rowMenu') }}</button>
-                  <div v-if="menuFor === v.id" class="rowMenuInline" :class="{ up: menuUp }">
+                  <div v-if="menuFor === v.id" class="rowMenuInline" :style="menuPos">
                     <button @click="openPreview(v); menuFor = null">{{ t('rowActions.view') }}</button>
                     <button @click="goDetail(v.id)">{{ t('rowActions.detail') }}</button>
                     <button @click="goDetail(v.id)">{{ t('rowActions.edit') }}</button>
@@ -265,10 +271,7 @@ onMounted(load)
 
       <p v-if="error" class="err">{{ error }}</p>
     </template>
-
-    <!-- Reserves room under the list while the details panel is open, so the
-         last rows can be scrolled above it. -->
-    <div v-if="preview" class="detailsSpacer"></div>
+    </div>
 
     <!-- Bottom details panel (§6/§7) -->
     <aside class="details" :class="{ open: preview }">
@@ -308,9 +311,15 @@ onMounted(load)
 .hubFilter { flex: 1 1 auto; min-width: 0; margin-bottom: 8px; }
 .toolbar { display: flex; gap: 10px; align-items: center; flex: 0 0 auto; margin-bottom: 8px; }
 .selectionHint { color: var(--muted); font-size: 12px; }
+/* Only the list scrolls; title, tabs/filter and pagination stay put. While the
+   details panel is open the page shrinks above it. */
+.hubPage { height: 100%; display: flex; flex-direction: column; }
+.hubPage.withDetails { padding-bottom: max(30vh, 220px); }
+.hubPage > * { flex: 0 0 auto; }
+.hubPage > .tablePanel { flex: 0 1 auto; min-height: 0; overflow: auto; }
 .pagination.top { margin: 0 0 12px; }
-/* Visible overflow so the row action menu isn't clipped near the bottom. */
-.tablePanel { overflow: visible; }
+thead th { position: sticky; top: 0; background: var(--panel); z-index: 1; box-shadow: inset 0 -1px 0 var(--line); }
+th { border-bottom: 0; }
 .stub { padding: 3rem; text-align: center; color: var(--muted); }
 
 table { table-layout: fixed; }
@@ -329,11 +338,10 @@ tr.selected td, tr.preview td { background: var(--accent-soft); }
 .rowActionWrap { position: relative; display: inline-flex; justify-content: center; }
 .rowBtn { margin-left: 0; }
 .rowMenuInline {
-  position: absolute; right: 0; top: 24px; min-width: 150px; border: 1px solid var(--line);
+  position: fixed; min-width: 150px; border: 1px solid var(--line);
   display: flex; flex-direction: column;
   background: var(--panel); border-radius: var(--radius); box-shadow: var(--shadow-pop); padding: 4px; z-index: 50; text-align: left;
 }
-.rowMenuInline.up { top: auto; bottom: 24px; }
 .rowMenuInline button { width: 100%; height: 30px; border: 0; background: transparent; color: var(--text-2); text-align: left; border-radius: var(--radius-sm); padding: 0 10px; font-size: 13px; }
 .rowMenuInline button:hover { background: var(--hover); }
 .rowMenuInline button.danger { color: var(--danger); }
@@ -344,7 +352,6 @@ tr.selected td, tr.preview td { background: var(--accent-soft); }
   z-index: 18; padding: 20px 32px;
   transform: translateY(100%); transition: transform .15s ease;
 }
-.detailsSpacer { height: max(30vh, 220px); }
 .details.open { transform: translateY(0); }
 .detailsTop { display: flex; align-items: center; margin-bottom: 18px; }
 .detailsId { font-size: 17px; color: var(--accent); }
