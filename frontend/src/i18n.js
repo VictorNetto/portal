@@ -72,6 +72,18 @@ const messages = {
       reader_all: 'Leitor',
       auditor: 'Auditor',
     },
+    audit: {
+      title: 'Logs de Auditoria',
+      subtitle: 'Registro de todas as ações no portal.',
+      when: 'Quando',
+      actor: 'Ator',
+      action: 'Ação',
+      entity: 'Entidade',
+      ip: 'IP',
+      detail: 'Detalhe',
+      allActions: 'Todas as ações',
+      empty: 'Nenhum registro.',
+    },
     rvs: {
       title: 'Fila RVS',
       subtitle: 'Vulnerabilidades disparadas aguardando um ID de RVS.',

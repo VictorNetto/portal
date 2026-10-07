@@ -16,13 +16,18 @@ const allNavItems = [
   { icon: '＋', label: 'nav.createVuln', to: '/vulnerabilities/new' },
   { icon: '＋', label: 'nav.createReport', soon: true },
   { icon: '▤', label: 'nav.rvsQueue', to: '/rvs-queue' },
-  { icon: '☷', label: 'nav.audit', soon: true },
+  { icon: '☷', label: 'nav.audit', to: '/audit-logs', roles: ['admin', 'auditor'] },
   { icon: '♙', label: 'nav.users', to: '/users', adminOnly: true },
   { icon: '⚿', label: 'nav.apiKeys', to: '/api-keys', adminOnly: true },
   { icon: '⚙', label: 'nav.settings', soon: true },
 ]
 const navItems = computed(() =>
-  allNavItems.filter((i) => !i.adminOnly || auth.user?.role === 'admin'))
+  allNavItems.filter((i) => {
+    const role = auth.user?.role
+    if (i.adminOnly && role !== 'admin') return false
+    if (i.roles && !i.roles.includes(role)) return false
+    return true
+  }))
 
 function isActive(item) {
   if (!item.to) return false

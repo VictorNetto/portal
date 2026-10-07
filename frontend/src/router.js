@@ -6,6 +6,7 @@ import VulnDetailView from './views/VulnDetailView.vue'
 import UsersView from './views/UsersView.vue'
 import RvsQueueView from './views/RvsQueueView.vue'
 import ApiKeysView from './views/ApiKeysView.vue'
+import AuditView from './views/AuditView.vue'
 
 // Routes follow FRONTEND_SPEC §4.1.
 const routes = [
@@ -17,6 +18,7 @@ const routes = [
   { path: '/users', name: 'users', component: UsersView, meta: { adminOnly: true } },
   { path: '/rvs-queue', name: 'rvs-queue', component: RvsQueueView },
   { path: '/api-keys', name: 'api-keys', component: ApiKeysView, meta: { adminOnly: true } },
+  { path: '/audit-logs', name: 'audit', component: AuditView, meta: { roles: ['admin', 'auditor'] } },
 ]
 
 const router = createRouter({
@@ -29,6 +31,7 @@ router.beforeEach((to) => {
   if (!to.meta.public && !auth.isAuthenticated) return { name: 'login' }
   if (to.name === 'login' && auth.isAuthenticated) return { name: 'hub' }
   if (to.meta.adminOnly && auth.user?.role !== 'admin') return { name: 'hub' }
+  if (to.meta.roles && !to.meta.roles.includes(auth.user?.role)) return { name: 'hub' }
 })
 
 export default router

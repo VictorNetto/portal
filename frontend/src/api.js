@@ -58,3 +58,11 @@ export const resetUserPassword = (id, newPassword) =>
 export const listApiKeys = () => api('/api-keys')
 export const createApiKey = (body) => api('/api-keys', { method: 'POST', body })
 export const revokeApiKey = (id) => api(`/api-keys/${id}/revoke`, { method: 'POST' })
+
+// --- Audit log ---
+export const listAudit = (params = {}) => {
+  const q = new URLSearchParams(
+    Object.entries(params).filter(([, v]) => v !== '' && v != null)
+  ).toString()
+  return api('/audit-logs' + (q ? `?${q}` : ''))
+}
