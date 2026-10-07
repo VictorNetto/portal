@@ -8,6 +8,9 @@ import { fmtDate, fmtTime, fmtDateTime } from '../dates'
 
 const props = defineProps({
   vuln: { type: Object, required: true },
+  // Tighter layout without the RVS sub-line and "last updated" footer, for
+  // places that already show those elsewhere (the Hub details panel).
+  compact: { type: Boolean, default: false },
 })
 
 // `status` is the vuln status that makes this step the "current" one.
@@ -33,7 +36,7 @@ const lineDone = (i) => steps.value[i + 1]?.reached
 </script>
 
 <template>
-  <div class="timeline">
+  <div class="timeline" :class="{ compact }">
     <ol class="steps">
       <li v-for="(s, i) in steps" :key="s.key" class="step"
           :class="{ reached: s.reached, current: s.current }">
@@ -46,10 +49,10 @@ const lineDone = (i) => steps.value[i + 1]?.reached
           {{ fmtDate(s.value) }}<span class="time">{{ fmtTime(s.value) }}</span>
         </div>
         <div v-else class="when none">—</div>
-        <div v-if="s.key === 'acknowledged' && vuln.rvs_id" class="rvs mono">{{ vuln.rvs_id }}</div>
+        <div v-if="!compact && s.key === 'acknowledged' && vuln.rvs_id" class="rvs mono">{{ vuln.rvs_id }}</div>
       </li>
     </ol>
-    <div v-if="vuln.updated_at" class="updated">
+    <div v-if="!compact && vuln.updated_at" class="updated">
       {{ t('timeline.updated') }} {{ fmtDateTime(vuln.updated_at) }}
     </div>
   </div>
@@ -73,6 +76,9 @@ const lineDone = (i) => steps.value[i + 1]?.reached
 .when.none { color: var(--dim); }
 .rvs { margin-top: 3px; font-size: 12px; color: var(--accent); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .updated { margin-top: 10px; font-size: 12px; color: var(--dim); }
+
+.compact .track { margin-bottom: 4px; }
+.compact .when { margin-top: 0; }
 
 @media (max-width: 900px) {
   .steps { flex-direction: column; gap: 10px; }

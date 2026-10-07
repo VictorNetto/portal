@@ -16,6 +16,7 @@ const messages = {
       settings: 'Configurações',
     },
     hub: {
+      rvsShort: 'RVS',
       title: 'Central Operacional',
       subtitle: 'Gerencie vulnerabilidades e relatórios de operações de segurança.',
       tabVulns: 'Vulnerabilidades',
@@ -318,6 +319,7 @@ const messages = {
       settings: 'Settings',
     },
     hub: {
+      rvsShort: 'RVS',
       title: 'Operations Hub',
       subtitle: 'Manage vulnerabilities and reports of security operations.',
       tabVulns: 'Vulnerabilities',

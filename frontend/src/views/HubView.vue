@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import { listVulns, deleteVuln, ApiError } from '../api'
 import { t } from '../i18n'
@@ -131,7 +131,18 @@ function toggleRow(id) {
   selected.value = new Set(selected.value)
 }
 
-function openPreview(v) { preview.value = v }
+// The drawer is as tall as its content; the list reserves exactly that space.
+const detailsEl = ref(null)
+const detailsH = ref(0)
+let detailsObserver = null
+onMounted(() => {
+  if (typeof ResizeObserver === 'undefined' || !detailsEl.value) return
+  detailsObserver = new ResizeObserver(() => { detailsH.value = detailsEl.value.offsetHeight })
+  detailsObserver.observe(detailsEl.value)
+})
+onUnmounted(() => detailsObserver?.disconnect())
+
+function openPreview(v) { preview.value = v; nextTick(() => { detailsH.value = detailsEl.value?.offsetHeight || 0 }) }
 function closePreview() { preview.value = null }
 
 // Row action menu (§5.9 three-dots)
@@ -178,7 +189,7 @@ onMounted(load)
 
 <template>
   <AppShell>
-    <div class="hubPage" :class="{ withDetails: preview }">
+    <div class="hubPage" :style="{ paddingBottom: preview ? detailsH + 'px' : '' }">
     <div class="pageTop">
       <div class="titleBlock">
         <h1>{{ t('hub.title') }}</h1>
@@ -282,28 +293,41 @@ onMounted(load)
     </div>
 
     <!-- Bottom details panel (§6/§7) -->
-    <aside class="details" :class="{ open: preview }">
+    <aside ref="detailsEl" class="details" :class="{ open: preview }">
       <div v-if="preview" class="detailsInner">
         <div class="detailsTop">
-          <span class="detailsId mono">{{ preview.internal_id || preview.identifier || t('vuln.draft') }}</span>
+          <div class="headline">
+            <span class="detailsId mono" :title="preview.identifier || ''">
+              {{ preview.identifier || preview.internal_id || t('vuln.draft') }}
+            </span>
+            <span class="pill" :class="'s-' + preview.status">{{ t('status.' + preview.status) }}</span>
+            <span class="updated" :title="fullDate(preview.updated_at)">
+              {{ t('cols.updatedAt') }} {{ fmtDateTime(preview.updated_at) }}
+            </span>
+          </div>
           <div class="detailsActions">
             <button class="btn" @click="goDetail(preview.id)">{{ t('rowActions.detail') }}</button>
             <button class="btn" @click="closePreview">{{ t('common.close') }}</button>
           </div>
         </div>
-        <div class="detailFields">
-          <div class="kv"><label>{{ t('cols.status') }}</label>
-            <span class="pill" :class="'s-' + preview.status">{{ t('status.' + preview.status) }}</span></div>
-          <div class="kv"><label>{{ t('cols.cvss') }}</label>
+        <h2 class="metaLine">
+          <span class="m"><span class="k">{{ t('cols.cvss') }}</span>
             <span v-if="preview.cvss_score != null" class="cvss" :class="sevClass(preview.cvss_score)">{{ preview.cvss_score }}</span>
-            <span v-else>—</span></div>
-          <div class="kv"><label>{{ t('cols.identifier') }}</label>
-            <span class="val">{{ preview.identifier || '—' }}</span></div>
-          <div class="kv"><label>{{ t('cols.source') }}</label><span>{{ preview.source || '—' }}</span></div>
-          <div class="kv"><label>{{ t('rvs.rvsId') }}</label>
-            <span class="mono">{{ preview.rvs_id || '—' }}</span></div>
-        </div>
-        <VulnTimeline :vuln="preview" />
+            <span v-else>—</span></span>
+          <span class="m"><span class="k">{{ t('vform.cvssVector') }}</span>
+            <span class="mono v">{{ preview.cvss_vector || '—' }}</span></span>
+          <span class="m"><span class="k">{{ t('cols.source') }}</span>
+            <span class="v">{{ preview.source || '—' }}</span></span>
+          <span class="m"><span class="k">{{ t('hub.rvsShort') }}</span>
+            <span class="mono v">{{ preview.rvs_id || '—' }}</span></span>
+        </h2>
+        <h2 class="opsLine">
+          <template v-if="preview.operators?.length">
+            <span v-for="o in preview.operators" :key="o.id" class="op">{{ o.username }}</span>
+          </template>
+          <span v-else class="none">—</span>
+        </h2>
+        <VulnTimeline :vuln="preview" compact class="drawerTimeline" />
       </div>
     </aside>
   </AppShell>
@@ -321,7 +345,6 @@ onMounted(load)
 /* Only the list scrolls; title, tabs/filter and pagination stay put. While the
    details panel is open the page shrinks above it. */
 .hubPage { height: 100%; display: flex; flex-direction: column; }
-.hubPage.withDetails { padding-bottom: max(30vh, 290px); }
 .hubPage > * { flex: 0 0 auto; }
 .hubPage > .tablePanel { flex: 0 1 auto; min-height: 0; overflow: auto; }
 .pagination.top { margin: 0 0 12px; }
@@ -356,16 +379,24 @@ tr.selected td, tr.preview td { background: var(--accent-soft); }
 .rowMenuInline button.danger { color: var(--danger); }
 
 .details {
-  position: fixed; left: var(--sidebar); right: 0; bottom: 0; height: max(30vh, 290px);
+  position: fixed; left: var(--sidebar); right: 0; bottom: 0;
   background: var(--panel); border-top: 1px solid var(--line-2);
-  z-index: 18; padding: 16px 32px; overflow: auto;
+  z-index: 18; padding: 12px 32px 10px; max-height: 60vh; overflow: auto;
   transform: translateY(100%); transition: transform .15s ease;
 }
 .details.open { transform: translateY(0); }
-.detailsTop { display: flex; align-items: center; margin-bottom: 14px; }
-.detailsId { font-size: 17px; color: var(--accent); }
+.detailsTop { display: flex; align-items: center; gap: 16px; margin-bottom: 6px; }
+.headline { display: flex; align-items: center; gap: 14px; min-width: 0; flex: 1 1 auto; }
+.detailsId { font-size: 17px; color: var(--accent); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.headline .pill { flex: 0 0 auto; }
+.updated { flex: 0 0 auto; font-size: 12px; color: var(--dim); }
 .detailsActions { margin-left: auto; display: flex; align-items: center; gap: 8px; }
-.detailFields { display: flex; flex-wrap: wrap; gap: 8px 48px; margin-bottom: 18px; }
-.kv { margin-bottom: 0; }
-.kv label { display: block; color: var(--muted); margin-bottom: 6px; font-size: 12px; }
+.metaLine, .opsLine { margin: 0 0 4px; font-size: 13px; font-weight: 300; color: var(--text-2); }
+.metaLine { display: flex; flex-wrap: wrap; gap: 2px 28px; }
+.metaLine .k { margin-right: 8px; font-size: 12px; color: var(--muted); }
+.metaLine .v { word-break: break-all; }
+.opsLine { display: flex; flex-wrap: wrap; gap: 6px; }
+.op { padding: 1px 9px; border: 1px solid var(--line-2); border-radius: var(--radius); font-size: 12px; color: var(--text-2); }
+.none { color: var(--dim); }
+.drawerTimeline { margin-top: 10px; }
 </style>
