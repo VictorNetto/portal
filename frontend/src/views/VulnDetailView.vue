@@ -221,9 +221,16 @@ async function save() {
     await persist()
     notice.value = wasNew ? t('vform.draftCreated') : t('vuln.saved')
   } catch (e) {
-    if (e instanceof ApiError && e.status === 409) { error.value = e.detail; await load() }
+    if (e instanceof ApiError && e.status === 409) await reloadAfterConflict(e.detail)
     else reportError(e, 'errors.save')
   } finally { saving.value = false }
+}
+
+// A conflict means someone else changed the record: show the current data AND say why
+// the user's edits were replaced (load() clears messages, so set it afterwards).
+async function reloadAfterConflict(message) {
+  await load()
+  error.value = message
 }
 
 async function doSend() {
@@ -236,7 +243,7 @@ async function doSend() {
     syncForm()
     notice.value = t('vuln.sent')
   } catch (e) {
-    if (e instanceof ApiError && e.status === 409) { error.value = e.detail; await load() }
+    if (e instanceof ApiError && e.status === 409) await reloadAfterConflict(e.detail)
     else reportError(e, 'errors.send')
   } finally { saving.value = false }
 }

@@ -583,19 +583,19 @@ th { border-bottom: 0; }
 
 table { table-layout: fixed; }
 .vtable th:nth-child(1), .vtable td:nth-child(1) { width: 48px; }
-.vtable th:nth-child(2), .vtable td:nth-child(2) { width: 300px; }
+/* Column 2 (identifier) has no width: it takes whatever the fixed columns leave. */
 .vtable th:nth-child(3), .vtable td:nth-child(3) { width: 150px; }
 .vtable th:nth-child(4), .vtable td:nth-child(4) { width: 90px; }
-.vtable th:nth-child(5), .vtable td:nth-child(5) { width: 220px; }
+.vtable th:nth-child(5), .vtable td:nth-child(5) { width: 180px; }
 .vtable th:nth-child(6), .vtable td:nth-child(6) { width: 120px; }
-.vtable th:nth-child(7), .vtable td:nth-child(7), .vtable th:nth-child(8), .vtable td:nth-child(8) { width: 120px; }
+.vtable th:nth-child(7), .vtable td:nth-child(7), .vtable th:nth-child(8), .vtable td:nth-child(8) { width: 110px; }
 .vtable th:nth-child(9), .vtable td:nth-child(9) { width: 96px; }
 .rtable th:nth-child(1), .rtable td:nth-child(1) { width: 48px; }
-.rtable th:nth-child(2), .rtable td:nth-child(2) { width: 340px; }
+/* Column 2 (report name) is the flexible one. */
 .rtable th:nth-child(3), .rtable td:nth-child(3) { width: 140px; }
 .rtable th:nth-child(4), .rtable td:nth-child(4) { width: 90px; }
-.rtable th:nth-child(5), .rtable td:nth-child(5) { width: 200px; }
-.rtable th:nth-child(6), .rtable td:nth-child(6) { width: 180px; }
+.rtable th:nth-child(5), .rtable td:nth-child(5) { width: 180px; }
+.rtable th:nth-child(6), .rtable td:nth-child(6) { width: 160px; }
 .rtable th:nth-child(7), .rtable td:nth-child(7) { width: 90px; }
 .rtable th:nth-child(8), .rtable td:nth-child(8) { width: 120px; }
 .rtable th:nth-child(9), .rtable td:nth-child(9) { width: 96px; }

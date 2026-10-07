@@ -76,6 +76,8 @@ docker compose -f docker-compose.prod.yml --env-file .env.production up -d
 
 Step-by-step procedures (first deployment, updates, certificates, backups and restores, troubleshooting) are in **[docs/RUNBOOK.md](docs/RUNBOOK.md)**. The API refuses to start in production with the development `JWT_SECRET`.
 
+The UI has a browser suite too (`e2e/`, Playwright: 37 tests over login and the forced password change, the vulnerability form, the Hub, reports and their lock, dispatch and exports, the lifecycle and the admin pages). See [e2e/README.md](e2e/README.md) for the one-line command.
+
 ## Repository layout
 
 ```
@@ -84,6 +86,7 @@ backend/
                   render.py (PDF/Excel/Word), dispatcher.py, storage.py, security.py
   migrations/     Alembic migrations
   tests/          pytest integration suite
+e2e/              Playwright browser tests (run in the official Playwright container)
 frontend/
   src/            views/, components/ (Markdown editor, timeline, ...), i18n.js, api.js, router.js
 nginx/            Reverse proxy config (nginx.conf = dev, prod.conf.template = production/TLS)
