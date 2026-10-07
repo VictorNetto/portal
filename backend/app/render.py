@@ -436,7 +436,9 @@ def report_pdf(report, vulns: list, load_image: ImageLoader) -> bytes:
 
 # --- public: Excel ---------------------------------------------------------------------------------
 def vulnerabilities_xlsx(report, vulns: list) -> bytes:
-    """All the report's vulnerabilities as rows (SPEC §9 step 4). No internal notes."""
+    """Vulnerabilities as rows (SPEC §9 step 4). No internal notes. With a parent
+    `report` a second sheet describes it; without one (a batch export of
+    standalone vulns) only the vulnerabilities sheet is produced."""
     wb = Workbook()
     ws = wb.active
     ws.title = "Vulnerabilidades"
@@ -466,8 +468,8 @@ def vulnerabilities_xlsx(report, vulns: list) -> bytes:
             cell.alignment = Alignment(wrap_text=True, vertical="top")
     ws.freeze_panes = "A2"
 
-    info = wb.create_sheet("Relatório")
-    for k, val in (
+    info = wb.create_sheet("Relatório") if report is not None else None
+    for k, val in () if info is None else (
         ("Relatório", report.internal_id or ""), ("Nome", report.name),
         ("Cliente", report.client_name or ""),
         ("Início", _fmt_date(report.start_date)), ("Fim", _fmt_date(report.end_date)),
@@ -475,10 +477,11 @@ def vulnerabilities_xlsx(report, vulns: list) -> bytes:
         ("Vulnerabilidades", len(vulns)),
     ):
         info.append([k, val])
-    info.column_dimensions["A"].width = 18
-    info.column_dimensions["B"].width = 50
-    for row in info.iter_rows():
-        row[0].font = Font(bold=True)
+    if info is not None:
+        info.column_dimensions["A"].width = 18
+        info.column_dimensions["B"].width = 50
+        for row in info.iter_rows():
+            row[0].font = Font(bold=True)
 
     out = io.BytesIO()
     wb.save(out)

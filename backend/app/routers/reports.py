@@ -18,7 +18,7 @@ from app.schemas.report import (
     SectionReorder,
     SectionUpdate,
 )
-from app.schemas.vulnerability import VulnCreate, VulnOut
+from app.schemas.vulnerability import BatchExport, VulnCreate, VulnOut
 from app.services import report as svc
 from app.services import report_dispatch
 
@@ -33,6 +33,22 @@ def list_reports(
     user: User = Depends(get_current_user), session: Session = Depends(get_session)
 ):
     return svc.list_reports(session, user)
+
+
+@router.post("/export")
+def export_batch(
+    body: BatchExport,
+    request: Request,
+    user: User = Depends(get_current_user),
+    session: Session = Depends(get_session),
+):
+    """Selected reports as a ZIP of PDFs."""
+    data, media_type, filename = report_dispatch.export_reports_batch(session, body.ids, user, request)
+    return Response(
+        content=data, media_type=media_type,
+        headers={"Content-Disposition": f'attachment; filename="{filename}"',
+                 "X-Content-Type-Options": "nosniff"},
+    )
 
 
 @router.post("", response_model=ReportOut, status_code=status.HTTP_201_CREATED)

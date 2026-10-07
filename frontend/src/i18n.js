@@ -16,6 +16,11 @@ const messages = {
       settings: 'Configurações',
     },
     hub: {
+      exportPdfZip: 'Exportar PDF (ZIP)',
+      batchResult: '{label}: {done} concluído(s), {skipped} ignorado(s), {failed} com falha.',
+      nothingToDispatch: 'Nenhum item selecionado pode ser disparado (apenas vulnerabilidades "Salva").',
+      confirmBatchDispatch: 'Disparar {n} vulnerabilidade(s) para o blue team?',
+      confirmBatchDelete: 'Excluir {n} item(ns) selecionado(s)? Esta ação não pode ser desfeita.',
       rvsShort: 'RVS',
       title: 'Central Operacional',
       subtitle: 'Gerencie vulnerabilidades e relatórios de operações de segurança.',
@@ -48,6 +53,7 @@ const messages = {
     rowActions: {
       view: 'Visualizar',
       open: 'Abrir',
+      export: 'Exportar',
       detail: 'Detalhar',
       send: 'Enviar',
       delete: 'Excluir',
@@ -404,6 +410,11 @@ const messages = {
       settings: 'Settings',
     },
     hub: {
+      exportPdfZip: 'Export PDF (ZIP)',
+      batchResult: '{label}: {done} done, {skipped} skipped, {failed} failed.',
+      nothingToDispatch: 'None of the selected items can be dispatched (only "Saved" vulnerabilities).',
+      confirmBatchDispatch: 'Dispatch {n} vulnerability(ies) to the blue team?',
+      confirmBatchDelete: 'Delete {n} selected item(s)? This cannot be undone.',
       rvsShort: 'RVS',
       title: 'Operations Hub',
       subtitle: 'Manage vulnerabilities and reports of security operations.',
@@ -430,7 +441,7 @@ const messages = {
       name: 'Name',
       client: 'Client',
     },
-    rowActions: { view: 'View', open: 'Open', detail: 'Details', send: 'Send', delete: 'Delete' },
+    rowActions: { view: 'View', export: 'Export', open: 'Open', detail: 'Details', send: 'Send', delete: 'Delete' },
     users: {
       title: 'Users',
       subtitle: 'Manage operator accounts and permissions.',

@@ -11,8 +11,10 @@ completed dispatch:
           and the operator retries the same endpoint.
 """
 
+import io
 import re
 import uuid
+import zipfile
 from datetime import datetime
 
 from fastapi import HTTPException, Request, status
@@ -240,6 +242,85 @@ def export_report(
         "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         f"{report.internal_id}_vulnerabilidades_{stamp}.xlsx",
     )
+
+
+MAX_BATCH = 200
+
+
+def _unique(name: str, used: set[str]) -> str:
+    base, dot, ext = name.rpartition(".")
+    candidate, n = name, 1
+    while candidate in used:
+        n += 1
+        candidate = f"{base}_{n}.{ext}" if dot else f"{name}_{n}"
+    used.add(candidate)
+    return candidate
+
+
+def _batch_ids(ids: list[uuid.UUID]) -> list[uuid.UUID]:
+    unique = list(dict.fromkeys(ids))
+    if not unique:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Select at least one item")
+    if len(unique) > MAX_BATCH:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_ENTITY, f"At most {MAX_BATCH} items per export"
+        )
+    return unique
+
+
+def export_vulnerabilities_batch(
+    session: Session, ids: list[uuid.UUID], fmt: str, user: User, request: Request
+) -> tuple[bytes, str, str]:
+    """Selected vulnerabilities as a ZIP of PDFs (one each) or one Excel sheet."""
+    from app.services import vulnerability as vuln_svc
+
+    if fmt not in ("pdf", "xlsx"):
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "format must be pdf or xlsx")
+    vulns = [vuln_svc.get_visible(session, i) for i in _batch_ids(ids)]  # 404 if any is missing
+    stamp = datetime.now().strftime("%Y%m%d_%H%M")
+
+    if fmt == "xlsx":
+        data = render.vulnerabilities_xlsx(None, vulns)
+        media, filename = (
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            f"vulnerabilidades_{stamp}.xlsx",
+        )
+    else:
+        out, used = io.BytesIO(), set()
+        with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as z:
+            for v in vulns:
+                owned = list(session.scalars(select(Attachment).where(Attachment.vulnerability_id == v.id)))
+                label = _safe_name(v.internal_id or (v.identifier or "vulnerabilidade")[:40])
+                z.writestr(_unique(f"{label}.pdf", used),
+                           render.vulnerability_pdf(v, _image_loader(owned)))
+        data, media, filename = out.getvalue(), "application/zip", f"vulnerabilidades_{stamp}.zip"
+
+    audit.record(
+        session, action=AuditAction.export, user_id=user.id, entity_type="vulnerability",
+        detail={"format": fmt, "count": len(vulns), "batch": True}, request=request,
+    )
+    session.commit()
+    return data, media, filename
+
+
+def export_reports_batch(
+    session: Session, ids: list[uuid.UUID], user: User, request: Request
+) -> tuple[bytes, str, str]:
+    """Selected reports as a ZIP of PDFs (one each)."""
+    reports = [report_svc.get_report(session, i) for i in _batch_ids(ids)]
+    out, used = io.BytesIO(), set()
+    with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as z:
+        for r in reports:
+            vulns = report_svc._vulns_of(session, r)
+            pdf, _xlsx, _files = build_package(session, r, vulns)
+            z.writestr(_unique(f"{_safe_name(r.internal_id or r.name)}.pdf", used), pdf)
+    audit.record(
+        session, action=AuditAction.export, user_id=user.id, entity_type="report",
+        detail={"format": "pdf", "count": len(reports), "batch": True}, request=request,
+    )
+    session.commit()
+    stamp = datetime.now().strftime("%Y%m%d_%H%M")
+    return out.getvalue(), "application/zip", f"relatorios_{stamp}.zip"
 
 
 def export_vulnerability_pdf(

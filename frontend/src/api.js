@@ -171,8 +171,10 @@ export function uploadReportAttachment(id, file, displayName) {
 
 // Download a file from an authenticated endpoint (exports): the bearer token
 // can't ride on a plain <a href>, so fetch it as a Blob and save that.
-export async function downloadAuthed(path, fallbackName) {
-  const res = await authedFetch(`${BASE}${path}`)
+export async function downloadAuthed(path, fallbackName, { method = 'GET', body } = {}) {
+  const res = await authedFetch(`${BASE}${path}`, body === undefined ? { method } : {
+    method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+  })
   if (!res.ok) {
     const data = await res.json().catch(() => null)
     throw new ApiError(res.status, data?.detail)

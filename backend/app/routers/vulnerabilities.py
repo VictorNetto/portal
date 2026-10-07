@@ -10,6 +10,7 @@ from app.deps import get_current_user, require_roles
 from app.models.enums import UserRole
 from app.models.user import User
 from app.schemas.vulnerability import (
+    BatchExport,
     CorrectionRequest,
     RvsSet,
     TransitionRequest,
@@ -45,6 +46,23 @@ def list_vulns(
     session: Session = Depends(get_session),
 ) -> list:
     return svc.list_standalone(session)
+
+
+@router.post("/export")
+def export_batch(
+    body: BatchExport,
+    request: Request,
+    user: User = Depends(get_current_user),
+    session: Session = Depends(get_session),
+):
+    data, media_type, filename = report_dispatch.export_vulnerabilities_batch(
+        session, body.ids, body.format, user, request
+    )
+    return Response(
+        content=data, media_type=media_type,
+        headers={"Content-Disposition": f'attachment; filename="{filename}"',
+                 "X-Content-Type-Options": "nosniff"},
+    )
 
 
 @router.post("", response_model=VulnOut, status_code=status.HTTP_201_CREATED)

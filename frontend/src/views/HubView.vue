@@ -1,7 +1,10 @@
 <script setup>
 import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
-import { listVulns, deleteVuln, listReports, deleteReport, ApiError } from '../api'
+import {
+  listVulns, deleteVuln, dispatchVuln, listReports, deleteReport, downloadAuthed, ApiError,
+} from '../api'
+import { useAuthStore } from '../stores/auth'
 import { t } from '../i18n'
 import AppShell from '../components/AppShell.vue'
 import FilterBar from '../components/FilterBar.vue'
@@ -10,6 +13,8 @@ import { parseQuery } from '../filterQuery'
 import { fmtDate, fmtDateTime, fmtPlainDate } from '../dates'
 
 const router = useRouter()
+const auth = useAuthStore()
+const isWriter = computed(() => ['admin', 'writer_all'].includes(auth.user?.role))
 
 // Entity switcher (§5.4): vulnerabilities or reports.
 const entity = ref('vulns')
@@ -65,6 +70,7 @@ function onKeydown(e) {
 // Close the row action menu on any click outside it.
 function onDocClick(e) {
   if (menuFor.value && !e.target.closest('.rowActionWrap')) menuFor.value = null
+  if (batchOpen.value && !e.target.closest('.batchWrap')) batchOpen.value = false
 }
 onMounted(() => {
   window.addEventListener('keydown', onKeydown)
@@ -188,6 +194,88 @@ function toggleMenu(id, ev) {
     : { right: right + 'px', top: (rect.bottom + 4) + 'px' }
 }
 
+// --- Export / dispatch, one row or the whole selection ----------------------------
+const notice = ref('')
+const batchOpen = ref(false)
+const batchPos = ref({})
+const isVulns = computed(() => entity.value === 'vulns')
+const selectedRows = computed(() => (isVulns.value ? vulns.value : reports.value).filter((r) => selected.value.has(r.id)))
+
+function toggleBatch(ev) {
+  batchOpen.value = !batchOpen.value
+  if (!batchOpen.value) return
+  const rect = ev.currentTarget.getBoundingClientRect()
+  batchPos.value = { top: rect.bottom + 4 + 'px', right: window.innerWidth - rect.right + 'px' }
+}
+
+async function exportRows(ids, format) {
+  error.value = ''; notice.value = ''
+  try {
+    if (isVulns.value) {
+      await downloadAuthed('/vulnerabilities/export', 'vulnerabilidades', { method: 'POST', body: { ids, format } })
+    } else {
+      await downloadAuthed('/reports/export', 'relatorios', { method: 'POST', body: { ids } })
+    }
+  } catch (e) { error.value = e instanceof ApiError ? e.detail : t('errors.load') }
+}
+const exportSelected = (format) => { batchOpen.value = false; return exportRows([...selected.value], format) }
+// One row downloads the item itself (a PDF), not a ZIP of one.
+async function exportRow(id, format) {
+  menuFor.value = null
+  error.value = ''; notice.value = ''
+  const base = isVulns.value ? `/vulnerabilities/${id}` : `/reports/${id}`
+  try { await downloadAuthed(`${base}/export?format=${format}`, isVulns.value ? 'vulnerabilidade.pdf' : 'relatorio.pdf') }
+  catch (e) { error.value = e instanceof ApiError ? e.detail : t('errors.load') }
+}
+
+// "Disparar" applies to vulnerabilities saved locally; the rest are skipped, not failed.
+const canDispatchRow = (v) => isWriter.value && v.status === 'saved_local'
+
+async function dispatchRow(v) {
+  menuFor.value = null
+  if (!confirm(t('vuln.confirmDispatch'))) return
+  error.value = ''; notice.value = ''
+  try { await dispatchVuln(v.id); notice.value = t('vuln.dispatched'); await load() }
+  catch (e) { error.value = e instanceof ApiError ? e.detail : t('errors.dispatch') }
+}
+
+// Runs `fn` over the rows one by one and reports successes, skips and failures.
+async function runBatch(rows, fn) {
+  let done = 0
+  const failures = []
+  for (const r of rows) {
+    try { await fn(r); done++ }
+    catch (e) { failures.push(`${r.identifier || r.name || r.internal_id}: ${e instanceof ApiError ? e.detail : e.message}`) }
+  }
+  return { done, failures }
+}
+function reportBatch(label, { done, failures }, skipped = 0) {
+  notice.value = t('hub.batchResult', { label, done, skipped, failed: failures.length })
+  error.value = failures.slice(0, 3).join(' · ') + (failures.length > 3 ? ` (+${failures.length - 3})` : '')
+}
+
+async function dispatchSelected() {
+  batchOpen.value = false
+  const eligible = selectedRows.value.filter(canDispatchRow)
+  if (!eligible.length) { error.value = t('hub.nothingToDispatch'); return }
+  if (!confirm(t('hub.confirmBatchDispatch', { n: eligible.length }))) return
+  error.value = ''; notice.value = ''
+  const res = await runBatch(eligible, (v) => dispatchVuln(v.id))
+  reportBatch(t('actions.dispatch'), res, selectedRows.value.length - eligible.length)
+  selected.value = new Set(); await load()
+}
+
+async function deleteSelected() {
+  batchOpen.value = false
+  const rows = selectedRows.value
+  if (!rows.length) return
+  if (!confirm(t('hub.confirmBatchDelete', { n: rows.length }))) return
+  error.value = ''; notice.value = ''
+  const res = await runBatch(rows, (r) => (isVulns.value ? deleteVuln(r.id) : deleteReport(r.id)))
+  reportBatch(t('rowActions.delete'), res)
+  selected.value = new Set(); preview.value = null; await load()
+}
+
 function goDetail(id) { router.push(`/vulnerabilities/${id}`) }
 function goReport(id) { router.push(`/reports/${id}`) }
 function goCreate() { router.push(entity.value === 'vulns' ? '/vulnerabilities/new' : '/reports/new') }
@@ -253,12 +341,23 @@ onMounted(load)
         <span v-if="selected.size" class="selectionHint mono">
           {{ selected.size }} {{ t('hub.selected') }}
         </span>
-        <button v-if="selected.size" class="btn">{{ t('hub.actions') }}</button>
+        <div v-if="selected.size" class="batchWrap">
+          <button class="btn" @click="toggleBatch($event)">{{ t('hub.actions') }}</button>
+          <div v-if="batchOpen" class="rowMenuInline" :style="batchPos">
+            <button @click="exportSelected('pdf')">{{ t('hub.exportPdfZip') }}</button>
+            <button v-if="isVulns" @click="exportSelected('xlsx')">{{ t('rpt.exportXlsx') }}</button>
+            <button v-if="isVulns && isWriter" @click="dispatchSelected">{{ t('actions.dispatch') }}</button>
+            <button v-if="isWriter" class="danger" @click="deleteSelected">{{ t('rowActions.delete') }}</button>
+          </div>
+        </div>
         <button class="btn primary" @click="goCreate">
           {{ entity === 'vulns' ? t('hub.createVuln') : t('hub.createReport') }}
         </button>
       </div>
     </div>
+
+      <p v-if="notice" class="ok msg">{{ notice }}</p>
+      <p v-if="error" class="err msg">{{ error }}</p>
 
       <div class="pagination top">
         <span class="pageInfo mono">{{ t('hub.showing') }} {{ rangeLabel }}</span>
@@ -307,7 +406,9 @@ onMounted(load)
                   <div v-if="menuFor === v.id" class="rowMenuInline" :style="menuPos">
                     <button @click="openPreview(v); menuFor = null">{{ t('rowActions.view') }}</button>
                     <button @click="goDetail(v.id)">{{ t('rowActions.detail') }}</button>
-                    <button class="danger" @click="removeRow(v.id)">{{ t('rowActions.delete') }}</button>
+                    <button @click="exportRow(v.id, 'pdf')">{{ t('rowActions.export') }}</button>
+                    <button v-if="canDispatchRow(v)" @click="dispatchRow(v)">{{ t('actions.dispatch') }}</button>
+                    <button v-if="isWriter" class="danger" @click="removeRow(v.id)">{{ t('rowActions.delete') }}</button>
                   </div>
                 </div>
               </td>
@@ -360,7 +461,8 @@ onMounted(load)
                   <div v-if="menuFor === r.id" class="rowMenuInline" :style="menuPos">
                     <button @click="openPreview(r); menuFor = null">{{ t('rowActions.view') }}</button>
                     <button @click="goReport(r.id)">{{ t('rowActions.open') }}</button>
-                    <button v-if="r.status === 'draft'" class="danger" @click="removeRow(r.id)">{{ t('rowActions.delete') }}</button>
+                    <button @click="exportRow(r.id, 'pdf')">{{ t('rowActions.export') }}</button>
+                    <button v-if="isWriter && r.status === 'draft'" class="danger" @click="removeRow(r.id)">{{ t('rowActions.delete') }}</button>
                   </div>
                 </div>
               </td>
@@ -372,7 +474,6 @@ onMounted(load)
         </table>
       </section>
 
-      <p v-if="error" class="err">{{ error }}</p>
     </div>
 
     <!-- Bottom details panel (§6/§7) -->
@@ -465,6 +566,9 @@ onMounted(load)
 .hubPage > * { flex: 0 0 auto; }
 .hubPage > .tablePanel { flex: 0 1 auto; min-height: 0; overflow: auto; }
 .pagination.top { margin: 0 0 12px; }
+.msg { margin: 0 0 10px; font-size: 13px; }
+.ok { color: var(--accent); }
+.batchWrap { position: relative; }
 thead th { position: sticky; top: 0; background: var(--panel); z-index: 1; box-shadow: inset 0 -1px 0 var(--line); }
 th { border-bottom: 0; }
 .stub { padding: 3rem; text-align: center; color: var(--muted); }
