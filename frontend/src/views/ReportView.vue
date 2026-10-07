@@ -225,7 +225,11 @@ watch(lockMine, (mine) => (mine ? startBeat() : stopBeat()), { immediate: true }
 // Free the lock when leaving, unless the destination is one of this report's own
 // vulnerability editors (the operator is still working on it).
 const KEEP_LOCK_ROUTES = ['vuln-detail', 'report-vuln-new']
+const warnUnload = (e) => { if (editing.value && dirty.value) { e.preventDefault(); e.returnValue = '' } }
+onMounted(() => window.addEventListener('beforeunload', warnUnload))
+onBeforeUnmount(() => window.removeEventListener('beforeunload', warnUnload))
 onBeforeRouteLeave(async (to) => {
+  if (editing.value && dirty.value && !confirm(t('common.unsavedLeave'))) return false
   // Moving from /reports/new to the report just created is not "leaving" it.
   const sameReport = to.name === 'report-detail' && to.params.id === report.value?.id
   if (lockMine.value && !sameReport && !KEEP_LOCK_ROUTES.includes(to.name)) {
@@ -341,7 +345,7 @@ const opNames = (v) => (v.operators?.length ? v.operators.map((o) => o.username)
 
 async function remove() {
   if (!confirm(t('reports.confirmDelete'))) return
-  try { await deleteReport(id.value); router.push('/hub') }
+  try { await deleteReport(id.value); router.push('/hub?entity=reports') }
   catch (e) { error.value = e instanceof ApiError ? e.detail : t('errors.delete') }
 }
 
@@ -354,7 +358,7 @@ watch(() => route.fullPath, () => { if (!isNew.value && report.value?.id !== id.
     <nav class="crumbs">
       <a @click="router.push('/hub')">{{ t('vform.breadcrumbRoot') }}</a>
       <span>›</span>
-      <a @click="router.push('/hub')">{{ t('hub.tabReports') }}</a>
+      <a @click="router.push('/hub?entity=reports')">{{ t('hub.tabReports') }}</a>
       <span>›</span>
       <strong>{{ isNew ? t('rpt.newTitle') : (report?.internal_id || '…') }}</strong>
     </nav>
@@ -391,7 +395,7 @@ watch(() => route.fullPath, () => { if (!isNew.value && report.value?.id !== id.
           </div>
         </div>
         <div class="createActions">
-          <button class="btn" @click="router.push('/hub')">{{ t('vform.cancel') }}</button>
+          <button class="btn" @click="router.push('/hub?entity=reports')">{{ t('vform.cancel') }}</button>
           <button class="btn primary" :disabled="saving || !created.name.trim()" @click="create">
             {{ t('rpt.create') }}
           </button>
@@ -412,7 +416,7 @@ watch(() => route.fullPath, () => { if (!isNew.value && report.value?.id !== id.
         </div>
         <div class="pageActions" v-if="report">
           <button v-if="status === 'draft' && isWriter" class="btn danger" @click="remove">{{ t('rowActions.delete') }}</button>
-          <button class="btn" @click="router.push('/hub')">{{ t('rpt.back') }}</button>
+          <button class="btn" @click="router.push('/hub?entity=reports')">{{ t('rpt.back') }}</button>
           <button class="btn" @click="exportAs('pdf')">{{ t('rpt.exportPdf') }}</button>
           <button class="btn" @click="exportAs('xlsx')">{{ t('rpt.exportXlsx') }}</button>
           <button class="btn" @click="exportAs('docx')">{{ t('rpt.exportDocx') }}</button>

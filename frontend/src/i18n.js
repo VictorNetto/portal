@@ -131,6 +131,7 @@ const messages = {
       clear: 'Limpar',
       help: 'Ajuda',
       rowMenu: 'Ações',
+      unsavedLeave: 'Há alterações não salvas. Sair mesmo assim?',
     },
     profile: {
       menu: 'Perfil',
@@ -504,7 +505,7 @@ const messages = {
       copied: 'Copied!',
       done: 'Done',
     },
-    common: { prev: 'Previous', next: 'Next', close: 'Close', clear: 'Clear', help: 'Help', rowMenu: 'Actions' },
+    common: { prev: 'Previous', next: 'Next', close: 'Close', clear: 'Clear', help: 'Help', rowMenu: 'Actions', unsavedLeave: 'You have unsaved changes. Leave anyway?' },
     profile: {
       menu: 'Profile',
       language: 'Language',

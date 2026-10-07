@@ -1,6 +1,6 @@
 <script setup>
 import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import {
   listVulns, deleteVuln, dispatchVuln, listReports, deleteReport, downloadAuthed, ApiError,
 } from '../api'
@@ -13,11 +13,19 @@ import { parseQuery } from '../filterQuery'
 import { fmtDate, fmtDateTime, fmtPlainDate } from '../dates'
 
 const router = useRouter()
+const route = useRoute()
 const auth = useAuthStore()
 const isWriter = computed(() => ['admin', 'writer_all'].includes(auth.user?.role))
 
 // Entity switcher (§5.4): vulnerabilities or reports.
-const entity = ref('vulns')
+// The tab lives in the URL (/hub?entity=reports) so reload and the back button keep it.
+const fromQuery = (q) => (q === 'reports' ? 'reports' : 'vulns')
+const entity = ref(fromQuery(route.query.entity))
+watch(() => route.query.entity, (q) => { entity.value = fromQuery(q) })
+watch(entity, (e) => {
+  const wanted = e === 'reports' ? 'reports' : 'vulnerabilities'
+  if (route.query.entity !== wanted) router.replace({ query: { ...route.query, entity: wanted } })
+})
 
 // Drive the global accent: reports -> indigo, vulns -> green. Sets a data
 // attribute on <html> that [data-entity="reports"] in style.css keys off.

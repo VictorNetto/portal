@@ -52,6 +52,8 @@ function go(item) {
 const profileOpen = ref(false)
 function onDocClick(e) {
   if (profileOpen.value && !e.target.closest('.profileWrap')) profileOpen.value = false
+  // The expanded nav is transient: a click anywhere outside it collapses it.
+  if (expanded.value && !e.target.closest('.sidebar')) expanded.value = false
 }
 onMounted(() => document.addEventListener('click', onDocClick))
 onUnmounted(() => document.removeEventListener('click', onDocClick))
@@ -69,7 +71,8 @@ function signOut() {
 </script>
 
 <template>
-  <nav class="sidebar" :class="{ expanded, locked: forced }" @mouseleave="expanded = false">
+  <nav class="sidebar" :class="{ expanded, locked: forced }" :aria-label="t('brand')"
+       @mouseleave="expanded = false">
     <button class="hamb" @click="expanded = !expanded" aria-label="Menu">
       <svg viewBox="0 0 24 24" class="ico"><path d="M4 7h16M4 12h16M4 17h16" /></svg>
     </button>
@@ -78,6 +81,8 @@ function signOut() {
       :key="item.label"
       class="navItem"
       :class="{ active: isActive(item), soon: item.soon }"
+      :aria-label="t(item.label)"
+      :aria-current="isActive(item) ? 'page' : undefined"
       @click="go(item)"
     >
       <span class="navIcon"><svg viewBox="0 0 24 24" class="ico"><path :d="item.icon" /></svg></span>

@@ -96,6 +96,12 @@ const hasRefErrors = computed(() => form.value.references.some(refInvalid))
 const fieldError = (f) => showErrors.value && missing.value.includes(f)
 
 // --- Load / sync ----------------------------------------------------------
+// Unsaved-changes tracking: a snapshot of what the form held when last loaded/saved.
+const snapshot = ref('')
+const currentState = () => JSON.stringify({ f: form.value, o: [...selectedOps.value].sort() })
+const dirty = computed(() => !loading.value && snapshot.value !== '' && snapshot.value !== currentState())
+const markClean = () => { snapshot.value = currentState() }
+
 function syncForm() {
   const v = vuln.value
   const f = blankForm()
@@ -106,6 +112,7 @@ function syncForm() {
   }
   form.value = f
   selectedOps.value = new Set((v.operators || []).map((o) => o.id))
+  markClean()
 }
 
 function resetForNew() {
@@ -116,6 +123,7 @@ function resetForNew() {
   error.value = notice.value = attachError.value = ''
   showErrors.value = false
   loading.value = false
+  markClean()
 }
 
 async function loadReportCtx() {
@@ -190,6 +198,7 @@ async function persist() {
     // Set before navigating so the route change doesn't trigger a reload that
     // would flash the form away or overwrite what the user types meanwhile.
     vuln.value = created
+    markClean()  // what was typed is now saved: leaving /new must not warn
     await router.replace(`/vulnerabilities/${created.id}`)
     return created
   }
@@ -399,7 +408,11 @@ onUnmounted(stopBeat)
 // Keep the lock when moving between the report and its own vulnerabilities;
 // release it when leaving for anywhere else.
 const KEEP_LOCK_ROUTES = ['report-detail', 'vuln-detail', 'report-vuln-new']
+const warnUnload = (e) => { if (dirty.value) { e.preventDefault(); e.returnValue = '' } }
+onMounted(() => window.addEventListener('beforeunload', warnUnload))
+onUnmounted(() => window.removeEventListener('beforeunload', warnUnload))
 onBeforeRouteLeave(async (to) => {
+  if (dirty.value && !confirm(t('common.unsavedLeave'))) return false
   if (inReport.value && lockMine.value && !KEEP_LOCK_ROUTES.includes(to.name)) {
     try { await releaseReportLock(reportId.value) } catch { /* ignore */ }
   }
@@ -419,7 +432,7 @@ watch(() => route.fullPath, () => {
       <a @click="router.push('/hub')">{{ t('vform.breadcrumbRoot') }}</a>
       <span>›</span>
       <template v-if="inReport">
-        <a @click="router.push('/hub')">{{ t('hub.tabReports') }}</a>
+        <a @click="router.push('/hub?entity=reports')">{{ t('hub.tabReports') }}</a>
         <span>›</span>
         <a @click="leave">{{ reportCtx?.internal_id || '…' }}</a>
         <span>›</span>
