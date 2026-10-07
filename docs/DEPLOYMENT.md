@@ -107,7 +107,7 @@ Each release:
 
 First start prints the seeded admin password to `docker compose logs api` (SPEC §10.1) — grab it, log in, change it.
 
-*(A full step-by-step runbook will be written once the stack exists.)*
+The exact commands are in [RUNBOOK.md](RUNBOOK.md).
 
 ---
 

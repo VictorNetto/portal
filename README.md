@@ -61,6 +61,19 @@ docker compose exec api python -m pytest tests -q
 
 It covers authentication and the forced password change, the vulnerability lifecycle and corrections, attachments (validation and access rules), the report lock, sections, dispatch (including the failure → retry path), exports, and the ingest API. By default it logs in as `admin` / `12345678`; override with `TEST_ADMIN_USER` / `TEST_ADMIN_PASSWORD`.
 
+## Production
+
+A production stack is provided: built frontend, non-root API with several workers, nginx terminating TLS (with a strict Content-Security-Policy and security headers), and encrypted backup/restore scripts.
+
+```bash
+cp .env.production.example .env.production      # fill in real secrets
+docker compose -f docker-compose.prod.yml --env-file .env.production build
+docker compose -f docker-compose.prod.yml --env-file .env.production run --rm api alembic upgrade head
+docker compose -f docker-compose.prod.yml --env-file .env.production up -d
+```
+
+Step-by-step procedures (first deployment, updates, certificates, backups and restores, troubleshooting) are in **[docs/RUNBOOK.md](docs/RUNBOOK.md)**. The API refuses to start in production with the development `JWT_SECRET`.
+
 ## Repository layout
 
 ```
@@ -71,11 +84,13 @@ backend/
   tests/          pytest integration suite
 frontend/
   src/            views/, components/ (Markdown editor, timeline, ...), i18n.js, api.js, router.js
-nginx/            Reverse proxy config
+nginx/            Reverse proxy config (nginx.conf = dev, prod.conf.template = production/TLS)
+scripts/          backup.sh / restore.sh (database + attachments, optionally encrypted)
 docs/
   specs/          Canonical specifications (SPEC.md, FRONTEND_SPEC.md)
   DECISIONS.md    Resolved design decisions D1–D9 with rationale
   DEPLOYMENT.md   Deployment & networking plan + IT-request checklist
+  RUNBOOK.md      Operating the production stack: deploy, update, certificates, backup/restore
   INGEST_API.md   Contract for scanners / pipelines
 prototypes/       Original HTML prototypes of the screens
 ```
@@ -100,4 +115,4 @@ Earlier numbered duplicates are preserved under the respective `archive/` folder
 - Several **permission constraints** (who may delete, dispatch or reassign what) are catalogued but not yet decided — the current rule is "any writer".
 - Date-based filters in the Hub (`created:`, `updated:`…) are designed but waiting on a product decision.
 - `DISPATCH_TRANSPORT=smtp` is verified against a test SMTP server only; Azure Communication Services is not wired.
-- Production packaging (TLS, built frontend, no hot reload) follows [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) and is not scripted yet.
+- The production stack has been exercised on a throwaway server (self-signed certificate) but not yet on the real VM with the org certificate.

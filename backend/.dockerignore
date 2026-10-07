@@ -1,6 +1,8 @@
-__pycache__/
+__pycache__
 *.pyc
+tests
+.pytest_cache
+.ruff_cache
+*.egg-info
+Dockerfile*
 .venv/
-.pytest_cache/
-.ruff_cache/
-*.egg-info/

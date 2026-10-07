@@ -24,6 +24,7 @@ dist-ssr/
 .env
 .env.*
 !.env.example
+!.env.production.example
 *.pem
 *.key
 
@@ -41,3 +42,8 @@ Thumbs.db
 
 # Local design scratch (theme mockups, not product)
 sandbox/
+
+# ---- Production secrets (never commit) ----
+.env.production
+certs/
+backups/
