@@ -1,6 +1,6 @@
 <script setup>
 import { ref, computed, nextTick } from 'vue'
-import { parseQuery, FILTER_KEYS } from '../filterQuery'
+import { FILTER_KEYS } from '../filterQuery'
 
 const props = defineProps({ modelValue: String })
 const emit = defineEmits(['update:modelValue'])
@@ -14,7 +14,6 @@ const text = computed({
   set: (v) => emit('update:modelValue', v),
 })
 
-const tokens = computed(() => parseQuery(text.value).tokens)
 const hasText = computed(() => (text.value || '').length > 0)
 
 // The fragment currently being typed (last whitespace-delimited chunk).
@@ -64,13 +63,25 @@ function applySuggestion(s) {
 }
 
 function onKeydown(e) {
-  if (!menuOpen.value) return
-  const list = suggestions.value
-  if (!list.length) return
-  if (e.key === 'ArrowDown') { e.preventDefault(); activeIdx.value = (activeIdx.value + 1) % list.length }
-  else if (e.key === 'ArrowUp') { e.preventDefault(); activeIdx.value = (activeIdx.value - 1 + list.length) % list.length }
-  else if (e.key === 'Enter' || e.key === 'Tab') { e.preventDefault(); applySuggestion(list[activeIdx.value]) }
-  else if (e.key === 'Escape') { e.preventDefault(); menuOpen.value = false }
+  // Navigate/close the menu when it's open.
+  if (menuOpen.value) {
+    const list = suggestions.value
+    if (list.length) {
+      if (e.key === 'ArrowDown') { e.preventDefault(); activeIdx.value = (activeIdx.value + 1) % list.length; return }
+      if (e.key === 'ArrowUp') { e.preventDefault(); activeIdx.value = (activeIdx.value - 1 + list.length) % list.length; return }
+      if (e.key === 'Enter' || e.key === 'Tab') { e.preventDefault(); applySuggestion(list[activeIdx.value]); return }
+    }
+    if (e.key === 'Escape') { e.preventDefault(); menuOpen.value = false; return }
+  }
+  // Pressing "/" opens the key menu immediately when at a token boundary
+  // (start of input, or right after a space, optionally after a leading "-").
+  if (e.key === '/') {
+    const cur = text.value || ''
+    const frag = (cur.match(/(\S*)$/) || ['', ''])[1]
+    if (frag === '' || frag === '-') {
+      nextTick(() => { menuOpen.value = true; activeIdx.value = 0 })
+    }
+  }
 }
 
 function clearAll() {
@@ -122,13 +133,6 @@ const HELP_LINES = [
       </span>
     </span>
 
-    <!-- token validity chips -->
-    <div v-if="tokens.length" class="chips">
-      <span v-for="(tk, i) in tokens" :key="i" class="chip"
-            :class="{ bad: !tk.valid, neg: tk.negate }"
-            :title="tk.valid ? '' : 'inválido — ignorado'">{{ tk.raw }}</span>
-    </div>
-
     <!-- key suggestion menu (only on "/" or "-/") -->
     <ul v-if="menuOpen && suggestions.length" class="menu">
       <li v-for="(s, i) in suggestions" :key="s.insert"
@@ -173,11 +177,6 @@ const HELP_LINES = [
 }
 .tip strong { color: var(--green); font-size: .82rem; margin-bottom: 2px; }
 .adorn.help:hover .tip, .adorn.help:focus .tip { opacity: 1; visibility: visible; transition-delay: .5s; }
-
-.chips { position: absolute; top: 42px; left: 2px; display: flex; gap: 6px; flex-wrap: wrap; pointer-events: none; z-index: 5; }
-.chip { font-size: .72rem; border: 1px solid var(--line2); border-radius: 4px; padding: 1px 6px; background: rgba(66, 230, 123, .06); color: var(--text); }
-.chip.neg { border-color: var(--amber); color: var(--amber); background: rgba(245, 167, 66, .07); }
-.chip.bad { border-color: rgba(255, 107, 95, .6); color: var(--red); background: rgba(255, 107, 95, .07); text-decoration: line-through; }
 
 .menu {
   position: absolute; top: 42px; left: 0; right: 0; z-index: 60; margin: 0; padding: 6px; list-style: none;
