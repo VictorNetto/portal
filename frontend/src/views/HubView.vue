@@ -163,6 +163,10 @@ const sevClass = (score) => {
   return n >= 7 ? 'hi' : n >= 4 ? 'me' : 'lo'
 }
 
+// dd/mm/aaaa in the list; full local timestamp on hover.
+const fmtDate = (iso) => (iso ? new Date(iso).toLocaleDateString('pt-BR') : '—')
+const fullDate = (iso) => (iso ? new Date(iso).toLocaleString('pt-BR') : '')
+
 const opNames = (v) => {
   const ops = Array.isArray(v.operators) ? v.operators : []
   return ops.length ? ops.map((o) => o.username).join(', ') : '—'
@@ -232,6 +236,8 @@ onMounted(load)
               <th>{{ t('cols.cvss') }}</th>
               <th>{{ t('cols.operators') }}</th>
               <th>{{ t('cols.source') }}</th>
+              <th>{{ t('cols.createdAt') }}</th>
+              <th>{{ t('cols.updatedAt') }}</th>
               <th style="text-align:center">{{ t('cols.actions') }}</th>
             </tr>
           </thead>
@@ -250,6 +256,8 @@ onMounted(load)
               </td>
               <td class="val" @click="openPreview(v)">{{ opNames(v) }}</td>
               <td class="val" @click="openPreview(v)">{{ v.source || '—' }}</td>
+              <td class="dateCell" :title="fullDate(v.created_at)" @click="openPreview(v)">{{ fmtDate(v.created_at) }}</td>
+              <td class="dateCell" :title="fullDate(v.updated_at)" @click="openPreview(v)">{{ fmtDate(v.updated_at) }}</td>
               <td style="text-align:center" @click.stop>
                 <div class="rowActionWrap">
                   <button class="link rowBtn" @click="toggleMenu(v.id, $event)">{{ t('common.rowMenu') }}</button>
@@ -263,7 +271,7 @@ onMounted(load)
               </td>
             </tr>
             <tr v-if="!loading && !pageRows.length">
-              <td colspan="7" class="empty">{{ t('hub.empty') }}</td>
+              <td colspan="9" class="empty">{{ t('hub.empty') }}</td>
             </tr>
           </tbody>
         </table>
@@ -324,12 +332,14 @@ th { border-bottom: 0; }
 
 table { table-layout: fixed; }
 th:nth-child(1), td:nth-child(1) { width: 48px; }
-th:nth-child(2), td:nth-child(2) { width: 220px; }
+th:nth-child(2), td:nth-child(2) { width: 300px; }
 th:nth-child(3), td:nth-child(3) { width: 150px; }
 th:nth-child(4), td:nth-child(4) { width: 90px; }
 th:nth-child(5), td:nth-child(5) { width: 220px; }
-th:nth-child(6), td:nth-child(6) { width: 160px; }
-th:nth-child(7), td:nth-child(7) { width: 96px; }
+th:nth-child(6), td:nth-child(6) { width: 120px; }
+th:nth-child(7), td:nth-child(7), th:nth-child(8), td:nth-child(8) { width: 120px; }
+th:nth-child(9), td:nth-child(9) { width: 96px; }
+.dateCell { color: var(--muted); font-variant-numeric: tabular-nums; }
 th, td { white-space: nowrap; }
 .val { overflow: hidden; text-overflow: ellipsis; }
 td { cursor: pointer; }

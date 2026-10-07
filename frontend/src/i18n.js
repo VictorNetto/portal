@@ -37,6 +37,8 @@ const messages = {
       cvss: 'CVSS',
       operators: 'Operadores',
       source: 'Fonte',
+      createdAt: 'Criada em',
+      updatedAt: 'Atualizada em',
       actions: 'Ações',
       name: 'Nome',
       client: 'Cliente',
