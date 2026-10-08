@@ -233,10 +233,12 @@ onMounted(async () => {
               <table v-if="accessItems.length">
                 <tbody>
                   <tr v-for="item in accessItems" :key="item.id" @click="openRecord(item)">
-                    <td class="mono">{{ item.internal_id || '—' }}</td>
-                    <td class="aTitle">{{ item.title || '—' }}</td>
-                    <td><span class="pill" :class="'s-' + item.status">{{ t('status.' + item.status) }}</span></td>
-                    <td class="rel">{{ item.relations.map((r) => t('users.rel.' + r)).join(' · ') }}</td>
+                    <td class="mono aId">{{ item.internal_id || '—' }}</td>
+                    <td class="aTitle">
+                      <span class="aName">{{ item.title || '—' }}</span>
+                      <span class="rel">{{ item.relations.map((r) => t('users.rel.' + r)).join(' · ') }}</span>
+                    </td>
+                    <td class="aStatus"><span class="pill" :class="'s-' + item.status">{{ t('status.' + item.status) }}</span></td>
                   </tr>
                 </tbody>
               </table>
@@ -283,6 +285,9 @@ dd .flag { margin-left: 0; }
 .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
 .accessList { max-height: calc(100vh - 520px); min-height: 120px; overflow: auto; }
 .accessList tbody tr { cursor: pointer; }
-.aTitle { max-width: 170px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.rel { color: var(--muted); font-size: 12px; white-space: nowrap; }
+.aId { white-space: nowrap; width: 84px; }
+.aStatus { width: 96px; text-align: right; }
+.aTitle { max-width: 0; }
+.aName, .rel { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rel { color: var(--muted); font-size: 12px; }
 </style>

@@ -85,8 +85,8 @@ const messages = {
     },
     roles: {
       admin: 'Administrador',
-      write_all: 'Editor',
-      read_all: 'Leitor',
+      write_all: 'Editor (todos)',
+      read_all: 'Leitor (todos)',
       write_restricted: 'Editor restrito',
       read_restricted: 'Leitor restrito',
       auditor: 'Auditor',
@@ -475,7 +475,7 @@ const messages = {
       noAccess: 'No records.',
       rel: { created: 'Created', operator: 'Operator', shared: 'Shared', report: 'Via report' },
     },
-    roles: { admin: 'Administrator', write_all: 'Editor', read_all: 'Reader', write_restricted: 'Restricted editor', read_restricted: 'Restricted reader', auditor: 'Auditor' },
+    roles: { admin: 'Administrator', write_all: 'Editor (all)', read_all: 'Reader (all)', write_restricted: 'Restricted editor', read_restricted: 'Restricted reader', auditor: 'Auditor' },
     audit: {
       title: 'Audit Logs',
       subtitle: 'Record of every action in the portal.',
