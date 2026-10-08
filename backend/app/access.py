@@ -178,8 +178,12 @@ def vuln_visible_clause(user: User):
     )
 
 
-def resolve_users(session: Session, ids: list[uuid.UUID], what: str) -> list[User]:
-    """Users by id, 422 when one is unknown (shared by operators and viewers)."""
+def resolve_users(
+    session: Session, ids: list[uuid.UUID], what: str, keep: list[User] | None = None
+) -> list[User]:
+    """Users by id for an operator/viewer list; 422 when one is unknown, or inactive and
+    not already on the list (`keep`): a deactivated account stays where it was, but
+    cannot be newly assigned."""
     if not ids:
         return []
     users = list(session.scalars(select(User).where(User.id.in_(ids))))
@@ -187,5 +191,11 @@ def resolve_users(session: Session, ids: list[uuid.UUID], what: str) -> list[Use
     if missing:
         raise HTTPException(
             status.HTTP_422_UNPROCESSABLE_ENTITY, f"Unknown {what} id(s): {', '.join(missing)}"
+        )
+    already = {u.id for u in keep or []}
+    inactive = [u.username for u in users if not u.is_active and u.id not in already]
+    if inactive:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_ENTITY, f"Inactive {what}(s): {', '.join(inactive)}"
         )
     return users

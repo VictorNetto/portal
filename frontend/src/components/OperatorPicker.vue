@@ -23,7 +23,8 @@ const shown = computed(() => props.users.filter((u) =>
   props.modelValue.has(u.id) || (props.showSelf && !props.disabled && u.id === selfId.value)))
 const addable = computed(() => {
   const needle = q.value.trim().toLowerCase()
-  return props.users.filter((u) => !shown.value.some((s) => s.id === u.id)
+  // deactivated accounts can stay where they are, but are never offered for a new assignment
+  return props.users.filter((u) => u.is_active !== false && !shown.value.some((s) => s.id === u.id)
     && (!needle || u.username.toLowerCase().includes(needle)))
 })
 

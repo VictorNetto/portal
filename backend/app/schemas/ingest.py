@@ -8,12 +8,13 @@ to model it.
 """
 
 import json
-import re
 import uuid
 from decimal import Decimal
 from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+
+from app.schemas.vulnerability import http_references, normalise_cwe
 
 MAX_METADATA_BYTES = 64 * 1024
 
@@ -42,21 +43,12 @@ class IngestVuln(BaseModel):
     @field_validator("cwe")
     @classmethod
     def _normalise_cwe(cls, v: str | None) -> str | None:
-        if v is None or not v.strip():
-            return None
-        m = re.fullmatch(r"(?:CWE-)?(\d{1,6})", v.strip(), re.IGNORECASE)
-        if not m:
-            raise ValueError("cwe must look like 'CWE-79' (or just '79')")
-        return f"CWE-{m.group(1)}"
+        return normalise_cwe(v)
 
     @field_validator("references")
     @classmethod
     def _http_references(cls, refs: list[str]) -> list[str]:
-        cleaned = [r.strip() for r in refs if r and r.strip()]
-        for r in cleaned:
-            if not re.fullmatch(r"https?://\S{1,2000}", r, re.IGNORECASE):
-                raise ValueError(f"reference is not an http(s) URL: {r[:60]}")
-        return cleaned
+        return http_references(refs)
 
     @model_validator(mode="after")
     def _metadata_size(self) -> "IngestVuln":

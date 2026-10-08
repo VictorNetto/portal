@@ -222,9 +222,9 @@ def update(
     for field, value in changes.items():
         setattr(report, field, value.strip() if field == "name" else value)
     if set_operators:
-        report.operators = _resolve_operators(session, op_ids or [])
+        report.operators = _resolve_operators(session, op_ids or [], report.operators)
     if set_viewers:
-        report.viewers = access.resolve_users(session, viewer_ids or [], "viewer")
+        report.viewers = access.resolve_users(session, viewer_ids or [], "viewer", report.viewers)
 
     audit.record(
         session, action=AuditAction.update, user_id=user.id,
