@@ -595,6 +595,17 @@ table { table-layout: fixed; }
 .rtable th:nth-child(7), .rtable td:nth-child(7) { width: 90px; }
 .rtable th:nth-child(8), .rtable td:nth-child(8) { width: 120px; }
 .rtable th:nth-child(9), .rtable td:nth-child(9) { width: 96px; }
+/* Wider than 1920: the identifier/name stops taking all the extra width. Up to 1920 the
+   layout is unchanged; beyond it the identifier/name gets only 10% of the extra, the source/client
+   a quarter or so, and the operators column (left without a width) absorbs the rest. */
+@media (min-width: 1921px) {
+  .vtable th:nth-child(2), .vtable td:nth-child(2) { width: calc(894px + (100vw - 1920px) * 0.1); }
+  .vtable th:nth-child(5), .vtable td:nth-child(5) { width: auto; }
+  .vtable th:nth-child(6), .vtable td:nth-child(6) { width: calc(120px + (100vw - 1920px) * 0.25); }
+  .rtable th:nth-child(2), .rtable td:nth-child(2) { width: calc(874px + (100vw - 1920px) * 0.1); }
+  .rtable th:nth-child(5), .rtable td:nth-child(5) { width: auto; }
+  .rtable th:nth-child(6), .rtable td:nth-child(6) { width: calc(160px + (100vw - 1920px) * 0.3); }
+}
 .rname { color: var(--text); }
 .lockLine { margin: 4px 0 0; font-size: 12px; color: var(--st-wait-fg); }
 .dateCell { color: var(--muted); font-variant-numeric: tabular-nums; }
