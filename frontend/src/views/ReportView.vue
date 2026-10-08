@@ -20,6 +20,7 @@ import { useAuthStore } from '../stores/auth'
 import AppShell from '../components/AppShell.vue'
 import MarkdownEditor from '../components/MarkdownEditor.vue'
 import AttachmentsPanel from '../components/AttachmentsPanel.vue'
+import OperatorPicker from '../components/OperatorPicker.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -84,18 +85,11 @@ const dirty = computed(() => !!report.value && snapshot.value !== snapshotOf())
 
 async function load() {
   try { allUsers.value = await listUsers() } catch { /* non-fatal */ }
-  if (isNew.value) { loading.value = false; return }
+  if (isNew.value) { selectedOps.value = new Set(auth.user?.id ? [auth.user.id] : []); loading.value = false; return }
   loading.value = true; error.value = ''
   try { report.value = await getReport(id.value); sync(); await loadEvidence() }
   catch (e) { error.value = e instanceof ApiError ? e.detail : t('errors.load') }
   finally { loading.value = false }
-}
-
-function toggleOp(uid) {
-  if (!editing.value) return
-  if (selectedOps.value.has(uid)) selectedOps.value.delete(uid)
-  else selectedOps.value.add(uid)
-  selectedOps.value = new Set(selectedOps.value)
 }
 
 // --- Creating ---------------------------------------------------------------
@@ -387,12 +381,7 @@ watch(() => route.fullPath, () => { if (!isNew.value && report.value?.id !== id.
         </div>
         <div class="f">
           <label>{{ t('vform.operators') }}</label>
-          <div class="opchips">
-            <button v-for="u in allUsers" :key="u.id" type="button" class="opchip"
-                    :class="{ on: selectedOps.has(u.id) }" @click="toggleOp(u.id)">
-              {{ u.username }}
-            </button>
-          </div>
+          <OperatorPicker v-model="selectedOps" :users="allUsers" />
         </div>
         <div class="createActions">
           <button class="btn" @click="router.push('/hub?entity=reports')">{{ t('vform.cancel') }}</button>
@@ -466,12 +455,7 @@ watch(() => route.fullPath, () => { if (!isNew.value && report.value?.id !== id.
             <div class="f"><label>{{ t('rpt.end') }}</label><input v-model="form.end_date" type="date" :disabled="!editing" /></div>
             <div class="f wide2">
               <label>{{ t('vform.operators') }}</label>
-              <div class="opchips">
-                <button v-for="u in allUsers" :key="u.id" type="button" class="opchip"
-                        :class="{ on: selectedOps.has(u.id) }" :disabled="!editing" @click="toggleOp(u.id)">
-                  {{ u.username }}
-                </button>
-              </div>
+              <OperatorPicker v-model="selectedOps" :users="allUsers" :disabled="!editing" />
             </div>
           </div>
         </section>
@@ -598,11 +582,6 @@ watch(() => route.fullPath, () => { if (!isNew.value && report.value?.id !== id.
 .createCard { max-width: 640px; display: grid; gap: 16px; }
 .createActions { display: flex; gap: 8px; justify-content: flex-end; }
 
-.opchips { display: flex; flex-wrap: wrap; gap: 8px; min-height: 32px; align-items: center; }
-.opchip { border: 1px solid var(--line-2); background: var(--panel); color: var(--text-2); border-radius: var(--radius); padding: 4px 12px; font-size: 13px; }
-.opchip:hover:not(:disabled):not(.on) { background: var(--hover); }
-.opchip.on { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
-.opchip:disabled { cursor: default; opacity: .7; }
 
 .extra { margin-bottom: 18px; }
 .extraHead { display: flex; gap: 12px; align-items: center; margin-bottom: 8px; }

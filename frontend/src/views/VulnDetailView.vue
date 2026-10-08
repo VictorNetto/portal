@@ -17,6 +17,7 @@ import MarkdownEditor from '../components/MarkdownEditor.vue'
 import CvssInput from '../components/CvssInput.vue'
 import MultiValueInput from '../components/MultiValueInput.vue'
 import AttachmentsPanel from '../components/AttachmentsPanel.vue'
+import OperatorPicker from '../components/OperatorPicker.vue'
 import VulnTimeline from '../components/VulnTimeline.vue'
 
 const route = useRoute()
@@ -118,7 +119,7 @@ function syncForm() {
 function resetForNew() {
   vuln.value = null
   form.value = blankForm()
-  selectedOps.value = new Set()
+  selectedOps.value = new Set(auth.user?.id ? [auth.user.id] : [])
   attachments.value = []
   error.value = notice.value = attachError.value = ''
   showErrors.value = false
@@ -150,13 +151,6 @@ async function load() {
     await loadReportCtx()
   } catch (e) { error.value = e instanceof ApiError ? e.detail : t('errors.load') }
   finally { loading.value = false }
-}
-
-function toggleOp(uid) {
-  if (!canEdit('operators')) return
-  if (selectedOps.value.has(uid)) selectedOps.value.delete(uid)
-  else selectedOps.value.add(uid)
-  selectedOps.value = new Set(selectedOps.value)
 }
 
 // CWE is always shown as CWE-<digits> (up to 6), as in the prototype.
@@ -554,14 +548,7 @@ watch(() => route.fullPath, () => {
             </div>
             <div class="f">
               <label>{{ t('vform.operators') }}</label>
-              <div class="opchips" :class="{ locked: !canEdit('operators') }">
-                <button v-for="u in allUsers" :key="u.id" type="button" class="opchip"
-                        :class="{ on: selectedOps.has(u.id) }"
-                        :disabled="!canEdit('operators')" @click="toggleOp(u.id)">
-                  {{ u.username }}
-                </button>
-                <span v-if="!allUsers.length" class="muted">{{ t('vform.noOperators') }}</span>
-              </div>
+              <OperatorPicker v-model="selectedOps" :users="allUsers" :disabled="!canEdit('operators')" />
             </div>
           </div>
         </div>
@@ -676,11 +663,6 @@ input.invalid { border-color: var(--danger); }
 .corrRow { display: flex; gap: 14px; align-items: flex-end; flex-wrap: wrap; }
 .corrRow .grow { flex: 1 1 280px; }
 .corrActions { display: flex; gap: 8px; }
-.opchips { display: flex; flex-wrap: wrap; gap: 8px; min-height: 32px; align-items: center; }
-.opchip { border: 1px solid var(--line-2); background: var(--panel); color: var(--text-2); border-radius: var(--radius); padding: 4px 12px; font-size: 13px; }
-.opchip:hover:not(:disabled):not(.on) { background: var(--hover); }
-.opchip.on { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
-.opchip:disabled { cursor: default; opacity: .7; }
 
 @media (max-width: 1100px) {
   .infoGrid, .row2, .layout { grid-template-columns: 1fr; }
