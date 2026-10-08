@@ -21,7 +21,7 @@ from app.db import SessionLocal
 
 BASE_URL = os.environ.get("TEST_API_URL", "http://localhost:8000")
 ADMIN_USER = os.environ.get("TEST_ADMIN_USER", "admin")
-ADMIN_PASSWORD = os.environ.get("TEST_ADMIN_PASSWORD", "12345678")
+ADMIN_PASSWORD = os.environ.get("TEST_ADMIN_PASSWORD", "admin")
 
 
 class Client:

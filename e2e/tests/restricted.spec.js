@@ -58,7 +58,7 @@ test.describe('restricted roles', () => {
     const hidden = await mk({ identifier: `e2e-s-${u}-hidden` })
 
     const writerPage = await (await browser.newContext()).newPage()
-    await loginUI(writerPage, 'admin', '12345678')
+    await loginUI(writerPage, 'admin', 'admin')
     await writerPage.goto(`/vulnerabilities/${shared.id}`)
     await writerPage.locator('.f:has(label:text-is("Compartilhado com")) .opchip.plus').click()
     await writerPage.fill('.opsearch', rr.username)
@@ -84,7 +84,7 @@ test.describe('restricted roles', () => {
   })
 
   test('admins can give the restricted roles from the users screen', async ({ page }) => {
-    await loginUI(page, 'admin', '12345678')
+    await loginUI(page, 'admin', 'admin')
     await page.locator('.sidebar .navItem[aria-label="Usuários"]').click()
     await expect(page.locator('.pageTop .btn.primary')).toBeVisible()
     await page.click('.pageTop .btn.primary')

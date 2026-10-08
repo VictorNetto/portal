@@ -87,7 +87,7 @@ test.describe('reports', () => {
     for (const p of [pa, pb, pAdmin]) autoDialogs(p)
     await loginUI(pa, alice.username, alice.password)
     await loginUI(pb, bob.username, bob.password)
-    await loginUI(pAdmin, 'admin', '12345678')
+    await loginUI(pAdmin, 'admin', 'admin')
 
     // bob sees it read-only and cannot edit
     await pb.goto(`/reports/${own.id}`)
@@ -119,7 +119,7 @@ test.describe('reports', () => {
     const r = await newReport(admin, { name: `e2e-disp-${tag()}`, client_name: 'Globex' })
     reports.push(r.id)
     const rv = await reportVuln(admin, r.id, { identifier: `e2e-rv-${tag()}`, cvss_score: 8.8 })
-    await loginUI(page, 'admin', '12345678')
+    await loginUI(page, 'admin', 'admin')
     await page.goto(`/reports/${r.id}`)
     await expect(page.locator('.banner.mine')).toBeVisible()
 
@@ -158,7 +158,7 @@ test.describe('reports', () => {
     const dialogs = autoDialogs(page, { accept: false })
     const r = await newReport(admin, { name: `e2e-warn-${tag()}` })
     reports.push(r.id)
-    await loginUI(page, 'admin', '12345678')
+    await loginUI(page, 'admin', 'admin')
     await page.goto(`/reports/${r.id}`)
     await expect(page.locator('.banner.mine')).toBeVisible()
     await page.fill('textarea[maxlength="5000"]', 'escopo editado')

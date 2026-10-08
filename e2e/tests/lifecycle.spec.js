@@ -62,7 +62,7 @@ test.describe('vulnerability lifecycle', () => {
     const v = await acknowledgedVuln(admin, { identifier: `e2e-corr-${tag()}` })
     vulns.push(v.id)
     autoDialogs(page)
-    await loginUI(page, 'admin', '12345678')
+    await loginUI(page, 'admin', 'admin')
     await page.goto(`/vulnerabilities/${v.id}`)
 
     await page.click('button:has-text("Corrigir status")')

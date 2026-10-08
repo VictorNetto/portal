@@ -11,7 +11,7 @@ const nav = (page, label) => page.locator(`.sidebar .navItem[aria-label="${label
 test.describe('administration', () => {
   test('users: create one (forced password change), change role, reset, deactivate', async ({ page }) => {
     autoDialogs(page, { promptValue: 'Reset-By-Admin-1' })
-    await loginUI(page, 'admin', '12345678')
+    await loginUI(page, 'admin', 'admin')
     await nav(page, 'Usuários').click()
     await expect(page.locator('table').first()).toBeVisible()
 
@@ -43,7 +43,7 @@ test.describe('administration', () => {
   test('users: search and filters narrow the list; the selection lives in the URL', async ({ page }) => {
     const a = await createUser(admin, 'read_restricted')
     const b = await createUser(admin, 'write_restricted')
-    await loginUI(page, 'admin', '12345678')
+    await loginUI(page, 'admin', 'admin')
     await nav(page, 'Usuários').click()
 
     await page.fill('.search', 'e2e-readrestricted')
@@ -65,7 +65,7 @@ test.describe('administration', () => {
     const shared = await newVuln(admin, { identifier: `e2e-acc-${tag()}-shared`, viewer_ids: [reader.id] })
     const operated = await newVuln(admin, { identifier: `e2e-acc-${tag()}-operated`, operator_ids: [reader.id] })
     const hidden = await newVuln(admin, { identifier: `e2e-acc-${tag()}-hidden` })
-    await loginUI(page, 'admin', '12345678')
+    await loginUI(page, 'admin', 'admin')
     await page.goto(`/users?user=${reader.id}`)
 
     const rows = page.locator('.accessList tbody tr')
@@ -83,7 +83,7 @@ test.describe('administration', () => {
   })
 
   test('an admin cannot deactivate themselves: the button is not offered', async ({ page }) => {
-    await loginUI(page, 'admin', '12345678')
+    await loginUI(page, 'admin', 'admin')
     await nav(page, 'Usuários').click()
     await page.click('tbody tr:has(td.uname:text-is("admin"))')
     await expect(page.locator('.detail .dName')).toHaveText('admin')
@@ -93,7 +93,7 @@ test.describe('administration', () => {
 
   test('API keys: the plaintext is shown once, then only the prefix; revoking works', async ({ page }) => {
     autoDialogs(page)
-    await loginUI(page, 'admin', '12345678')
+    await loginUI(page, 'admin', 'admin')
     await nav(page, 'Chaves de API').click()
 
     const label = `e2e-key-${tag()}`
@@ -127,7 +127,7 @@ test.describe('administration', () => {
   test('audit log: filter by action and see who did it', async ({ page }) => {
     const user = await createUser(admin, 'write_all')
     await login(user.username, user.password)
-    await loginUI(page, 'admin', '12345678')
+    await loginUI(page, 'admin', 'admin')
     await nav(page, 'Logs de Auditoria').click()
     await expect(page.locator('tbody tr').first()).toBeVisible()
 

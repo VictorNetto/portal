@@ -5,7 +5,7 @@ import { deflateSync } from 'node:zlib'
 const BASE = process.env.E2E_BASE_URL || 'http://nginx:80'
 export const ADMIN = {
   username: process.env.E2E_ADMIN_USER || 'admin',
-  password: process.env.E2E_ADMIN_PASSWORD || '12345678',
+  password: process.env.E2E_ADMIN_PASSWORD || 'admin',
 }
 
 export const tag = () => randomBytes(4).toString('hex')

@@ -20,7 +20,7 @@ Useful variations: `npx playwright test tests/hub.spec.js`, `npx playwright test
 | Variable | Default | Meaning |
 |---|---|---|
 | `E2E_BASE_URL` | `http://nginx:80` | where the app is |
-| `E2E_ADMIN_USER` / `E2E_ADMIN_PASSWORD` | `admin` / `12345678` | an admin account on that stack |
+| `E2E_ADMIN_USER` / `E2E_ADMIN_PASSWORD` | `admin` / `admin` | an admin account on that stack |
 
 Against the production-style stack use `E2E_BASE_URL=https://nginx` (self-signed certificates are accepted) — note that its Content-Security-Policy forbids `eval`, which a few Playwright helpers use.
 
