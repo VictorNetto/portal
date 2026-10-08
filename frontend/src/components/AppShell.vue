@@ -17,8 +17,8 @@ const forced = computed(() => !!auth.user?.must_change_password)
 // outline paths (24x24 grid) — the nav rail is the only place icons are used.
 const allNavItems = [
   { icon: 'M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z', label: 'nav.hub', to: '/hub' },
-  { icon: 'M12 5v14M5 12h14', label: 'nav.createVuln', to: '/vulnerabilities/new' },
-  { icon: 'M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8zM14 3v5h5M12 12v6M9 15h6', label: 'nav.createReport', to: '/reports/new' },
+  { icon: 'M12 5v14M5 12h14', label: 'nav.createVuln', to: '/vulnerabilities/new', writer: true },
+  { icon: 'M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8zM14 3v5h5M12 12v6M9 15h6', label: 'nav.createReport', to: '/reports/new', writer: true },
   { icon: 'M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01', label: 'nav.rvsQueue', to: '/rvs-queue' },
   { icon: 'M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z', label: 'nav.audit', to: '/audit-logs', roles: ['admin', 'auditor'] },
   { icon: 'M16 20v-1.5a3.5 3.5 0 0 0-3.5-3.5h-5A3.5 3.5 0 0 0 4 18.5V20M10 11a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7zM20 20v-1.5a3.5 3.5 0 0 0-2.5-3.35M15 4.2a3.5 3.5 0 0 1 0 6.6', label: 'nav.users', to: '/users', adminOnly: true },
@@ -30,6 +30,7 @@ const navItems = computed(() =>
     const role = auth.user?.role
     if (i.adminOnly && role !== 'admin') return false
     if (i.roles && !i.roles.includes(role)) return false
+    if (i.writer && !['admin', 'writer_all'].includes(role)) return false
     return true
   }))
 

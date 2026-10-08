@@ -93,7 +93,7 @@ test.describe('operations hub', () => {
     const box = await menu.boundingBox()
     expect(box.y).toBeGreaterThanOrEqual(0)
     expect(box.y + box.height).toBeLessThanOrEqual(430)                            // fully on screen, opened upward
-    await page.click('h1')
+    await page.click('.hubTop', { position: { x: 4, y: 4 } })
     await expect(menu).toHaveCount(0)
   })
 
@@ -149,7 +149,7 @@ test.describe('operations hub', () => {
     await page.locator('.tablePanel tbody tr:first-child input.check').check()
     await page.click('.toolbar .batchWrap button')
     await expect(page.locator('.batchWrap .rowMenuInline button')).toHaveText(['Exportar PDF (ZIP)', 'Exportar Excel'])
-    await page.click('h1')
+    await page.click('.hubTop', { position: { x: 4, y: 4 } })
     await page.click('.vtable tbody tr:first-child td:nth-child(9) button')
     await expect(page.locator('.rowMenuInline button')).toHaveText(['Visualizar', 'Detalhar', 'Exportar'])
   })

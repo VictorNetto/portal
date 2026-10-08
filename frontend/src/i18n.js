@@ -6,7 +6,7 @@ const messages = {
   'pt-BR': {
     brand: 'Portal Red Team',
     nav: {
-      hub: 'Central Operacional',
+      hub: 'Operações',
       createVuln: 'Criar Vulnerabilidade',
       createReport: 'Criar Relatório',
       rvsQueue: 'Fila RVS',
@@ -22,8 +22,6 @@ const messages = {
       confirmBatchDispatch: 'Disparar {n} vulnerabilidade(s) para o blue team?',
       confirmBatchDelete: 'Excluir {n} item(ns) selecionado(s)? Esta ação não pode ser desfeita.',
       rvsShort: 'RVS',
-      title: 'Central Operacional',
-      subtitle: 'Gerencie vulnerabilidades e relatórios de operações de segurança.',
       tabVulns: 'Vulnerabilidades',
       tabReports: 'Relatórios',
       filters: 'Filtros',
@@ -263,7 +261,7 @@ const messages = {
       errGeneric: 'Falha ao enviar {name}.',
     },
     vform: {
-      breadcrumbRoot: 'Central Operacional',
+      breadcrumbRoot: 'Operações',
       breadcrumbSection: 'Vulnerabilidades',
       createTitle: 'Criar Vulnerabilidade',
       createHint: 'Preencha os detalhes da nova vulnerabilidade.',
@@ -398,7 +396,7 @@ const messages = {
   en: {
     brand: 'Red Team Portal',
     nav: {
-      hub: 'Operations Hub',
+      hub: 'Operations',
       createVuln: 'Create Vulnerability',
       createReport: 'Create Report',
       rvsQueue: 'RVS Queue',
@@ -414,8 +412,6 @@ const messages = {
       confirmBatchDispatch: 'Dispatch {n} vulnerability(ies) to the blue team?',
       confirmBatchDelete: 'Delete {n} selected item(s)? This cannot be undone.',
       rvsShort: 'RVS',
-      title: 'Operations Hub',
-      subtitle: 'Manage vulnerabilities and reports of security operations.',
       tabVulns: 'Vulnerabilities',
       tabReports: 'Reports',
       actions: 'Actions',
@@ -632,7 +628,7 @@ const messages = {
       errGeneric: 'Failed to upload {name}.',
     },
     vform: {
-      breadcrumbRoot: 'Operations Hub',
+      breadcrumbRoot: 'Operations',
       breadcrumbSection: 'Vulnerabilities',
       createTitle: 'Create Vulnerability',
       createHint: 'Fill in the details of the new vulnerability.',

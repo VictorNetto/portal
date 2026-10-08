@@ -323,13 +323,6 @@ onMounted(load)
 <template>
   <AppShell>
     <div class="hubPage" :style="{ paddingBottom: preview ? detailsH + 'px' : '' }">
-    <div class="pageTop">
-      <div class="titleBlock">
-        <h1>{{ t('hub.title') }}</h1>
-        <p>{{ t('hub.subtitle') }}</p>
-      </div>
-    </div>
-
     <div class="hubTop">
       <div class="tabs">
         <button class="tab" :class="{ active: entity === 'vulns' }" @click="entity = 'vulns'">

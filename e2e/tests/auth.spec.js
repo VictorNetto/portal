@@ -92,9 +92,9 @@ test.describe('authentication', () => {
     // language switches the UI, survives a reload, and the menu closes by itself
     await page.click('.menuItem:has-text("English")')
     await expect(page.locator('.profileMenu')).toHaveCount(0)
-    await expect(page.locator('h1')).toHaveText('Operations Hub')
+    await expect(page.locator('.tab').first()).toContainText('Vulnerabilities')
     await page.reload()
-    await expect(page.locator('h1')).toHaveText('Operations Hub')
+    await expect(page.locator('.tab').first()).toContainText('Vulnerabilities')
     await page.click('.profileBtn')
     await page.click('.menuItem:has-text("Português")')
 

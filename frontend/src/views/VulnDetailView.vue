@@ -139,10 +139,12 @@ async function loadAttachments() {
 }
 
 async function load() {
+  if (isNew.value && !isWriter.value) { router.replace('/hub'); return }
+  // A new form is reset before anything is awaited, so text typed meanwhile is never wiped.
+  if (isNew.value) resetForNew()
   // users for the operator picker, regardless of new/edit
   try { allUsers.value = await listUsers() } catch { /* non-fatal */ }
-  if (isNew.value && !isWriter.value) { router.replace('/hub'); return }
-  if (isNew.value) { resetForNew(); await loadReportCtx(); return }
+  if (isNew.value) { await loadReportCtx(); return }
   // Don't flash the loading state when we just created this very record.
   if (vuln.value?.id !== id.value) loading.value = true
   error.value = ''
