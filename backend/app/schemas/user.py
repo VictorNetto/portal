@@ -37,3 +37,22 @@ class UserOut(BaseModel):
     updated_at: datetime
 
     model_config = {"from_attributes": True}
+
+
+class AccessItem(BaseModel):
+    """One record a user can reach, and why (created / operator / shared / report)."""
+
+    id: uuid.UUID
+    internal_id: str | None
+    title: str | None
+    status: str
+    relations: list[str]
+
+
+class UserAccess(BaseModel):
+    """What a user can read. Roles that read everything report scope "all" and no list."""
+
+    scope: str  # "all" | "restricted"
+    vulnerabilities: list[AccessItem] = Field(default_factory=list)
+    reports: list[AccessItem] = Field(default_factory=list)
+

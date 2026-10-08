@@ -88,6 +88,7 @@ export const deleteVuln = (id) => api(`/vulnerabilities/${id}`, { method: 'DELET
 // --- User management ---
 export const listUsers = () => api('/users')
 export const createUser = (body) => api('/users', { method: 'POST', body })
+export const getUserAccess = (id) => api(`/users/${id}/access`)
 export const updateUser = (id, body) => api(`/users/${id}`, { method: 'PATCH', body })
 export const resetUserPassword = (id, newPassword) =>
   api(`/users/${id}/reset-password`, { method: 'POST', body: { new_password: newPassword } })

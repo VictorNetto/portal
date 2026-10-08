@@ -171,3 +171,20 @@ def test_role_gates_and_user_management(admin, rw, rr):
     assert u.status_code == 201 and u.json()["role"] == "read_restricted"
     r = admin.patch(f"/users/{u.json()['id']}", {"role": "write_restricted"})
     assert r.json()["role"] == "write_restricted"
+
+
+def test_admin_sees_what_a_user_can_reach(admin, writer, rw, rr):
+    shared = new_vuln(writer, viewer_ids=[rr.user["id"]])
+    operated = new_vuln(writer, operator_ids=[rr.user["id"]])
+    hidden = new_vuln(writer)
+    rep = new_report(writer, viewer_ids=[rr.user["id"]])
+    inside = report_vuln(writer, rep["id"])
+    r = admin.get(f"/users/{rr.user['id']}/access")
+    assert r.status_code == 200 and r.json()["scope"] == "restricted"
+    by_id = {v["id"]: v["relations"] for v in r.json()["vulnerabilities"]}
+    assert by_id[shared["id"]] == ["shared"] and by_id[operated["id"]] == ["operator"]
+    assert by_id[inside["id"]] == ["report"] and hidden["id"] not in by_id
+    assert {x["id"] for x in r.json()["reports"]} >= {rep["id"]}
+    # a user that reads everything has no list, and only admins may ask
+    assert admin.get(f"/users/{writer.user['id']}/access").json() == {"scope": "all", "vulnerabilities": [], "reports": []}
+    assert rw.get(f"/users/{rr.user['id']}/access").status_code == 403

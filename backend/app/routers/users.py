@@ -16,7 +16,8 @@ from app.db import get_session
 from app.deps import require_roles
 from app.models.enums import AuditAction, UserRole
 from app.models.user import User
-from app.schemas.user import PasswordReset, UserCreate, UserOut, UserUpdate
+from app.schemas.user import PasswordReset, UserAccess, UserCreate, UserOut, UserUpdate
+from app.services import user_access
 
 router = APIRouter(prefix="/users", tags=["users"])
 
@@ -75,6 +76,19 @@ def get_user(
     if user is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "User not found")
     return user
+
+
+@router.get("/{user_id}/access", response_model=UserAccess)
+def get_user_access(
+    user_id: uuid.UUID,
+    _: User = Depends(_admin),
+    session: Session = Depends(get_session),
+) -> UserAccess:
+    """Admin view: every vulnerability and report this user can reach, and why."""
+    user = session.get(User, user_id)
+    if user is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "User not found")
+    return user_access.for_user(session, user)
 
 
 @router.patch("/{user_id}", response_model=UserOut)
