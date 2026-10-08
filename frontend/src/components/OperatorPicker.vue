@@ -50,7 +50,6 @@ onUnmounted(() => document.removeEventListener('click', onDoc))
             :class="{ on: modelValue.has(u.id) }" :disabled="disabled" @click="toggle(u.id)">
       {{ u.username }}
     </button>
-    <span v-if="!shown.length" class="muted">{{ t('vform.noOperators') }}</span>
     <div v-if="!disabled" class="opadd">
       <button type="button" class="opchip plus" :aria-label="t('vform.addOperator')" @click.stop="open = !open">+</button>
       <div v-if="open" class="oppop">

@@ -141,6 +141,7 @@ async function loadAttachments() {
 async function load() {
   // users for the operator picker, regardless of new/edit
   try { allUsers.value = await listUsers() } catch { /* non-fatal */ }
+  if (isNew.value && !isWriter.value) { router.replace('/hub'); return }
   if (isNew.value) { resetForNew(); await loadReportCtx(); return }
   // Don't flash the loading state when we just created this very record.
   if (vuln.value?.id !== id.value) loading.value = true
@@ -455,7 +456,7 @@ watch(() => route.fullPath, () => {
         <p v-else-if="isNew">{{ t('vform.createHint') }}</p>
       </div>
       <div class="pageActions">
-        <button v-if="!isNew" class="btn danger" :disabled="!isWriter" @click="remove">{{ t('rowActions.delete') }}</button>
+        <button v-if="!isNew && isWriter" class="btn danger" @click="remove">{{ t('rowActions.delete') }}</button>
         <button v-if="!isNew" class="btn" @click="exportAs('pdf')">{{ t('rpt.exportPdf') }}</button>
         <button v-if="!isNew" class="btn" @click="exportAs('docx')">{{ t('rpt.exportDocx') }}</button>
         <button class="btn" @click="leave">{{ inReport ? t('rpt.back') : t('vform.cancel') }}</button>
@@ -464,9 +465,9 @@ watch(() => route.fullPath, () => {
         </button>
         <button v-for="a in nextActions" :key="a.to" class="btn" :class="{ primary: a.primary }"
                 @click="doTransition(a)">{{ t(a.label) }}</button>
-        <button v-if="isSavedLocal" class="btn" @click="doDispatch">{{ t('actions.dispatch') }}</button>
-        <button v-if="isDraft" class="btn" :disabled="saving || !isWriter" @click="doSend">{{ t('vform.send') }}</button>
-        <button class="btn primary" :disabled="saving || !editableFields.size" @click="save">
+        <button v-if="isSavedLocal && isWriter" class="btn" @click="doDispatch">{{ t('actions.dispatch') }}</button>
+        <button v-if="isDraft && isWriter" class="btn" :disabled="saving" @click="doSend">{{ t('vform.send') }}</button>
+        <button v-if="editableFields.size" class="btn primary" :disabled="saving" @click="save">
           {{ saving ? t('vuln.saving') : (isDraft ? t('vform.saveDraft') : t('vuln.save')) }}
         </button>
       </div>
@@ -495,12 +496,13 @@ watch(() => route.fullPath, () => {
       </div>
     </section>
 
-    <p v-if="inReport && reportCtx && reportCtx.status === 'draft'" class="banner"
+    <p v-if="inReport && reportCtx && reportCtx.status === 'draft' && (lockMine || lockOther)" class="banner"
        :class="lockMine ? 'mine' : 'other'">
       <template v-if="lockMine">{{ t('vrep.editing', { report: reportCtx.internal_id, time: fmtTime(rLock.expires_at) }) }}</template>
-      <template v-else-if="lockOther">{{ t('vrep.lockedBy', { user: rLock.holder_username, report: reportCtx.internal_id }) }}</template>
-      <template v-else>{{ t('vrep.readOnly', { report: reportCtx.internal_id }) }}
-        <button v-if="isWriter" class="link" @click="takeLock">{{ t('rpt.edit') }}</button></template>
+      <template v-else>{{ t('vrep.lockedBy', { user: rLock.holder_username, report: reportCtx.internal_id }) }}</template>
+    </p>
+    <p v-else-if="inReport && reportCtx && reportCtx.status === 'draft' && isWriter" class="banner free">
+      <button class="link" @click="takeLock">{{ t('rpt.edit') }}</button>
     </p>
 
     <p v-if="notice" class="ok msg">{{ notice }}</p>
@@ -508,10 +510,6 @@ watch(() => route.fullPath, () => {
 
     <p v-if="loading" class="muted">{{ t('vuln.loading') }}</p>
     <template v-else>
-      <p v-if="!editableFields.size" class="locked">
-        {{ t('vuln.locked', { status: t('status.' + (vuln?.status || 'dispatching')) }) }}
-      </p>
-
       <section v-if="vuln && !inReport" class="panel card">
         <h2 class="secTitle">{{ t('timeline.title') }}</h2>
         <VulnTimeline :vuln="vuln" />

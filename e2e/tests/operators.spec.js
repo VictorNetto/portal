@@ -48,17 +48,18 @@ test.describe('operator picker', () => {
 })
 
 test.describe('read-only role', () => {
-  test('edition buttons are disabled, not just hidden-by-error', async ({ page }) => {
+  test('edition buttons are not offered at all', async ({ page }) => {
     const reader = await createUser(admin, 'reader_all')
     const v = await newVuln(admin, { identifier: `e2e-ro-${tag()}` })
     vulns.push(v.id)
     await loginUI(page, reader.username, reader.password)
-    await expect(page.locator('.btn.primary:has-text("Criar")')).toBeDisabled()
+    await expect(page.locator('.btn.primary:has-text("Criar")')).toHaveCount(0)
     await page.goto(`/vulnerabilities/${v.id}`)
-    await expect(page.locator('.pageActions .btn.primary')).toBeDisabled()
-    await expect(page.locator('.pageActions .btn.danger')).toBeDisabled()
+    await expect(page.locator('.infoGrid input').first()).toBeVisible()
+    await expect(page.locator('.pageActions .btn.primary, .pageActions .btn.danger')).toHaveCount(0)
     await expect(page.locator('.infoGrid input').first()).toBeDisabled()
+    await expect(page.locator('body')).not.toContainText('nenhum campo')   // no explanation text either
     await page.goto('/reports/new')
-    await expect(page.locator('.createCard .btn.primary')).toBeDisabled()
+    await expect(page).toHaveURL(/\/hub/)                            // no creation screen for a reader
   })
 })

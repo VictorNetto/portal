@@ -358,7 +358,7 @@ onMounted(load)
             <button v-if="isWriter" class="danger" @click="deleteSelected">{{ t('rowActions.delete') }}</button>
           </div>
         </div>
-        <button class="btn primary" :disabled="!isWriter" @click="goCreate">
+        <button v-if="isWriter" class="btn primary" @click="goCreate">
           {{ entity === 'vulns' ? t('hub.createVuln') : t('hub.createReport') }}
         </button>
       </div>

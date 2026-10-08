@@ -44,7 +44,6 @@ function size(bytes) {
       <input ref="picker" type="file" multiple hidden
              accept=".pdf,.png,.jpg,.jpeg,.gif,.webp,.txt,.csv,.zip" @change="onPicked" />
     </div>
-    <p v-else class="muted note">{{ t('attach.locked') }}</p>
 
     <p v-if="error" class="err">{{ error }}</p>
 

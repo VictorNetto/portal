@@ -85,6 +85,7 @@ const dirty = computed(() => !!report.value && snapshot.value !== snapshotOf())
 
 async function load() {
   try { allUsers.value = await listUsers() } catch { /* non-fatal */ }
+  if (isNew.value && !isWriter.value) { router.replace('/hub?entity=reports'); return }
   if (isNew.value) { selectedOps.value = new Set(auth.user?.id ? [auth.user.id] : []); loading.value = false; return }
   loading.value = true; error.value = ''
   try { report.value = await getReport(id.value); sync(); await loadEvidence() }
@@ -385,7 +386,7 @@ watch(() => route.fullPath, () => { if (!isNew.value && report.value?.id !== id.
         </div>
         <div class="createActions">
           <button class="btn" @click="router.push('/hub?entity=reports')">{{ t('vform.cancel') }}</button>
-          <button class="btn primary" :disabled="saving || !isWriter || !created.name.trim()" @click="create">
+          <button class="btn primary" :disabled="saving || !created.name.trim()" @click="create">
             {{ t('rpt.create') }}
           </button>
         </div>
@@ -404,7 +405,7 @@ watch(() => route.fullPath, () => { if (!isNew.value && report.value?.id !== id.
           </p>
         </div>
         <div class="pageActions" v-if="report">
-          <button v-if="status === 'draft'" class="btn danger" :disabled="!isWriter" @click="remove">{{ t('rowActions.delete') }}</button>
+          <button v-if="status === 'draft' && isWriter" class="btn danger" @click="remove">{{ t('rowActions.delete') }}</button>
           <button class="btn" @click="router.push('/hub?entity=reports')">{{ t('rpt.back') }}</button>
           <button class="btn" @click="exportAs('pdf')">{{ t('rpt.exportPdf') }}</button>
           <button class="btn" @click="exportAs('xlsx')">{{ t('rpt.exportXlsx') }}</button>
@@ -433,11 +434,7 @@ watch(() => route.fullPath, () => { if (!isNew.value && report.value?.id !== id.
           {{ t('rpt.lockedBy', { user: lock.holder_username, time: fmtTime(lock.acquired_at) }) }}
           <button v-if="isAdmin" class="link" @click="forceRelease">{{ t('rpt.forceRelease') }}</button>
         </p>
-        <p v-else-if="status === 'draft'" class="banner free">{{ t('rpt.readOnly') }}</p>
-        <p v-else-if="status === 'dispatching'" class="banner other">
-          {{ t('rpt.dispatching') }}<span v-if="report.dispatch_error"> — {{ report.dispatch_error }}</span>
-        </p>
-        <p v-else class="banner free">{{ t('rpt.dispatchedNote') }}</p>
+        <p v-else-if="status === 'dispatching' && report.dispatch_error" class="banner other">{{ report.dispatch_error }}</p>
 
         <!-- General -->
         <section class="panel card">

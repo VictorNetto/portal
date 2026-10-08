@@ -101,11 +101,11 @@ test.describe('reports', () => {
     await pAdmin.goto(`/reports/${own.id}`)
     await expect(pAdmin.locator('.banner.other')).toContainText(alice.username)
     await pAdmin.click('button:has-text("Liberar bloqueio")')
-    await expect(pAdmin.locator('.banner.free')).toBeVisible()
+    await expect(pAdmin.locator('.pageActions .btn.primary:has-text("Editar")')).toBeVisible()
 
     // now bob can take it
     await pb.reload()
-    await expect(pb.locator('.banner.free')).toBeVisible()
+    await expect(pb.locator('.pageActions .btn.primary:has-text("Editar")')).toBeVisible()
     await pb.click('.pageActions button:has-text("Editar")')
     await expect(pb.locator('.banner.mine')).toBeVisible()
 
@@ -142,7 +142,6 @@ test.describe('reports', () => {
     // dispatch
     await page.click('.pageActions button:has-text("Disparar")')
     await expect(page.locator('.subline .pill')).toHaveText('Disparada')
-    await expect(page.locator('.banner')).toContainText('imutável')
     await expect(page.locator('input[maxlength="200"]').first()).toBeDisabled()
     await expect(page.locator('.drop')).toHaveCount(0)
     await expect(page.locator('.vt .pill')).toHaveText('Disparada')
