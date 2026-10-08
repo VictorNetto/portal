@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs'
 import { expect, test } from '@playwright/test'
-import { acknowledgedVuln, adminToken, api, cleanup, createUser, newReport, newVuln, savedVuln, tag } from '../support/api.js'
+import { acknowledgedVuln, adminToken, api, cleanup, createUser, newReport, newVuln, reportVuln, savedVuln, tag } from '../support/api.js'
 import { autoDialogs, filterHub, loginUI, rowCount } from '../support/ui.js'
 
 let admin
@@ -87,7 +87,7 @@ test.describe('operations hub', () => {
     await page.setViewportSize({ width: 1300, height: 430 })
     await loginUI(page, writer.username, writer.password)
     await filterHub(page, 'e2e-m-')
-    await page.click('.vtable tbody tr:last-child td:nth-child(9) button')
+    await page.click('.vtable tbody tr:last-child td:nth-child(10) button')
     const menu = page.locator('.rowMenuInline')
     await expect(menu).toBeVisible()
     const box = await menu.boundingBox()
@@ -126,7 +126,7 @@ test.describe('operations hub', () => {
     await expect(page.locator('.toolbar .batchWrap')).toHaveCount(0)                // selection cleared
 
     // row menu: a draft cannot be dispatched, a single export is the PDF itself
-    await page.click(`.vtable tbody tr:has-text("${d1.identifier}") td:nth-child(9) button`)
+    await page.click(`.vtable tbody tr:has-text("${d1.identifier}") td:nth-child(10) button`)
     await expect(page.locator('.rowMenuInline button')).toHaveText(['Visualizar', 'Detalhar', 'Exportar', 'Excluir'])
     const [pdf] = await Promise.all([page.waitForEvent('download'), page.click('.rowMenuInline button:has-text("Exportar")')])
     expect(readFileSync(await pdf.path()).subarray(0, 5).toString()).toBe('%PDF-')
@@ -141,6 +141,39 @@ test.describe('operations hub', () => {
     void trash
   })
 
+  test('vulnerabilities inside reports are listed, with their report', async ({ page }) => {
+    const u = tag()
+    const r = await newReport(admin, { name: `e2e-rv-${u}` })
+    reports.push(r.id)
+    const inside = await reportVuln(admin, r.id, { identifier: `e2e-rv-${u}-inside` })
+    await mk(newVuln, admin, { identifier: `e2e-rv-${u}-alone` })
+    await api(`/reports/${r.id}/lock`, { token: admin, method: 'DELETE' })
+    await loginUI(page, writer.username, writer.password)
+
+    await filterHub(page, `e2e-rv-${u}`)
+    expect(await rowCount(page)).toBe(2)
+    const row = page.locator(`.vtable tbody tr:has-text("${inside.identifier}")`)
+    await expect(row.locator('td:nth-child(3)')).toHaveText(r.internal_id)
+    await expect(page.locator(`.vtable tbody tr:has-text("-alone") td:nth-child(3)`)).toHaveText('—')
+
+    // filter by report, or by "not in a report"
+    await filterHub(page, `e2e-rv-${u} report:${r.internal_id}`)
+    expect(await rowCount(page)).toBe(1)
+    await filterHub(page, `e2e-rv-${u} report:none`)
+    expect(await rowCount(page)).toBe(1)
+    await expect(page.locator('.vtable tbody')).toContainText('-alone')
+
+    // a draft report's vuln is deleted from its report, not from the list
+    await filterHub(page, `e2e-rv-${u} report:${r.internal_id}`)
+    await row.locator('td:nth-child(10) button').click()
+    await expect(page.locator('.rowMenuInline button')).toHaveText(['Visualizar', 'Detalhar', 'Exportar'])
+    await page.locator('.hubTop').click({ position: { x: 2, y: 2 } })            // close the menu
+
+    // the report id opens the report
+    await row.locator('td:nth-child(3) .repLink').click()
+    await expect(page).toHaveURL(new RegExp(`/reports/${r.id}$`))
+  })
+
   test('a read-only user sees only the read actions', async ({ page }) => {
     const reader = await createUser(admin, 'read_all')
     const v = await mk(newVuln, admin, { identifier: `e2e-r-${tag()}` })
@@ -150,7 +183,7 @@ test.describe('operations hub', () => {
     await page.click('.toolbar .batchWrap button')
     await expect(page.locator('.batchWrap .rowMenuInline button')).toHaveText(['Exportar PDF (ZIP)', 'Exportar Excel'])
     await page.click('.hubTop', { position: { x: 4, y: 4 } })
-    await page.click('.vtable tbody tr:first-child td:nth-child(9) button')
+    await page.click('.vtable tbody tr:first-child td:nth-child(10) button')
     await expect(page.locator('.rowMenuInline button')).toHaveText(['Visualizar', 'Detalhar', 'Exportar'])
   })
 

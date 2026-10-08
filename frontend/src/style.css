@@ -35,6 +35,7 @@
 
   /* Accent — defaults to the vulnerabilities (green) context */
   --accent: #138a43;
+  --report-ink: #4f46e5;      /* report references shown outside the reports pages */
   --accent-soft: #e9f5ee;
   --accent-contrast: #ffffff;
 

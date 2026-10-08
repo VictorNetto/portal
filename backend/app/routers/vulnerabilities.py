@@ -45,7 +45,7 @@ def list_vulns(
     user: User = Depends(get_current_user),
     session: Session = Depends(get_session),
 ) -> list:
-    return svc.list_standalone(session, user)
+    return svc.list_visible(session, user)
 
 
 @router.post("/export")

@@ -41,7 +41,7 @@ test.describe('restricted roles', () => {
     await expect(page.locator('.vtable tbody')).not.toContainText('foreign')
 
     // operating is enough to edit, not to delete
-    await page.click(`.vtable tbody tr:has-text("${assigned.identifier}") td:nth-child(9) button`)
+    await page.click(`.vtable tbody tr:has-text("${assigned.identifier}") td:nth-child(10) button`)
     await expect(page.locator('.rowMenuInline button')).toHaveText(['Visualizar', 'Detalhar', 'Exportar'])
     await page.click('.rowMenuInline button:has-text("Detalhar")')
     await expect(page.locator('.pageActions .btn.primary')).toBeVisible()

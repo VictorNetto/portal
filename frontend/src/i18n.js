@@ -38,6 +38,7 @@ const messages = {
     },
     cols: {
       identifier: 'Identificador',
+      report: 'Relatório',
       status: 'Status',
       cvss: 'CVSS',
       operators: 'Operadores',
@@ -437,6 +438,7 @@ const messages = {
     },
     cols: {
       identifier: 'Identifier',
+      report: 'Report',
       status: 'Status',
       cvss: 'CVSS',
       operators: 'Operators',

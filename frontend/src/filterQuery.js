@@ -10,6 +10,7 @@
 //   cvss:<x>                     CVSS >= x  (x: 0..10, at most 1 decimal)
 //   id:<text> / identifier:<text>  identifier contains (ci)
 //   source:<text>                source contains (ci)
+//   report:<text>                report id or name contains (ci); report:none = not in a report
 
 export const STATUSES = [
   'draft', 'saved_local', 'dispatching', 'dispatched',
@@ -28,6 +29,7 @@ export const FILTER_KEYS = [
   { key: 'operator', desc: 'operador atribuído', enumerable: true, values: [] },
   { key: 'id', desc: 'identificador contém', enumerable: false, values: [] },
   { key: 'source', desc: 'fonte contém', enumerable: false, values: [] },
+  { key: 'report', desc: 'relatório contém (ou none)', enumerable: false, values: [] },
 ]
 
 // CVSS value: 0..10 with at most one decimal place. Accepts "7", "7.8", "10".
@@ -59,7 +61,7 @@ function makeToken(raw) {
     return { raw, negate, key, op: '=', value, valid: STATUS_SET.has(value) }
   if (key === 'cvss')
     return { raw, negate, key, op: '>=', value: Number(value), valid: isValidCvss(value) }
-  if (key === 'id' || key === 'source' || key === 'operator')
+  if (key === 'id' || key === 'source' || key === 'operator' || key === 'report')
     return { raw, negate, key, op: 'contains', value, valid: value.length > 0 }
   return { raw, negate, key, op: '?', value, valid: false }
 }
@@ -72,6 +74,11 @@ function baseMatch(tok, r) {
       return (r.identifier || '').toLowerCase().includes(tok.value.toLowerCase())
     case 'source':
       return (r.source || '').toLowerCase().includes(tok.value.toLowerCase())
+    case 'report': {
+      if (tok.value.toLowerCase() === 'none') return !r.report
+      const text = r.report ? `${r.report.internal_id || ''} ${r.report.name || ''}`.toLowerCase() : ''
+      return text.includes(tok.value.toLowerCase())
+    }
     case 'operator': {
       const ops = Array.isArray(r.operators) ? r.operators : []
       const q = tok.value.toLowerCase()

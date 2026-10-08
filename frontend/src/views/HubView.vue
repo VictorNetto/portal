@@ -19,6 +19,8 @@ const auth = useAuthStore()
 const isWriter = computed(() => canCreate(auth.user))            // may create (and so use the batch menu)
 const mayChange = (rec) => canWriteRecord(auth.user, rec)
 const mayDelete = (rec) => canDeleteRecord(auth.user, rec)
+// A vuln of a report that is not dispatched yet is changed through its report (under the lock).
+const inOpenReport = (v) => !!v.report && v.report.status !== 'dispatched'
 
 // Entity switcher (§5.4): vulnerabilities or reports.
 // The tab lives in the URL (/hub?entity=reports) so reload and the back button keep it.
@@ -278,7 +280,7 @@ async function dispatchSelected() {
 
 async function deleteSelected() {
   batchOpen.value = false
-  const rows = selectedRows.value.filter(mayDelete)
+  const rows = selectedRows.value.filter((r) => mayDelete(r) && !(isVulns.value && inOpenReport(r)))
   if (!rows.length) return
   if (!confirm(t('hub.confirmBatchDelete', { n: rows.length }))) return
   error.value = ''; notice.value = ''
@@ -378,6 +380,7 @@ onMounted(load)
               <th><input type="checkbox" class="check" :checked="allChecked"
                          :indeterminate.prop="someChecked" @change="toggleAll" /></th>
               <th>{{ t('cols.identifier') }}</th>
+              <th>{{ t('cols.report') }}</th>
               <th>{{ t('cols.status') }}</th>
               <th>{{ t('cols.cvss') }}</th>
               <th>{{ t('cols.operators') }}</th>
@@ -393,6 +396,10 @@ onMounted(load)
               <td @click.stop><input type="checkbox" class="check"
                    :checked="selected.has(v.id)" @change="toggleRow(v.id)" /></td>
               <td class="val idcell" @click="openPreview(v)">{{ v.identifier || '—' }}</td>
+              <td class="repCell" :title="v.report?.name" @click="v.report ? goReport(v.report.id) : openPreview(v)">
+                <span v-if="v.report" class="repLink mono">{{ v.report.internal_id }}</span>
+                <span v-else class="muted">—</span>
+              </td>
               <td @click="openPreview(v)">
                 <span class="pill" :class="'s-' + v.status">{{ t('status.' + v.status) }}</span>
               </td>
@@ -412,13 +419,13 @@ onMounted(load)
                     <button @click="goDetail(v.id)">{{ t('rowActions.detail') }}</button>
                     <button @click="exportRow(v.id, 'pdf')">{{ t('rowActions.export') }}</button>
                     <button v-if="canDispatchRow(v)" @click="dispatchRow(v)">{{ t('actions.dispatch') }}</button>
-                    <button v-if="mayDelete(v)" class="danger" @click="removeRow(v.id)">{{ t('rowActions.delete') }}</button>
+                    <button v-if="mayDelete(v) && !inOpenReport(v)" class="danger" @click="removeRow(v.id)">{{ t('rowActions.delete') }}</button>
                   </div>
                 </div>
               </td>
             </tr>
             <tr v-if="!loading && !pageRows.length">
-              <td colspan="9" class="empty">{{ t('hub.empty') }}</td>
+              <td colspan="10" class="empty">{{ t('hub.empty') }}</td>
             </tr>
           </tbody>
         </table>
@@ -506,6 +513,8 @@ onMounted(load)
             <span class="mono v">{{ preview.cvss_vector || '—' }}</span></span>
           <span class="m"><span class="k">{{ t('cols.source') }}</span>
             <span class="v">{{ preview.source || '—' }}</span></span>
+          <span v-if="preview.report" class="m"><span class="k">{{ t('cols.report') }}</span>
+            <span class="v repLink" @click="goReport(preview.report.id)">{{ preview.report.internal_id }} {{ preview.report.name }}</span></span>
           <span class="m"><span class="k">{{ t('hub.rvsShort') }}</span>
             <span class="mono v">{{ preview.rvs_id || '—' }}</span></span>
         </h2>
@@ -580,12 +589,13 @@ th { border-bottom: 0; }
 table { table-layout: fixed; }
 .vtable th:nth-child(1), .vtable td:nth-child(1) { width: 48px; }
 /* Column 2 (identifier) has no width: it takes whatever the fixed columns leave. */
-.vtable th:nth-child(3), .vtable td:nth-child(3) { width: 150px; }
-.vtable th:nth-child(4), .vtable td:nth-child(4) { width: 90px; }
-.vtable th:nth-child(5), .vtable td:nth-child(5) { width: 180px; }
-.vtable th:nth-child(6), .vtable td:nth-child(6) { width: 120px; }
-.vtable th:nth-child(7), .vtable td:nth-child(7), .vtable th:nth-child(8), .vtable td:nth-child(8) { width: 110px; }
-.vtable th:nth-child(9), .vtable td:nth-child(9) { width: 96px; }
+.vtable th:nth-child(3), .vtable td:nth-child(3) { width: 96px; }
+.vtable th:nth-child(4), .vtable td:nth-child(4) { width: 150px; }
+.vtable th:nth-child(5), .vtable td:nth-child(5) { width: 90px; }
+.vtable th:nth-child(6), .vtable td:nth-child(6) { width: 180px; }
+.vtable th:nth-child(7), .vtable td:nth-child(7) { width: 120px; }
+.vtable th:nth-child(8), .vtable td:nth-child(8), .vtable th:nth-child(9), .vtable td:nth-child(9) { width: 110px; }
+.vtable th:nth-child(10), .vtable td:nth-child(10) { width: 96px; }
 .rtable th:nth-child(1), .rtable td:nth-child(1) { width: 48px; }
 /* Column 2 (report name) is the flexible one. */
 .rtable th:nth-child(3), .rtable td:nth-child(3) { width: 140px; }
@@ -599,14 +609,17 @@ table { table-layout: fixed; }
    layout is unchanged; beyond it the identifier/name gets only 10% of the extra, the source/client
    a quarter or so, and the operators column (left without a width) absorbs the rest. */
 @media (min-width: 1921px) {
-  .vtable th:nth-child(2), .vtable td:nth-child(2) { width: calc(894px + (100vw - 1920px) * 0.1); }
-  .vtable th:nth-child(5), .vtable td:nth-child(5) { width: auto; }
-  .vtable th:nth-child(6), .vtable td:nth-child(6) { width: calc(120px + (100vw - 1920px) * 0.25); }
+  .vtable th:nth-child(2), .vtable td:nth-child(2) { width: calc(798px + (100vw - 1920px) * 0.1); }
+  .vtable th:nth-child(6), .vtable td:nth-child(6) { width: auto; }
+  .vtable th:nth-child(7), .vtable td:nth-child(7) { width: calc(120px + (100vw - 1920px) * 0.25); }
   .rtable th:nth-child(2), .rtable td:nth-child(2) { width: calc(874px + (100vw - 1920px) * 0.1); }
   .rtable th:nth-child(5), .rtable td:nth-child(5) { width: auto; }
   .rtable th:nth-child(6), .rtable td:nth-child(6) { width: calc(160px + (100vw - 1920px) * 0.3); }
 }
 .rname { color: var(--text); }
+.repCell { color: var(--muted); }
+.repLink { color: var(--report-ink); cursor: pointer; }
+.repLink:hover { text-decoration: underline; }
 .lockLine { margin: 4px 0 0; font-size: 12px; color: var(--st-wait-fg); }
 .dateCell { color: var(--muted); font-variant-numeric: tabular-nums; }
 th, td { white-space: nowrap; }
