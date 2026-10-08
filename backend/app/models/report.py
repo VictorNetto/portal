@@ -43,6 +43,20 @@ report_operators = Table(
 )
 
 
+# D10 — users a report is explicitly shared with (read access for restricted readers).
+report_viewers = Table(
+    "report_viewers",
+    Base.metadata,
+    Column(
+        "report_id",
+        UUID(as_uuid=True),
+        ForeignKey("reports.id", ondelete="CASCADE"),
+        primary_key=True,
+    ),
+    Column("user_id", UUID(as_uuid=True), ForeignKey("users.id"), primary_key=True),
+)
+
+
 class Report(UUIDPK, Timestamps, Base):
     __tablename__ = "reports"
 
@@ -91,6 +105,7 @@ class Report(UUIDPK, Timestamps, Base):
         back_populates="report", cascade="all, delete-orphan"
     )
     operators: Mapped[list["User"]] = relationship(secondary=report_operators)
+    viewers: Mapped[list["User"]] = relationship(secondary=report_viewers)
 
 
 class ReportSection(UUIDPK, Timestamps, Base):

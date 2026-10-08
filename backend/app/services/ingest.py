@@ -31,7 +31,7 @@ def _resolve_operators(session: Session, usernames: list[str]) -> list[User]:
     # Operators must be real, active accounts that are allowed to work on vulns.
     unusable = [
         n for n, u in by_name.items()
-        if not u.is_active or u.role not in (UserRole.admin, UserRole.writer_all)
+        if not u.is_active or u.role not in (UserRole.admin, UserRole.write_all, UserRole.write_restricted)
     ]
     if unknown or unusable:
         problems = []

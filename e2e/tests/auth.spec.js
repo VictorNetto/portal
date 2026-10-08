@@ -19,7 +19,7 @@ test.describe('authentication', () => {
 
   test('the first login forces a password change before anything else', async ({ page }) => {
     const admin = await adminToken()
-    const user = await createUser(admin, 'writer_all', { finishFirstLogin: false })
+    const user = await createUser(admin, 'write_all', { finishFirstLogin: false })
 
     await page.goto('/login')
     await page.fill('input[autocomplete=username]', user.username)
@@ -61,7 +61,7 @@ test.describe('authentication', () => {
 
   test('an expired access token is refreshed without the user noticing', async ({ page }) => {
     const admin = await adminToken()
-    const user = await createUser(admin, 'writer_all')
+    const user = await createUser(admin, 'write_all')
     await loginUI(page, user.username, user.password)
 
     await page.evaluate(() => localStorage.setItem('rtp_access', 'not.a.valid.jwt'))
@@ -72,7 +72,7 @@ test.describe('authentication', () => {
 
   test('when the refresh token is dead the user is sent back to login', async ({ page }) => {
     const admin = await adminToken()
-    const user = await createUser(admin, 'writer_all')
+    const user = await createUser(admin, 'write_all')
     await loginUI(page, user.username, user.password)
 
     await page.evaluate(() => { localStorage.setItem('rtp_access', 'bad'); localStorage.setItem('rtp_refresh', 'bad') })
@@ -83,7 +83,7 @@ test.describe('authentication', () => {
 
   test('the profile menu offers language, profile and sign out', async ({ page }) => {
     const admin = await adminToken()
-    const user = await createUser(admin, 'writer_all')
+    const user = await createUser(admin, 'write_all')
     await loginUI(page, user.username, user.password)
 
     await page.click('.profileBtn')
@@ -115,7 +115,7 @@ test.describe('authentication', () => {
 
   test('read-only roles do not see write navigation', async ({ page }) => {
     const admin = await adminToken()
-    const reader = await createUser(admin, 'reader_all')
+    const reader = await createUser(admin, 'read_all')
     await loginUI(page, reader.username, reader.password)
     const labels = await page.locator('.sidebar .navItem').evaluateAll((els) => els.map((e) => e.getAttribute('aria-label')))
     expect(labels).not.toContain('Usuários')

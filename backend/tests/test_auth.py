@@ -16,7 +16,7 @@ def test_protected_routes_need_a_token():
 
 def test_new_user_must_change_password_before_anything_else(admin):
     username, temp = f"pytest-first-{tag()}", f"Temp-{tag()}-1"
-    assert admin.post("/users", {"username": username, "password": temp, "role": "writer_all"}).status_code == 201
+    assert admin.post("/users", {"username": username, "password": temp, "role": "write_all"}).status_code == 201
     c = Client(login(username, temp).json()["access_token"])
 
     # Everything is blocked, except reading oneself and changing the password.
@@ -38,7 +38,7 @@ def test_new_user_must_change_password_before_anything_else(admin):
 
 
 def test_admin_reset_locks_an_already_open_session(admin):
-    user = make_user(admin, "writer_all")
+    user = make_user(admin, "write_all")
     assert user.get("/vulnerabilities").status_code == 200
     r = admin.post(f"/users/{user.user['id']}/reset-password", {"new_password": "Reset-By-Admin-1"})
     assert r.status_code == 200
@@ -57,7 +57,7 @@ def test_refresh_token_gives_a_new_access_token(writer):
 
 
 def test_deactivated_user_cannot_log_in_or_refresh(admin):
-    user = make_user(admin, "writer_all")
+    user = make_user(admin, "write_all")
     tokens = login(user.user["username"], user.password).json()
     assert admin.patch(f"/users/{user.user['id']}", {"is_active": False}).status_code == 200
     assert login(user.user["username"], user.password).status_code == 401
@@ -68,11 +68,11 @@ def test_deactivated_user_cannot_log_in_or_refresh(admin):
 def test_admin_cannot_lock_themselves_out(admin):
     me = admin.user["id"]
     assert admin.patch(f"/users/{me}", {"is_active": False}).status_code == 400
-    assert admin.patch(f"/users/{me}", {"role": "reader_all"}).status_code == 400
+    assert admin.patch(f"/users/{me}", {"role": "read_all"}).status_code == 400
 
 
 def test_duplicate_username_is_a_conflict(admin, writer):
-    r = admin.post("/users", {"username": writer.user["username"], "password": "Temp-12345", "role": "reader_all"})
+    r = admin.post("/users", {"username": writer.user["username"], "password": "Temp-12345", "role": "read_all"})
     assert r.status_code == 409
 
 
@@ -86,9 +86,9 @@ def test_read_only_roles_cannot_write(reader, auditor):
 
 def test_user_and_key_management_is_admin_only(writer, reader):
     for c in (writer, reader):
-        assert c.post("/users", {"username": "pytest-x", "password": "Temp-12345", "role": "reader_all"}).status_code == 403
+        assert c.post("/users", {"username": "pytest-x", "password": "Temp-12345", "role": "read_all"}).status_code == 403
         assert c.get("/api-keys").status_code == 403
-        assert c.post("/api-keys", {"label": "pytest-x", "role": "writer_all"}).status_code == 403
+        assert c.post("/api-keys", {"label": "pytest-x", "role": "write_all"}).status_code == 403
 
 
 def test_audit_log_is_for_admin_and_auditor_only(admin, auditor, writer, reader):
@@ -99,7 +99,7 @@ def test_audit_log_is_for_admin_and_auditor_only(admin, auditor, writer, reader)
 
 
 def test_password_changes_and_logins_are_audited(admin):
-    user = make_user(admin, "writer_all")
+    user = make_user(admin, "write_all")
     items = admin.get("/audit-logs", params={"page_size": 200}).json()["items"]
     mine = [e for e in items if e["actor"] == user.user["username"]]
     actions = {e["action"] for e in mine}

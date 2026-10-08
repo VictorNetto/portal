@@ -121,7 +121,7 @@ def _body(report: Report, vulns: list[Vulnerability]) -> str:
 def dispatch(
     session: Session, report_id: uuid.UUID, user: User, request: Request
 ) -> ReportOut:
-    report = report_svc.get_report(session, report_id, for_update=True)
+    report = report_svc.get_report(session, report_id, user, for_update=True, write=True)
 
     if report.status == ReportStatus.dispatched:
         raise HTTPException(status.HTTP_409_CONFLICT, "The report is already dispatched")
@@ -161,7 +161,7 @@ def dispatch(
         session.commit()
 
     # --- Phase 2: render + deliver. Re-lock the row so two retries can't both send.
-    report = report_svc.get_report(session, report_id, for_update=True)
+    report = report_svc.get_report(session, report_id, user, for_update=True, write=True)
     if report.status == ReportStatus.dispatched:  # a concurrent retry finished first
         raise HTTPException(status.HTTP_409_CONFLICT, "The report is already dispatched")
     vulns = report_svc._vulns_of(session, report)
@@ -227,7 +227,7 @@ def export_report(
     """(bytes, media_type, filename). Internal notes are never included."""
     if fmt not in ("pdf", "xlsx", "docx"):
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "format must be pdf, xlsx or docx")
-    report = report_svc.get_report(session, report_id)
+    report = report_svc.get_report(session, report_id, user)
     vulns = report_svc._vulns_of(session, report)
     if fmt == "docx":
         docx_bytes = render.report_docx(report, vulns, _image_loader(_owned_attachments(session, report, vulns)))
@@ -286,7 +286,7 @@ def export_vulnerabilities_batch(
 
     if fmt not in ("pdf", "xlsx"):
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "format must be pdf or xlsx")
-    vulns = [vuln_svc.get_visible(session, i) for i in _batch_ids(ids)]  # 404 if any is missing
+    vulns = [vuln_svc.get_visible(session, i, user) for i in _batch_ids(ids)]  # 404 if any is missing
     stamp = datetime.now().strftime("%Y%m%d_%H%M")
 
     if fmt == "xlsx":
@@ -317,7 +317,7 @@ def export_reports_batch(
     session: Session, ids: list[uuid.UUID], user: User, request: Request
 ) -> tuple[bytes, str, str]:
     """Selected reports as a ZIP of PDFs (one each)."""
-    reports = [report_svc.get_report(session, i) for i in _batch_ids(ids)]
+    reports = [report_svc.get_report(session, i, user) for i in _batch_ids(ids)]
     out, used = io.BytesIO(), set()
     with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as z:
         for r in reports:

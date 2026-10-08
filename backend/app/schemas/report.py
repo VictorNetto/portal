@@ -54,6 +54,7 @@ class ReportCreate(BaseModel):
     start_date: date | None = None
     end_date: date | None = None
     operator_ids: list[uuid.UUID] = Field(default_factory=list)
+    viewer_ids: list[uuid.UUID] = Field(default_factory=list)
 
     @model_validator(mode="after")
     def _dates(self) -> "ReportCreate":
@@ -78,6 +79,7 @@ class ReportUpdate(BaseModel):
     test_model: str | None = Field(default=None, max_length=200)
     internal_notes: str | None = Field(default=None, max_length=200_000)
     operator_ids: list[uuid.UUID] | None = None
+    viewer_ids: list[uuid.UUID] | None = None
 
 
 class ReportListItem(BaseModel):
@@ -87,6 +89,8 @@ class ReportListItem(BaseModel):
     client_name: str | None
     status: ReportStatus
     operators: list[OperatorRef] = Field(default_factory=list)
+    viewers: list[OperatorRef] = Field(default_factory=list)
+    created_by: uuid.UUID
     vuln_count: int = 0
     max_cvss: Decimal | None = None
     start_date: date | None

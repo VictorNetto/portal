@@ -21,7 +21,7 @@ from app.schemas.user import PasswordReset, UserCreate, UserOut, UserUpdate
 router = APIRouter(prefix="/users", tags=["users"])
 
 _admin = require_roles(UserRole.admin)
-_writer = require_roles(UserRole.admin, UserRole.writer_all)
+_writer = require_roles(UserRole.admin, UserRole.write_all, UserRole.write_restricted)
 
 
 @router.get("", response_model=list[UserOut])

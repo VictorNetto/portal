@@ -11,7 +11,7 @@ const mk = async (fn, ...args) => { const v = await fn(...args); vulns.push(v.id
 
 test.beforeAll(async () => {
   admin = await adminToken()
-  writer = await createUser(admin, 'writer_all')
+  writer = await createUser(admin, 'write_all')
 })
 test.afterAll(async () => cleanup(admin, { vulns, reports }))
 
@@ -142,7 +142,7 @@ test.describe('operations hub', () => {
   })
 
   test('a read-only user sees only the read actions', async ({ page }) => {
-    const reader = await createUser(admin, 'reader_all')
+    const reader = await createUser(admin, 'read_all')
     const v = await mk(newVuln, admin, { identifier: `e2e-r-${tag()}` })
     await loginUI(page, reader.username, reader.password)
     await filterHub(page, v.identifier)

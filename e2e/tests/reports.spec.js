@@ -10,8 +10,8 @@ const reports = []
 
 test.beforeAll(async () => {
   admin = await adminToken()
-  alice = await createUser(admin, 'writer_all')
-  bob = await createUser(admin, 'writer_all')
+  alice = await createUser(admin, 'write_all')
+  bob = await createUser(admin, 'write_all')
 })
 test.afterAll(async () => cleanup(admin, { reports }))
 

@@ -39,7 +39,7 @@ def ingest_vulnerability(
     session: Session = Depends(get_session),
 ) -> IngestResult:
     # Only keys scoped to a writing role may create records.
-    if key.role not in (UserRole.admin, UserRole.writer_all):
+    if key.role not in (UserRole.admin, UserRole.write_all):
         raise HTTPException(
             status.HTTP_403_FORBIDDEN, "This API key's role cannot create vulnerabilities"
         )

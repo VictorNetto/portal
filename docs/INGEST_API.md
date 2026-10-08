@@ -4,8 +4,8 @@ Lets scanners, C2s and recon pipelines push vulnerabilities into the portal (SPE
 
 ## Authentication
 
-An **admin** creates a key under *Chaves de API* (role `writer_all` or `admin`; keys with
-`reader_all` / `auditor` are refused). The plaintext is shown **once**. Send it in a header:
+An **admin** creates a key under *Chaves de API* (role `write_all` or `admin`; keys with
+`read_all` / `auditor` are refused). The plaintext is shown **once**. Send it in a header:
 
 ```
 X-API-Key: <key>
@@ -28,7 +28,7 @@ log, regardless of role. A revoked, expired, unknown or missing key all return t
 | `references` | string[] ≤ 50 | each must be an `http(s)` URL |
 | `source` | string ≤ 200 | e.g. `nuclei`, `burp` |
 | `internal_notes` | string | |
-| `operators` | string[] ≤ 20 | **usernames**; must be active `writer_all`/`admin` accounts |
+| `operators` | string[] ≤ 20 | **usernames**; must be active `write_all`/`admin` accounts |
 | `status` | `"draft"` (default) \| `"saved_local"` | the caller decides per request |
 | `metadata` | object | stored as-is; ≤ 64 KB together with unknown fields |
 | *(any other field)* | any | stored in metadata |

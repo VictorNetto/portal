@@ -11,7 +11,7 @@ from fastapi import HTTPException, Request, status
 from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
-from app import audit
+from app import access, audit
 from app.models.enums import AuditAction, ReportStatus, VulnStatus
 from app.models.report import Report, ReportSection
 from app.models.user import User
@@ -53,13 +53,21 @@ def _next_report_internal_id(session: Session) -> str:
     return f"OP-{n:04d}"
 
 
-def get_report(session: Session, report_id: uuid.UUID, for_update: bool = False) -> Report:
+def get_report(
+    session: Session, report_id: uuid.UUID, user: User, *, for_update: bool = False,
+    write: bool = False,
+) -> Report:
+    """A live report `user` may read (404 otherwise, D10); with `write`, one they may change."""
     stmt = select(Report).where(Report.id == report_id)
     if for_update:
         stmt = stmt.with_for_update()
     report = session.scalar(stmt)
     if report is None or report.deleted_at is not None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Report not found")
+    if write:
+        access.require_write_report(user, report)
+    else:
+        access.require_read_report(user, report)
     return report
 
 
@@ -97,6 +105,8 @@ def _base(session: Session, report: Report, user: User, vulns: list[Vulnerabilit
         id=report.id, internal_id=report.internal_id, name=report.name,
         client_name=report.client_name, status=report.status,
         operators=[OperatorRef.model_validate(o) for o in report.operators],
+        viewers=[OperatorRef.model_validate(o) for o in report.viewers],
+        created_by=report.created_by,
         vuln_count=len(vulns), max_cvss=max(scored) if scored else None,
         start_date=report.start_date, end_date=report.end_date,
         lock=_lock_info(session, report, user), dispatched_at=report.dispatched_at,
@@ -127,14 +137,16 @@ def to_out(session: Session, report: Report, user: User) -> ReportOut:
 # --- CRUD ------------------------------------------------------------------
 
 def list_reports(session: Session, user: User) -> list[ReportListItem]:
-    reports = session.scalars(
-        select(Report).where(Report.deleted_at.is_(None)).order_by(Report.updated_at.desc())
-    )
+    conditions = [Report.deleted_at.is_(None)]
+    visible = access.report_visible_clause(user)
+    if visible is not None:
+        conditions.append(visible)
+    reports = session.scalars(select(Report).where(*conditions).order_by(Report.updated_at.desc()))
     return [to_list_item(session, r, user) for r in reports]
 
 
 def read(session: Session, report_id: uuid.UUID, user: User, request: Request) -> ReportOut:
-    report = get_report(session, report_id)
+    report = get_report(session, report_id, user)
     # D8: who read which report, and when.
     audit.record(
         session, action=AuditAction.read, user_id=user.id,
@@ -159,6 +171,7 @@ def create(session: Session, body: ReportCreate, user: User, request: Request) -
         lock_user_id=user.id, lock_acquired_at=now, lock_last_activity_at=now,
     )
     report.operators = _resolve_operators(session, body.operator_ids)
+    report.viewers = access.resolve_users(session, body.viewer_ids, "viewer")
     session.add(report)
     session.flush()
     audit.record(
@@ -173,22 +186,28 @@ def create(session: Session, body: ReportCreate, user: User, request: Request) -
 def update(
     session: Session, report_id: uuid.UUID, body: ReportUpdate, user: User, request: Request
 ) -> ReportOut:
-    report = get_report(session, report_id, for_update=True)
+    report = get_report(session, report_id, user, for_update=True, write=True)
     changes = body.model_dump(exclude_unset=True)
     set_operators = "operator_ids" in changes
     op_ids = changes.pop("operator_ids", None)
-    requested = set(changes) | ({"operators"} if set_operators else set())
+    set_viewers = "viewer_ids" in changes
+    viewer_ids = changes.pop("viewer_ids", None)
+    requested = (
+        set(changes) | ({"operators"} if set_operators else set())
+        | ({"viewers"} if set_viewers else set())
+    )
 
     if "name" in changes and not (changes["name"] or "").strip():
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "name cannot be empty")
 
     if report.status == ReportStatus.dispatched:
-        # Immutable, except internal notes (no lock needed: single field).
-        extra = requested - {"internal_notes"}
+        # Immutable, except internal notes and sharing (no lock needed: single field each).
+        extra = requested - {"internal_notes", "viewers"}
         if extra:
             raise HTTPException(
                 status.HTTP_422_UNPROCESSABLE_ENTITY,
-                "A dispatched report only allows internal_notes: " + ", ".join(sorted(extra)),
+                "A dispatched report only allows internal_notes and sharing: "
+                + ", ".join(sorted(extra)),
             )
     else:
         report_lock.require_editable(report, user)  # 409 if dispatching / no lock
@@ -204,6 +223,8 @@ def update(
         setattr(report, field, value.strip() if field == "name" else value)
     if set_operators:
         report.operators = _resolve_operators(session, op_ids or [])
+    if set_viewers:
+        report.viewers = access.resolve_users(session, viewer_ids or [], "viewer")
 
     audit.record(
         session, action=AuditAction.update, user_id=user.id,
@@ -217,7 +238,8 @@ def update(
 
 def delete(session: Session, report_id: uuid.UUID, user: User, request: Request) -> None:
     """D1: only a draft report can be deleted; its (draft) vulns go with it."""
-    report = get_report(session, report_id, for_update=True)
+    report = get_report(session, report_id, user, for_update=True)
+    access.require_delete_report(user, report)
     if report.status != ReportStatus.draft:
         raise HTTPException(
             status.HTTP_409_CONFLICT, "Only draft reports can be deleted (D1)"
@@ -243,7 +265,7 @@ def delete(session: Session, report_id: uuid.UUID, user: User, request: Request)
 # --- Lock (§3, D4) ---------------------------------------------------------
 
 def acquire_lock(session: Session, report_id: uuid.UUID, user: User) -> ReportOut:
-    report = get_report(session, report_id, for_update=True)
+    report = get_report(session, report_id, user, for_update=True, write=True)
     if report.status != ReportStatus.draft:
         raise HTTPException(
             status.HTTP_409_CONFLICT, f"A {report.status.value} report is not editable"
@@ -268,7 +290,7 @@ def acquire_lock(session: Session, report_id: uuid.UUID, user: User) -> ReportOu
 
 def heartbeat(session: Session, report_id: uuid.UUID, user: User) -> ReportOut:
     """Keep-alive while the editor is open and the operator is active."""
-    report = get_report(session, report_id, for_update=True)
+    report = get_report(session, report_id, user, for_update=True, write=True)
     report_lock.require_editable(report, user)  # also bumps the activity clock
     session.commit()
     session.refresh(report)
@@ -276,7 +298,7 @@ def heartbeat(session: Session, report_id: uuid.UUID, user: User) -> ReportOut:
 
 
 def release_lock(session: Session, report_id: uuid.UUID, user: User) -> None:
-    report = get_report(session, report_id, for_update=True)
+    report = get_report(session, report_id, user, for_update=True, write=True)
     if report_lock.is_active(report) and report.lock_user_id != user.id:
         raise HTTPException(
             status.HTTP_409_CONFLICT, "The lock is held by another operator"
@@ -291,7 +313,7 @@ def force_release(
     session: Session, report_id: uuid.UUID, admin: User, request: Request
 ) -> None:
     """D4: an admin frees a lock held by someone else; always audited."""
-    report = get_report(session, report_id, for_update=True)
+    report = get_report(session, report_id, admin, for_update=True, write=True)
     previous = session.get(User, report.lock_user_id) if report_lock.is_active(report) else None
     report.lock_user_id = None
     report.lock_acquired_at = None
@@ -307,7 +329,7 @@ def force_release(
 # --- Free-form sections (§15.6) --------------------------------------------
 
 def _locked_draft(session: Session, report_id: uuid.UUID, user: User) -> Report:
-    report = get_report(session, report_id, for_update=True)
+    report = get_report(session, report_id, user, for_update=True, write=True)
     report_lock.require_editable(report, user)
     return report
 
@@ -416,11 +438,12 @@ def create_vuln(
     session: Session, report_id: uuid.UUID, body: VulnCreate, user: User, request: Request
 ) -> Vulnerability:
     report = _locked_draft(session, report_id, user)
-    data = body.model_dump(exclude={"operator_ids"})
+    data = body.model_dump(exclude={"operator_ids", "viewer_ids"})
     vuln = Vulnerability(
         status=VulnStatus.draft, report_id=report.id, created_by=user.id, **data
     )
     vuln.operators = _resolve_operators(session, body.operator_ids)
+    vuln.viewers = access.resolve_users(session, body.viewer_ids, "viewer")
     session.add(vuln)
     session.flush()
     audit.record(

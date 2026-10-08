@@ -7,7 +7,7 @@ from conftest import BASE_URL, tag
 URL = f"{BASE_URL}/ingest/vulnerabilities"
 
 
-def make_key(admin, role="writer_all", **extra):
+def make_key(admin, role="write_all", **extra):
     r = admin.post("/api-keys", {"label": f"pytest-{tag()}", "role": role, **extra})
     assert r.status_code == 201, r.text
     return r.json()
@@ -51,7 +51,7 @@ def test_a_user_session_is_not_an_api_key(writer):
 
 
 def test_only_writing_roles_can_ingest(admin):
-    assert post(make_key(admin, "reader_all"), {"identifier": "pytest-x"}).status_code == 403
+    assert post(make_key(admin, "read_all"), {"identifier": "pytest-x"}).status_code == 403
     assert post(make_key(admin, "auditor"), {"identifier": "pytest-x"}).status_code == 403
 
 

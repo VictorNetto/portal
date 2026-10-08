@@ -19,15 +19,15 @@ test.describe('administration', () => {
     await page.click('.pageTop .btn.primary')                                 // Novo usuário
     await page.locator('.formRow input').first().fill(username)
     await page.locator('.formRow input[type=password]').fill('Temp-Pass-1234')
-    await page.locator('.formRow select').selectOption('writer_all')
+    await page.locator('.formRow select').selectOption('write_all')
     await page.click('.formActions .btn.primary')
 
     const row = page.locator(`tbody tr:has-text("${username}")`)
     await expect(row).toBeVisible()
     await expect(row.locator('.flag')).toBeVisible()                           // "troca obrigatória"
 
-    await row.locator('select').selectOption('reader_all')
-    await expect(row.locator('select')).toHaveValue('reader_all')
+    await row.locator('select').selectOption('read_all')
+    await expect(row.locator('select')).toHaveValue('read_all')
 
     await row.locator('.link:has-text("Redefinir senha")').click()
     await expect(row.locator('.flag')).toBeVisible()
@@ -51,7 +51,7 @@ test.describe('administration', () => {
     const label = `e2e-key-${tag()}`
     await page.click('.pageTop .btn.primary')
     await page.locator('.formRow input').first().fill(label)
-    await page.locator('.formRow select').selectOption('writer_all')
+    await page.locator('.formRow select').selectOption('write_all')
     await page.click('.formActions .btn.primary')
 
     const reveal = page.locator('.keyReveal')
@@ -77,7 +77,7 @@ test.describe('administration', () => {
   })
 
   test('audit log: filter by action and see who did it', async ({ page }) => {
-    const user = await createUser(admin, 'writer_all')
+    const user = await createUser(admin, 'write_all')
     await login(user.username, user.password)
     await loginUI(page, 'admin', '12345678')
     await nav(page, 'Logs de Auditoria').click()
@@ -91,7 +91,7 @@ test.describe('administration', () => {
   })
 
   test('the audit log is not reachable by a writer', async ({ page }) => {
-    const user = await createUser(admin, 'writer_all')
+    const user = await createUser(admin, 'write_all')
     await loginUI(page, user.username, user.password)
     await expect(nav(page, 'Logs de Auditoria')).toHaveCount(0)
     await page.goto('/audit-logs')

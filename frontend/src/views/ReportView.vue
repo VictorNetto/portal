@@ -34,7 +34,7 @@ onBeforeUnmount(() => document.documentElement.removeAttribute('data-entity'))
 const isNew = computed(() => route.name === 'report-new')
 const id = computed(() => route.params.id)
 const isAdmin = computed(() => auth.user?.role === 'admin')
-const isWriter = computed(() => ['admin', 'writer_all'].includes(auth.user?.role))
+const isWriter = computed(() => ['admin', 'write_all'].includes(auth.user?.role))
 
 const report = ref(null)
 const loading = ref(!isNew.value)

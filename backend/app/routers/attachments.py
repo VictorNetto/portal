@@ -22,16 +22,16 @@ from app.storage import get_storage
 
 router = APIRouter(tags=["attachments"])
 
-_writer = require_roles(UserRole.admin, UserRole.writer_all)
+_writer = require_roles(UserRole.admin, UserRole.write_all, UserRole.write_restricted)
 
 
 @router.get("/vulnerabilities/{vuln_id}/attachments", response_model=list[AttachmentOut])
 def list_attachments(
     vuln_id: uuid.UUID,
-    _: User = Depends(get_current_user),
+    user: User = Depends(get_current_user),
     session: Session = Depends(get_session),
 ) -> list:
-    return svc.list_for_vuln(session, vuln_id)
+    return svc.list_for_vuln(session, vuln_id, user)
 
 
 @router.post(
@@ -53,10 +53,10 @@ def upload_attachment(
 @router.get("/reports/{report_id}/attachments", response_model=list[AttachmentOut])
 def list_report_attachments(
     report_id: uuid.UUID,
-    _: User = Depends(get_current_user),
+    user: User = Depends(get_current_user),
     session: Session = Depends(get_session),
 ) -> list:
-    return svc.list_for_report(session, report_id)
+    return svc.list_for_report(session, report_id, user)
 
 
 @router.post(
@@ -82,7 +82,7 @@ def attachment_content(
     user: User = Depends(get_current_user),
     session: Session = Depends(get_session),
 ):
-    att = svc.get(session, attachment_id)
+    att = svc.get(session, attachment_id, user)
     audit.record(
         session, action=AuditAction.read, user_id=user.id,
         entity_type="attachment", entity_id=att.id,

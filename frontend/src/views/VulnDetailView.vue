@@ -24,7 +24,7 @@ const route = useRoute()
 const router = useRouter()
 const auth = useAuthStore()
 const isAdmin = computed(() => auth.user?.role === 'admin')
-const isWriter = computed(() => ['admin', 'writer_all'].includes(auth.user?.role))
+const isWriter = computed(() => ['admin', 'write_all'].includes(auth.user?.role))
 const isNew = computed(() => ['vuln-new', 'report-vuln-new'].includes(route.name))
 
 // This is always a vulnerability view -> green accent.

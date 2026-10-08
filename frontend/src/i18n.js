@@ -76,8 +76,8 @@ const messages = {
     },
     roles: {
       admin: 'Administrador',
-      writer_all: 'Editor',
-      reader_all: 'Leitor',
+      write_all: 'Editor',
+      read_all: 'Leitor',
       auditor: 'Auditor',
     },
     audit: {
@@ -454,7 +454,7 @@ const messages = {
       save: 'Save',
       mustChange: 'must change password',
     },
-    roles: { admin: 'Administrator', writer_all: 'Editor', reader_all: 'Reader', auditor: 'Auditor' },
+    roles: { admin: 'Administrator', write_all: 'Editor', read_all: 'Reader', auditor: 'Auditor' },
     audit: {
       title: 'Audit Logs',
       subtitle: 'Record of every action in the portal.',

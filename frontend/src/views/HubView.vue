@@ -15,7 +15,7 @@ import { fmtDate, fmtDateTime, fmtPlainDate } from '../dates'
 const router = useRouter()
 const route = useRoute()
 const auth = useAuthStore()
-const isWriter = computed(() => ['admin', 'writer_all'].includes(auth.user?.role))
+const isWriter = computed(() => ['admin', 'write_all'].includes(auth.user?.role))
 
 // Entity switcher (§5.4): vulnerabilities or reports.
 // The tab lives in the URL (/hub?entity=reports) so reload and the back button keep it.

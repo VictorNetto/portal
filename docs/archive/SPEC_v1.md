@@ -361,7 +361,7 @@ Read-only REST endpoints exposing `dispatched`+ vulns and reports to authorized 
 
 | Enum | Values |
 |---|---|
-| `user_role` | `admin` · `writer_all` · `reader_all` · `auditor` |
+| `user_role` | `admin` · `write_all` · `read_all` · `auditor` |
 | `vuln_status` | `draft` · `saved_local` · `dispatched` · `acknowledged` · `waiting_fix` · `pending_retest` · `fixed` |
 | `report_status` | `draft` · `dispatched` |
 | `audit_action` | `login` · `logout` · `create` · `read` · `update` · `delete` · `status_change` · `export` · `dispatch` · `api_key_create` · `api_key_revoke` · `permission_change` |

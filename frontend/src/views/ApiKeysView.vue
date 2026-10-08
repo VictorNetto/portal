@@ -8,9 +8,9 @@ const keys = ref([])
 const loading = ref(true)
 const error = ref('')
 
-const ROLES = ['admin', 'writer_all', 'reader_all', 'auditor']
+const ROLES = ['admin', 'write_all', 'read_all', 'auditor']
 const showCreate = ref(false)
-const draft = ref({ label: '', role: 'writer_all' })
+const draft = ref({ label: '', role: 'write_all' })
 const creating = ref(false)
 
 // The one-time plaintext shown after creation.
@@ -31,7 +31,7 @@ async function create() {
     newKey.value = created
     copied.value = false
     showCreate.value = false
-    draft.value = { label: '', role: 'writer_all' }
+    draft.value = { label: '', role: 'write_all' }
     await load()
   } catch (e) { error.value = e instanceof ApiError ? e.detail : t('errors.create') }
   finally { creating.value = false }

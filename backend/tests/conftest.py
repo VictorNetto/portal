@@ -101,17 +101,17 @@ def make_user(admin: Client, role: str) -> Client:
 
 @pytest.fixture(scope="session")
 def writer(admin) -> Client:
-    return make_user(admin, "writer_all")
+    return make_user(admin, "write_all")
 
 
 @pytest.fixture(scope="session")
 def writer2(admin) -> Client:
-    return make_user(admin, "writer_all")
+    return make_user(admin, "write_all")
 
 
 @pytest.fixture(scope="session")
 def reader(admin) -> Client:
-    return make_user(admin, "reader_all")
+    return make_user(admin, "read_all")
 
 
 @pytest.fixture(scope="session")

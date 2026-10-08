@@ -9,9 +9,12 @@ import enum
 
 class UserRole(str, enum.Enum):
     admin = "admin"
-    writer_all = "writer_all"
-    reader_all = "reader_all"
+    write_all = "write_all"
+    read_all = "read_all"
     auditor = "auditor"
+    # Restricted roles (D10): see/touch only records they created, operate or were shared.
+    write_restricted = "write_restricted"
+    read_restricted = "read_restricted"
 
 
 class VulnStatus(str, enum.Enum):

@@ -30,7 +30,7 @@ const navItems = computed(() =>
     const role = auth.user?.role
     if (i.adminOnly && role !== 'admin') return false
     if (i.roles && !i.roles.includes(role)) return false
-    if (i.writer && !['admin', 'writer_all'].includes(role)) return false
+    if (i.writer && !['admin', 'write_all'].includes(role)) return false
     return true
   }))
 

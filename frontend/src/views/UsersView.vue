@@ -14,10 +14,10 @@ const users = ref([])
 const loading = ref(true)
 const error = ref('')
 
-const ROLES = ['admin', 'writer_all', 'reader_all', 'auditor']
+const ROLES = ['admin', 'write_all', 'read_all', 'auditor']
 
 const showCreate = ref(false)
-const draft = ref({ username: '', password: '', role: 'reader_all' })
+const draft = ref({ username: '', password: '', role: 'read_all' })
 const creating = ref(false)
 
 async function load() {
@@ -32,7 +32,7 @@ async function create() {
   try {
     await createUser({ ...draft.value })
     showCreate.value = false
-    draft.value = { username: '', password: '', role: 'reader_all' }
+    draft.value = { username: '', password: '', role: 'read_all' }
     await load()
   } catch (e) { error.value = e instanceof ApiError ? e.detail : t('errors.create') }
   finally { creating.value = false }

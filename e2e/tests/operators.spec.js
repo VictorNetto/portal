@@ -9,8 +9,8 @@ const vulns = []
 
 test.beforeAll(async () => {
   admin = await adminToken()
-  writer = await createUser(admin, 'writer_all')
-  other = await createUser(admin, 'writer_all')
+  writer = await createUser(admin, 'write_all')
+  other = await createUser(admin, 'write_all')
 })
 test.afterAll(async () => cleanup(admin, { vulns }))
 
@@ -49,7 +49,7 @@ test.describe('operator picker', () => {
 
 test.describe('read-only role', () => {
   test('edition buttons are not offered at all', async ({ page }) => {
-    const reader = await createUser(admin, 'reader_all')
+    const reader = await createUser(admin, 'read_all')
     const v = await newVuln(admin, { identifier: `e2e-ro-${tag()}` })
     vulns.push(v.id)
     await loginUI(page, reader.username, reader.password)

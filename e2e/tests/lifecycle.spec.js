@@ -8,7 +8,7 @@ const vulns = []
 
 test.beforeAll(async () => {
   admin = await adminToken()
-  writer = await createUser(admin, 'writer_all')
+  writer = await createUser(admin, 'write_all')
 })
 test.afterAll(async () => cleanup(admin, { vulns }))
 

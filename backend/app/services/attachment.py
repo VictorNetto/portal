@@ -13,7 +13,7 @@ from fastapi import HTTPException, Request, UploadFile, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app import audit
+from app import access, audit
 from app.models.attachment import Attachment
 from app.models.enums import AuditAction, VulnStatus
 from app.models.report import Report
@@ -79,15 +79,13 @@ def _safe_filename(raw: str | None) -> str:
     return name[:255] or "file"
 
 
-def get_editable_vuln(
-    session: Session, vuln_id: uuid.UUID, user: User | None = None
-) -> Vulnerability:
-    vuln = vuln_svc.get_visible(session, vuln_id)
+def get_editable_vuln(session: Session, vuln_id: uuid.UUID, user: User) -> Vulnerability:
+    vuln = vuln_svc.get_visible(session, vuln_id, user)
+    access.require_write_vuln(session, user, vuln)
     if vuln_svc.is_in_report(vuln):
         # Inside a draft report: same rule as the vuln's own fields (§3) — the
         # caller must hold the report lock.
-        if user is not None:
-            vuln_svc._require_report_lock(session, vuln, user)
+        vuln_svc._require_report_lock(session, vuln, user)
         return vuln
     if vuln.status not in _ATTACHABLE:
         raise HTTPException(
@@ -97,8 +95,8 @@ def get_editable_vuln(
     return vuln
 
 
-def list_for_vuln(session: Session, vuln_id: uuid.UUID) -> list[Attachment]:
-    vuln_svc.get_visible(session, vuln_id)  # 404 if missing/deleted
+def list_for_vuln(session: Session, vuln_id: uuid.UUID, user: User) -> list[Attachment]:
+    vuln_svc.get_visible(session, vuln_id, user)  # 404 if missing/deleted/not readable
     return list(
         session.scalars(
             select(Attachment)
@@ -108,18 +106,18 @@ def list_for_vuln(session: Session, vuln_id: uuid.UUID) -> list[Attachment]:
     )
 
 
-def get(session: Session, attachment_id: uuid.UUID) -> Attachment:
+def get(session: Session, attachment_id: uuid.UUID, user: User) -> Attachment:
     att = session.get(Attachment, attachment_id)
     if att is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Attachment not found")
     # Files of a deleted vulnerability must stop being readable.
     if att.vulnerability_id is not None:
         owner = session.get(Vulnerability, att.vulnerability_id)
-        if owner is None or owner.deleted_at is not None:
+        if owner is None or owner.deleted_at is not None or not access.can_read_vuln(session, user, owner):
             raise HTTPException(status.HTTP_404_NOT_FOUND, "Attachment not found")
     if att.report_id is not None:
         rep = session.get(Report, att.report_id)
-        if rep is None or rep.deleted_at is not None:
+        if rep is None or rep.deleted_at is not None or not access.can_read_report(user, rep):
             raise HTTPException(status.HTTP_404_NOT_FOUND, "Attachment not found")
     return att
 
@@ -130,14 +128,16 @@ def get_editable_report(session: Session, report_id: uuid.UUID, user: User) -> R
     report = session.get(Report, report_id)
     if report is None or report.deleted_at is not None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Report not found")
+    access.require_write_report(user, report)
     report_lock.require_editable(report, user)
     return report
 
 
-def list_for_report(session: Session, report_id: uuid.UUID) -> list[Attachment]:
+def list_for_report(session: Session, report_id: uuid.UUID, user: User) -> list[Attachment]:
     report = session.get(Report, report_id)
     if report is None or report.deleted_at is not None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Report not found")
+    access.require_read_report(user, report)
     return list(
         session.scalars(
             select(Attachment)
@@ -253,7 +253,7 @@ def add_to_report(
 
 
 def remove(session: Session, attachment_id: uuid.UUID, user: User, request: Request) -> None:
-    att = get(session, attachment_id)
+    att = get(session, attachment_id, user)
     if att.vulnerability_id is not None:
         get_editable_vuln(session, att.vulnerability_id, user)
         owner_detail = {"vulnerability_id": str(att.vulnerability_id)}

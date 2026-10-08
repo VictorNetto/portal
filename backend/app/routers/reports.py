@@ -24,7 +24,7 @@ from app.services import report_dispatch
 
 router = APIRouter(prefix="/reports", tags=["reports"])
 
-_writer = require_roles(UserRole.admin, UserRole.writer_all)
+_writer = require_roles(UserRole.admin, UserRole.write_all, UserRole.write_restricted)
 _admin = require_roles(UserRole.admin)
 
 

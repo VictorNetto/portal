@@ -27,25 +27,25 @@ router = APIRouter(prefix="/vulnerabilities", tags=["vulnerabilities"])
 # A separate router for the RVS queue (its own top-level path).
 rvs_router = APIRouter(prefix="/rvs-queue", tags=["rvs"])
 
-# Writers and admins may mutate; everyone authenticated may read.
-_writer = require_roles(UserRole.admin, UserRole.writer_all)
+# Anyone who can write somewhere may try; the record-level rules (app/access.py) decide where.
+_writer = require_roles(UserRole.admin, UserRole.write_all, UserRole.write_restricted)
 _admin = require_roles(UserRole.admin)
 
 
 @rvs_router.get("", response_model=list[VulnOut])
 def rvs_queue(
-    _: User = Depends(get_current_user),
+    user: User = Depends(get_current_user),
     session: Session = Depends(get_session),
 ) -> list:
-    return svc.rvs_queue(session)
+    return svc.rvs_queue(session, user)
 
 
 @router.get("", response_model=list[VulnListItem])
 def list_vulns(
-    _: User = Depends(get_current_user),
+    user: User = Depends(get_current_user),
     session: Session = Depends(get_session),
 ) -> list:
-    return svc.list_standalone(session)
+    return svc.list_standalone(session, user)
 
 
 @router.post("/export")
@@ -78,10 +78,10 @@ def create_vuln(
 @router.get("/{vuln_id}", response_model=VulnOut)
 def get_vuln(
     vuln_id: uuid.UUID,
-    _: User = Depends(get_current_user),
+    user: User = Depends(get_current_user),
     session: Session = Depends(get_session),
 ) -> VulnOut:
-    return svc.get_visible(session, vuln_id)
+    return svc.get_visible(session, vuln_id, user)
 
 
 @router.patch("/{vuln_id}", response_model=VulnOut)
@@ -156,7 +156,7 @@ def export_vulnerability(
     user: User = Depends(get_current_user),
     session: Session = Depends(get_session),
 ):
-    vuln = svc.get_visible(session, vuln_id)
+    vuln = svc.get_visible(session, vuln_id, user)
     data, media_type, filename = report_dispatch.export_vulnerability_pdf(
         session, vuln, user, request, format
     )
