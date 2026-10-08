@@ -72,6 +72,7 @@ const attachError = ref('')
 const ALL_FIELDS = ['identifier', 'cwe', 'description', 'finding_detail', 'mitigation',
   'references', 'cvss_score', 'cvss_vector', 'source', 'internal_notes', 'operators']
 const editableFields = computed(() => {
+  if (!isWriter.value) return new Set()                  // read-only roles never edit
   if (inReport.value) {
     return reportCtx.value?.status === 'draft' && lockMine.value ? new Set(ALL_FIELDS) : new Set()
   }
@@ -454,7 +455,7 @@ watch(() => route.fullPath, () => {
         <p v-else-if="isNew">{{ t('vform.createHint') }}</p>
       </div>
       <div class="pageActions">
-        <button v-if="!isNew" class="btn danger" @click="remove">{{ t('rowActions.delete') }}</button>
+        <button v-if="!isNew" class="btn danger" :disabled="!isWriter" @click="remove">{{ t('rowActions.delete') }}</button>
         <button v-if="!isNew" class="btn" @click="exportAs('pdf')">{{ t('rpt.exportPdf') }}</button>
         <button v-if="!isNew" class="btn" @click="exportAs('docx')">{{ t('rpt.exportDocx') }}</button>
         <button class="btn" @click="leave">{{ inReport ? t('rpt.back') : t('vform.cancel') }}</button>
@@ -464,7 +465,7 @@ watch(() => route.fullPath, () => {
         <button v-for="a in nextActions" :key="a.to" class="btn" :class="{ primary: a.primary }"
                 @click="doTransition(a)">{{ t(a.label) }}</button>
         <button v-if="isSavedLocal" class="btn" @click="doDispatch">{{ t('actions.dispatch') }}</button>
-        <button v-if="isDraft" class="btn" :disabled="saving" @click="doSend">{{ t('vform.send') }}</button>
+        <button v-if="isDraft" class="btn" :disabled="saving || !isWriter" @click="doSend">{{ t('vform.send') }}</button>
         <button class="btn primary" :disabled="saving || !editableFields.size" @click="save">
           {{ saving ? t('vuln.saving') : (isDraft ? t('vform.saveDraft') : t('vuln.save')) }}
         </button>

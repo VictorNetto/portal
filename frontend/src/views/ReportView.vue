@@ -60,7 +60,7 @@ const lock = computed(() => report.value?.lock || null)
 const lockMine = computed(() => !!lock.value?.mine)
 const lockOther = computed(() => !!lock.value && !lock.value.mine)
 // Everything editable: a draft whose lock I hold.
-const editing = computed(() => isNew.value || (status.value === 'draft' && lockMine.value && isWriter.value))
+const editing = computed(() => (isNew.value && isWriter.value) || (status.value === 'draft' && lockMine.value && isWriter.value))
 // A dispatched report still takes internal notes.
 const notesOnly = computed(() => status.value === 'dispatched' && isWriter.value)
 const canEditNotes = computed(() => editing.value || notesOnly.value)
@@ -385,7 +385,7 @@ watch(() => route.fullPath, () => { if (!isNew.value && report.value?.id !== id.
         </div>
         <div class="createActions">
           <button class="btn" @click="router.push('/hub?entity=reports')">{{ t('vform.cancel') }}</button>
-          <button class="btn primary" :disabled="saving || !created.name.trim()" @click="create">
+          <button class="btn primary" :disabled="saving || !isWriter || !created.name.trim()" @click="create">
             {{ t('rpt.create') }}
           </button>
         </div>
@@ -404,7 +404,7 @@ watch(() => route.fullPath, () => { if (!isNew.value && report.value?.id !== id.
           </p>
         </div>
         <div class="pageActions" v-if="report">
-          <button v-if="status === 'draft' && isWriter" class="btn danger" @click="remove">{{ t('rowActions.delete') }}</button>
+          <button v-if="status === 'draft'" class="btn danger" :disabled="!isWriter" @click="remove">{{ t('rowActions.delete') }}</button>
           <button class="btn" @click="router.push('/hub?entity=reports')">{{ t('rpt.back') }}</button>
           <button class="btn" @click="exportAs('pdf')">{{ t('rpt.exportPdf') }}</button>
           <button class="btn" @click="exportAs('xlsx')">{{ t('rpt.exportXlsx') }}</button>
