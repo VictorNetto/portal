@@ -21,6 +21,7 @@ import AppShell from '../components/AppShell.vue'
 import MarkdownEditor from '../components/MarkdownEditor.vue'
 import AttachmentsPanel from '../components/AttachmentsPanel.vue'
 import OperatorPicker from '../components/OperatorPicker.vue'
+import { canCreate, canWriteRecord, canDeleteRecord } from '../access'
 
 const route = useRoute()
 const router = useRouter()
@@ -34,7 +35,9 @@ onBeforeUnmount(() => document.documentElement.removeAttribute('data-entity'))
 const isNew = computed(() => route.name === 'report-new')
 const id = computed(() => route.params.id)
 const isAdmin = computed(() => auth.user?.role === 'admin')
-const isWriter = computed(() => ['admin', 'write_all'].includes(auth.user?.role))
+// May this user change THIS report? (new reports: may they create at all)
+const isWriter = computed(() => (isNew.value ? canCreate(auth.user) : canWriteRecord(auth.user, report.value)))
+const mayDelete = computed(() => !!report.value && canDeleteRecord(auth.user, report.value))
 
 const report = ref(null)
 const loading = ref(!isNew.value)
@@ -43,6 +46,13 @@ const error = ref('')
 const notice = ref('')
 const allUsers = ref([])
 const selectedOps = ref(new Set())
+const selectedViewers = ref(new Set())
+// The picker needs a name for everyone on the record, even for users that cannot list all accounts.
+const knownUsers = computed(() => {
+  const byId = new Map(allUsers.value.map((u) => [u.id, u]))
+  for (const u of [...(report.value?.operators || []), ...(report.value?.viewers || [])]) if (!byId.has(u.id)) byId.set(u.id, u)
+  return [...byId.values()]
+})
 
 const blankForm = () => ({
   name: '', client_name: '', start_date: '', end_date: '',
@@ -73,6 +83,7 @@ function sync() {
   for (const k of Object.keys(f)) f[k] = r[k] ?? ''
   form.value = f
   selectedOps.value = new Set((r.operators || []).map((o) => o.id))
+  selectedViewers.value = new Set((r.viewers || []).map((o) => o.id))
   sections.value = (r.sections || []).map((s) => ({
     key: newKey(), id: s.id, title: s.title, content_markdown: s.content_markdown || '',
   }))
@@ -80,13 +91,13 @@ function sync() {
 }
 
 const snapshot = ref('')
-const snapshotOf = () => JSON.stringify({ f: form.value, o: [...selectedOps.value].sort(), s: sections.value })
+const snapshotOf = () => JSON.stringify({ f: form.value, o: [...selectedOps.value].sort(), v: [...selectedViewers.value].sort(), s: sections.value })
 const dirty = computed(() => !!report.value && snapshot.value !== snapshotOf())
 
 async function load() {
   try { allUsers.value = await listUsers() } catch { /* non-fatal */ }
   if (isNew.value && !isWriter.value) { router.replace('/hub?entity=reports'); return }
-  if (isNew.value) { selectedOps.value = new Set(auth.user?.id ? [auth.user.id] : []); loading.value = false; return }
+  if (isNew.value) { selectedOps.value = new Set(auth.user?.id ? [auth.user.id] : []); selectedViewers.value = new Set(); loading.value = false; return }
   loading.value = true; error.value = ''
   try { report.value = await getReport(id.value); sync(); await loadEvidence() }
   catch (e) { error.value = e instanceof ApiError ? e.detail : t('errors.load') }
@@ -104,6 +115,7 @@ async function create() {
       start_date: created.value.start_date || null,
       end_date: created.value.end_date || null,
       operator_ids: [...selectedOps.value],
+      viewer_ids: [...selectedViewers.value],
     })
     report.value = r
     sync()  // this component instance is reused for /reports/:id, so fill the editor now
@@ -134,10 +146,14 @@ async function save() {
         introduction_md: nullIfBlank(form.value.introduction_md),
         internal_notes: nullIfBlank(form.value.internal_notes),
         operator_ids: [...selectedOps.value],
+        viewer_ids: [...selectedViewers.value],
       })
       r = await saveSections(r)
     } else {
-      r = await updateReport(id.value, { internal_notes: nullIfBlank(form.value.internal_notes) })
+      r = await updateReport(id.value, {
+        internal_notes: nullIfBlank(form.value.internal_notes),
+        viewer_ids: [...selectedViewers.value],
+      })
     }
     report.value = r
     sync()
@@ -382,7 +398,11 @@ watch(() => route.fullPath, () => { if (!isNew.value && report.value?.id !== id.
         </div>
         <div class="f">
           <label>{{ t('vform.operators') }}</label>
-          <OperatorPicker v-model="selectedOps" :users="allUsers" />
+          <OperatorPicker v-model="selectedOps" :users="knownUsers" />
+        </div>
+        <div class="f">
+          <label>{{ t('vform.sharedWith') }}</label>
+          <OperatorPicker v-model="selectedViewers" :users="knownUsers" :show-self="false" />
         </div>
         <div class="createActions">
           <button class="btn" @click="router.push('/hub?entity=reports')">{{ t('vform.cancel') }}</button>
@@ -405,7 +425,7 @@ watch(() => route.fullPath, () => { if (!isNew.value && report.value?.id !== id.
           </p>
         </div>
         <div class="pageActions" v-if="report">
-          <button v-if="status === 'draft' && isWriter" class="btn danger" @click="remove">{{ t('rowActions.delete') }}</button>
+          <button v-if="status === 'draft' && mayDelete" class="btn danger" @click="remove">{{ t('rowActions.delete') }}</button>
           <button class="btn" @click="router.push('/hub?entity=reports')">{{ t('rpt.back') }}</button>
           <button class="btn" @click="exportAs('pdf')">{{ t('rpt.exportPdf') }}</button>
           <button class="btn" @click="exportAs('xlsx')">{{ t('rpt.exportXlsx') }}</button>
@@ -452,7 +472,12 @@ watch(() => route.fullPath, () => { if (!isNew.value && report.value?.id !== id.
             <div class="f"><label>{{ t('rpt.end') }}</label><input v-model="form.end_date" type="date" :disabled="!editing" /></div>
             <div class="f wide2">
               <label>{{ t('vform.operators') }}</label>
-              <OperatorPicker v-model="selectedOps" :users="allUsers" :disabled="!editing" />
+              <OperatorPicker v-model="selectedOps" :users="knownUsers" :disabled="!editing" />
+            </div>
+            <div v-if="editing || notesOnly || selectedViewers.size" class="f wide2">
+              <label>{{ t('vform.sharedWith') }}</label>
+              <OperatorPicker v-model="selectedViewers" :users="knownUsers" :show-self="false"
+                              :disabled="!(editing || notesOnly)" />
             </div>
           </div>
         </section>

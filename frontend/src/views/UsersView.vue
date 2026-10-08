@@ -14,7 +14,7 @@ const users = ref([])
 const loading = ref(true)
 const error = ref('')
 
-const ROLES = ['admin', 'write_all', 'read_all', 'auditor']
+const ROLES = ['admin', 'write_all', 'read_all', 'write_restricted', 'read_restricted', 'auditor']
 
 const showCreate = ref(false)
 const draft = ref({ username: '', password: '', role: 'read_all' })

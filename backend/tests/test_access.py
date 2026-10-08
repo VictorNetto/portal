@@ -1,7 +1,16 @@
 """Restricted roles (D10): what write_restricted / read_restricted may see and change."""
 
 import pytest
-from conftest import make_user, new_report, new_vuln, png_bytes, report_vuln, saved_vuln, tag, upload
+from conftest import (
+    make_user,
+    new_report,
+    new_vuln,
+    png_bytes,
+    report_vuln,
+    saved_vuln,
+    tag,
+    upload,
+)
 
 
 @pytest.fixture(scope="module")

@@ -3,6 +3,7 @@ import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import { t, locale, setLocale, LOCALES } from '../i18n'
+import { canCreate } from '../access'
 
 const router = useRouter()
 const route = useRoute()
@@ -30,7 +31,7 @@ const navItems = computed(() =>
     const role = auth.user?.role
     if (i.adminOnly && role !== 'admin') return false
     if (i.roles && !i.roles.includes(role)) return false
-    if (i.writer && !['admin', 'write_all'].includes(role)) return false
+    if (i.writer && !canCreate(auth.user)) return false
     return true
   }))
 

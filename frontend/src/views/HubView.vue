@@ -6,6 +6,7 @@ import {
 } from '../api'
 import { useAuthStore } from '../stores/auth'
 import { t } from '../i18n'
+import { canCreate, canWriteRecord, canDeleteRecord } from '../access'
 import AppShell from '../components/AppShell.vue'
 import FilterBar from '../components/FilterBar.vue'
 import VulnTimeline from '../components/VulnTimeline.vue'
@@ -15,7 +16,9 @@ import { fmtDate, fmtDateTime, fmtPlainDate } from '../dates'
 const router = useRouter()
 const route = useRoute()
 const auth = useAuthStore()
-const isWriter = computed(() => ['admin', 'write_all'].includes(auth.user?.role))
+const isWriter = computed(() => canCreate(auth.user))            // may create (and so use the batch menu)
+const mayChange = (rec) => canWriteRecord(auth.user, rec)
+const mayDelete = (rec) => canDeleteRecord(auth.user, rec)
 
 // Entity switcher (§5.4): vulnerabilities or reports.
 // The tab lives in the URL (/hub?entity=reports) so reload and the back button keep it.
@@ -237,7 +240,7 @@ async function exportRow(id, format) {
 }
 
 // "Disparar" applies to vulnerabilities saved locally; the rest are skipped, not failed.
-const canDispatchRow = (v) => isWriter.value && v.status === 'saved_local'
+const canDispatchRow = (v) => mayChange(v) && v.status === 'saved_local'
 
 async function dispatchRow(v) {
   menuFor.value = null
@@ -275,12 +278,12 @@ async function dispatchSelected() {
 
 async function deleteSelected() {
   batchOpen.value = false
-  const rows = selectedRows.value
+  const rows = selectedRows.value.filter(mayDelete)
   if (!rows.length) return
   if (!confirm(t('hub.confirmBatchDelete', { n: rows.length }))) return
   error.value = ''; notice.value = ''
   const res = await runBatch(rows, (r) => (isVulns.value ? deleteVuln(r.id) : deleteReport(r.id)))
-  reportBatch(t('rowActions.delete'), res)
+  reportBatch(t('rowActions.delete'), res, selectedRows.value.length - rows.length)
   selected.value = new Set(); preview.value = null; await load()
 }
 
@@ -409,7 +412,7 @@ onMounted(load)
                     <button @click="goDetail(v.id)">{{ t('rowActions.detail') }}</button>
                     <button @click="exportRow(v.id, 'pdf')">{{ t('rowActions.export') }}</button>
                     <button v-if="canDispatchRow(v)" @click="dispatchRow(v)">{{ t('actions.dispatch') }}</button>
-                    <button v-if="isWriter" class="danger" @click="removeRow(v.id)">{{ t('rowActions.delete') }}</button>
+                    <button v-if="mayDelete(v)" class="danger" @click="removeRow(v.id)">{{ t('rowActions.delete') }}</button>
                   </div>
                 </div>
               </td>
@@ -463,7 +466,7 @@ onMounted(load)
                     <button @click="openPreview(r); menuFor = null">{{ t('rowActions.view') }}</button>
                     <button @click="goReport(r.id)">{{ t('rowActions.open') }}</button>
                     <button @click="exportRow(r.id, 'pdf')">{{ t('rowActions.export') }}</button>
-                    <button v-if="isWriter && r.status === 'draft'" class="danger" @click="removeRow(r.id)">{{ t('rowActions.delete') }}</button>
+                    <button v-if="mayDelete(r) && r.status === 'draft'" class="danger" @click="removeRow(r.id)">{{ t('rowActions.delete') }}</button>
                   </div>
                 </div>
               </td>

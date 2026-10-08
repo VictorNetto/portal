@@ -28,7 +28,7 @@ log, regardless of role. A revoked, expired, unknown or missing key all return t
 | `references` | string[] ≤ 50 | each must be an `http(s)` URL |
 | `source` | string ≤ 200 | e.g. `nuclei`, `burp` |
 | `internal_notes` | string | |
-| `operators` | string[] ≤ 20 | **usernames**; must be active `write_all`/`admin` accounts |
+| `operators` | string[] ≤ 20 | **usernames**; must be active `admin`, `write_all` or `write_restricted` accounts |
 | `status` | `"draft"` (default) \| `"saved_local"` | the caller decides per request |
 | `metadata` | object | stored as-is; ≤ 64 KB together with unknown fields |
 | *(any other field)* | any | stored in metadata |

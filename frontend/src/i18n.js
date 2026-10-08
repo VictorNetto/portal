@@ -78,6 +78,8 @@ const messages = {
       admin: 'Administrador',
       write_all: 'Editor',
       read_all: 'Leitor',
+      write_restricted: 'Editor restrito',
+      read_restricted: 'Leitor restrito',
       auditor: 'Auditor',
     },
     audit: {
@@ -279,6 +281,7 @@ const messages = {
       sourcesPh: 'Web App, API, Network',
       operators: 'Operadores',
       addOperator: 'Adicionar operador',
+      sharedWith: 'Compartilhado com',
       searchUser: 'Buscar usuário',
       noOtherUsers: 'Nenhum outro usuário.',
       description: 'Descrição',
@@ -454,7 +457,7 @@ const messages = {
       save: 'Save',
       mustChange: 'must change password',
     },
-    roles: { admin: 'Administrator', write_all: 'Editor', read_all: 'Reader', auditor: 'Auditor' },
+    roles: { admin: 'Administrator', write_all: 'Editor', read_all: 'Reader', write_restricted: 'Restricted editor', read_restricted: 'Restricted reader', auditor: 'Auditor' },
     audit: {
       title: 'Audit Logs',
       subtitle: 'Record of every action in the portal.',
@@ -646,6 +649,7 @@ const messages = {
       sourcesPh: 'Web App, API, Network',
       operators: 'Operators',
       addOperator: 'Add operator',
+      sharedWith: 'Shared with',
       searchUser: 'Search user',
       noOtherUsers: 'No other users.',
       description: 'Description',

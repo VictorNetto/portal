@@ -112,3 +112,33 @@ Files are never exposed directly: the API proxies every read, so authentication 
 **Why:** unblocks attachments now without changing any endpoint; production can pick `s3` (MinIO or an equivalent such as SeaweedFS/Garage) later with a config change.
 
 **Open:** the local volume must be included in backups when this backend is used in production (`docs/DEPLOYMENT.md`).
+
+---
+
+## D10 — Restricted roles and per-record access ✅
+
+**Context:** with many users, most should not see (or touch) every record. Two roles were added next to the original ones, and the original two were renamed `writer_all → write_all`, `reader_all → read_all` (migration `f4d6e8a0b2c3` renames the enum values in place, so existing users and API keys keep their access).
+
+| Role | Sees | Changes |
+|---|---|---|
+| `admin` | everything | everything |
+| `write_all` | everything | everything |
+| `read_all` | everything | nothing |
+| `auditor` | everything | nothing (plus the audit log) |
+| `write_restricted` | records it **created**, **operates**, or was **shared** | creates its own; edits records it created or operates; deletes only what it created |
+| `read_restricted` | records it created/operates, or was **shared** with | nothing |
+
+**How it works**
+- Per-record lists: `viewers` ("Shared with") on every vulnerability and report, set by anyone who can edit that record. No groups yet — access is granted user by user.
+- A report's vulnerabilities follow the report: whoever reads/edits the report reads/edits them (under the report lock, as before).
+- Enforcement is in one module (`backend/app/access.py`), used by every service: lists and the RVS queue are filtered in SQL; single-record reads, exports (single and batch), attachments and the lifecycle actions check the record.
+- A record the user may not read answers **404, never 403**, so its existence is not revealed. A readable record the user may not change answers 403.
+- The UI mirrors the same rules (`frontend/src/access.js`) so it only offers what will work; the server never trusts it.
+- The creator always keeps access, so removing yourself as operator cannot strand a record.
+- Ingest: operators named in a payload may also be `write_restricted` users.
+
+**Consequences / open points**
+- Restricted writers can list user names (needed to pick operators); restricted readers cannot.
+- Dispatch, RVS acknowledgment and the post-acknowledgment transitions follow "may edit this record". Tighten them in the constraints catalogue if needed.
+- Not covered by this decision: groups/teams, sharing requests, read-only sharing for `write_*` roles.
+

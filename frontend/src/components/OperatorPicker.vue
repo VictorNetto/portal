@@ -9,6 +9,7 @@ const props = defineProps({
   modelValue: { type: Set, required: true },
   users: { type: Array, default: () => [] },
   disabled: { type: Boolean, default: false },
+  showSelf: { type: Boolean, default: true },   // keep the logged user visible even when unselected
 })
 const emit = defineEmits(['update:modelValue'])
 
@@ -19,7 +20,7 @@ const q = ref('')
 const root = ref(null)
 
 const shown = computed(() => props.users.filter((u) =>
-  props.modelValue.has(u.id) || (!props.disabled && u.id === selfId.value)))
+  props.modelValue.has(u.id) || (props.showSelf && !props.disabled && u.id === selfId.value)))
 const addable = computed(() => {
   const needle = q.value.trim().toLowerCase()
   return props.users.filter((u) => !shown.value.some((s) => s.id === u.id)

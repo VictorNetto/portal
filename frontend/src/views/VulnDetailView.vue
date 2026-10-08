@@ -18,13 +18,16 @@ import CvssInput from '../components/CvssInput.vue'
 import MultiValueInput from '../components/MultiValueInput.vue'
 import AttachmentsPanel from '../components/AttachmentsPanel.vue'
 import OperatorPicker from '../components/OperatorPicker.vue'
+import { canCreate, canWriteRecord, canDeleteRecord } from '../access'
 import VulnTimeline from '../components/VulnTimeline.vue'
 
 const route = useRoute()
 const router = useRouter()
 const auth = useAuthStore()
 const isAdmin = computed(() => auth.user?.role === 'admin')
-const isWriter = computed(() => ['admin', 'write_all'].includes(auth.user?.role))
+// May this user change THIS record? (new records: may they create at all)
+const isWriter = computed(() => (isNew.value ? canCreate(auth.user) : canWriteRecord(auth.user, vuln.value, reportCtx.value)))
+const mayDelete = computed(() => !!vuln.value && canDeleteRecord(auth.user, vuln.value, reportCtx.value))
 const isNew = computed(() => ['vuln-new', 'report-vuln-new'].includes(route.name))
 
 // This is always a vulnerability view -> green accent.
@@ -62,6 +65,13 @@ const showErrors = ref(false) // validation messages appear after a submit attem
 // Operators
 const allUsers = ref([])
 const selectedOps = ref(new Set()) // user ids
+const selectedViewers = ref(new Set())
+// The picker needs a name for everyone on the record, even for users that cannot list all accounts.
+const knownUsers = computed(() => {
+  const byId = new Map(allUsers.value.map((u) => [u.id, u]))
+  for (const u of [...(vuln.value?.operators || []), ...(vuln.value?.viewers || [])]) if (!byId.has(u.id)) byId.set(u.id, u)
+  return [...byId.values()]
+})
 
 // Attachments
 const attachments = ref([])
@@ -100,7 +110,7 @@ const fieldError = (f) => showErrors.value && missing.value.includes(f)
 // --- Load / sync ----------------------------------------------------------
 // Unsaved-changes tracking: a snapshot of what the form held when last loaded/saved.
 const snapshot = ref('')
-const currentState = () => JSON.stringify({ f: form.value, o: [...selectedOps.value].sort() })
+const currentState = () => JSON.stringify({ f: form.value, o: [...selectedOps.value].sort(), v: [...selectedViewers.value].sort() })
 const dirty = computed(() => !loading.value && snapshot.value !== '' && snapshot.value !== currentState())
 const markClean = () => { snapshot.value = currentState() }
 
@@ -114,6 +124,7 @@ function syncForm() {
   }
   form.value = f
   selectedOps.value = new Set((v.operators || []).map((o) => o.id))
+  selectedViewers.value = new Set((v.viewers || []).map((o) => o.id))
   markClean()
 }
 
@@ -121,6 +132,7 @@ function resetForNew() {
   vuln.value = null
   form.value = blankForm()
   selectedOps.value = new Set(auth.user?.id ? [auth.user.id] : [])
+  selectedViewers.value = new Set()
   attachments.value = []
   error.value = notice.value = attachError.value = ''
   showErrors.value = false
@@ -190,6 +202,7 @@ async function persist() {
   if (isNew.value) {
     const body = bodyFromForm(ALL_FIELDS)
     body.operator_ids = [...selectedOps.value]
+    body.viewer_ids = [...selectedViewers.value]
     const created = inReport.value
       ? await createReportVuln(reportId.value, body)
       : await createVuln(body)
@@ -201,7 +214,10 @@ async function persist() {
     return created
   }
   const body = { version: vuln.value.version, ...bodyFromForm([...editableFields.value]) }
-  if (canEdit('operators')) body.operator_ids = [...selectedOps.value]
+  if (canEdit('operators')) {
+    body.operator_ids = [...selectedOps.value]
+    body.viewer_ids = [...selectedViewers.value]
+  }
   vuln.value = await updateVuln(id.value, body)
   syncForm()
   return vuln.value
@@ -458,7 +474,7 @@ watch(() => route.fullPath, () => {
         <p v-else-if="isNew">{{ t('vform.createHint') }}</p>
       </div>
       <div class="pageActions">
-        <button v-if="!isNew && isWriter" class="btn danger" @click="remove">{{ t('rowActions.delete') }}</button>
+        <button v-if="!isNew && mayDelete" class="btn danger" @click="remove">{{ t('rowActions.delete') }}</button>
         <button v-if="!isNew" class="btn" @click="exportAs('pdf')">{{ t('rpt.exportPdf') }}</button>
         <button v-if="!isNew" class="btn" @click="exportAs('docx')">{{ t('rpt.exportDocx') }}</button>
         <button class="btn" @click="leave">{{ inReport ? t('rpt.back') : t('vform.cancel') }}</button>
@@ -549,7 +565,12 @@ watch(() => route.fullPath, () => {
             </div>
             <div class="f">
               <label>{{ t('vform.operators') }}</label>
-              <OperatorPicker v-model="selectedOps" :users="allUsers" :disabled="!canEdit('operators')" />
+              <OperatorPicker v-model="selectedOps" :users="knownUsers" :disabled="!canEdit('operators')" />
+            </div>
+            <div v-if="canEdit('operators') || selectedViewers.size" class="f">
+              <label>{{ t('vform.sharedWith') }}</label>
+              <OperatorPicker v-model="selectedViewers" :users="knownUsers" :show-self="false"
+                              :disabled="!canEdit('operators')" />
             </div>
           </div>
         </div>
