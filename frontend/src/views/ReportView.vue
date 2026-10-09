@@ -15,7 +15,7 @@ import {
 import { attachmentPath } from '../markdown'
 import { t } from '../i18n'
 import { vField } from '../directives'
-import { fmtDateTime, fmtTime, fmtDate, fmtPlainDate } from '../dates'
+import { fmtDateTime, fmtTime } from '../dates'
 import { useAuthStore } from '../stores/auth'
 import AppShell from '../components/AppShell.vue'
 import MarkdownEditor from '../components/MarkdownEditor.vue'
@@ -366,22 +366,68 @@ watch(() => route.fullPath, () => { if (!isNew.value && report.value?.id !== id.
 
 <template>
   <AppShell>
-    <nav class="crumbs">
-      <a @click="router.push('/hub')">{{ t('vform.breadcrumbRoot') }}</a>
-      <span>›</span>
-      <a @click="router.push('/hub?entity=reports')">{{ t('hub.tabReports') }}</a>
-      <span>›</span>
-      <strong>{{ isNew ? t('rpt.newTitle') : (report?.internal_id || '…') }}</strong>
-    </nav>
+    <!-- Fixed top: breadcrumb, title, actions, messages and the lock state stay in view. -->
+    <div class="stickyTop">
+      <nav class="crumbs">
+        <a @click="router.push('/hub')">{{ t('vform.breadcrumbRoot') }}</a>
+        <span>›</span>
+        <a @click="router.push('/hub?entity=reports')">{{ t('hub.tabReports') }}</a>
+        <span>›</span>
+        <strong>{{ isNew ? t('rpt.newTitle') : (report?.internal_id || '…') }}</strong>
+      </nav>
+      <template v-if="isNew">
+        <div class="pageTop">
+          <div class="titleBlock">
+            <h1>{{ t('rpt.newTitle') }}</h1>
+            <p>{{ t('rpt.newHint') }}</p>
+          </div>
+        </div>
+      </template>
+      <template v-else>
+        <div class="pageTop">
+          <div class="titleBlock">
+            <h1>{{ report?.name || '…' }}</h1>
+            <p v-if="report" class="subline">
+              <span class="pill" :class="'s-' + report.status">{{ t('status.' + report.status) }}</span>
+              <span class="mono">{{ report.internal_id }}</span>
+              <span>{{ t('cols.updatedAt') }} {{ fmtDateTime(report.updated_at) }}</span>
+            </p>
+          </div>
+          <div class="pageActions" v-if="report">
+            <button v-if="status === 'draft' && mayDelete" class="btn danger" @click="remove">{{ t('rowActions.delete') }}</button>
+            <button class="btn" @click="router.push('/hub?entity=reports')">{{ t('rpt.back') }}</button>
+            <button class="btn" @click="exportAs('pdf')">{{ t('rpt.exportPdf') }}</button>
+            <button class="btn" @click="exportAs('xlsx')">{{ t('rpt.exportXlsx') }}</button>
+            <button class="btn" @click="exportAs('docx')">{{ t('rpt.exportDocx') }}</button>
+            <button v-if="canTakeLock" class="btn primary" @click="takeLock">{{ t('rpt.edit') }}</button>
+            <button v-if="lockMine && status === 'draft'" class="btn" @click="giveUpLock">{{ t('rpt.stopEditing') }}</button>
+            <button v-if="editing || notesOnly" class="btn" :class="{ primary: !canDispatch }" :disabled="saving" @click="save">
+              {{ saving ? t('vuln.saving') : t('vuln.save') }}
+            </button>
+            <button v-if="canDispatch" class="btn primary" :disabled="dispatching || saving" @click="doDispatch">
+              {{ dispatching ? t('rpt.dispatchingBtn') : (status === 'dispatching' ? t('rpt.retry') : t('actions.dispatch')) }}
+            </button>
+          </div>
+        </div>
+
+        <p v-if="notice" class="ok msg">{{ notice }}</p>
+        <p v-if="error" class="err msg">{{ error }}</p>
+        <!-- lock banner -->
+        <template v-if="report && !loading">
+          <p v-if="status === 'draft' && lockMine" class="banner mine">
+            {{ t('rpt.youAreEditing', { time: fmtTime(lock.expires_at) }) }}
+          </p>
+          <p v-else-if="status === 'draft' && lockOther" class="banner other">
+            {{ t('rpt.lockedBy', { user: lock.holder_username, time: fmtTime(lock.acquired_at) }) }}
+            <button v-if="isAdmin" class="link" @click="forceRelease">{{ t('rpt.forceRelease') }}</button>
+          </p>
+          <p v-else-if="status === 'dispatching' && report.dispatch_error" class="banner other">{{ report.dispatch_error }}</p>
+        </template>
+      </template>
+    </div>
 
     <!-- ===== Create card ===== -->
     <template v-if="isNew">
-      <div class="pageTop">
-        <div class="titleBlock">
-          <h1>{{ t('rpt.newTitle') }}</h1>
-          <p>{{ t('rpt.newHint') }}</p>
-        </div>
-      </div>
       <p v-if="error" class="err msg">{{ error }}</p>
       <section class="panel card createCard">
         <div class="f">
@@ -415,47 +461,9 @@ watch(() => route.fullPath, () => { if (!isNew.value && report.value?.id !== id.
 
     <!-- ===== Editor ===== -->
     <template v-else>
-      <div class="pageTop">
-        <div class="titleBlock">
-          <h1>{{ report?.name || '…' }}</h1>
-          <p v-if="report" class="subline">
-            <span class="pill" :class="'s-' + report.status">{{ t('status.' + report.status) }}</span>
-            <span class="mono">{{ report.internal_id }}</span>
-            <span>{{ t('cols.updatedAt') }} {{ fmtDateTime(report.updated_at) }}</span>
-          </p>
-        </div>
-        <div class="pageActions" v-if="report">
-          <button v-if="status === 'draft' && mayDelete" class="btn danger" @click="remove">{{ t('rowActions.delete') }}</button>
-          <button class="btn" @click="router.push('/hub?entity=reports')">{{ t('rpt.back') }}</button>
-          <button class="btn" @click="exportAs('pdf')">{{ t('rpt.exportPdf') }}</button>
-          <button class="btn" @click="exportAs('xlsx')">{{ t('rpt.exportXlsx') }}</button>
-          <button class="btn" @click="exportAs('docx')">{{ t('rpt.exportDocx') }}</button>
-          <button v-if="canTakeLock" class="btn primary" @click="takeLock">{{ t('rpt.edit') }}</button>
-          <button v-if="lockMine && status === 'draft'" class="btn" @click="giveUpLock">{{ t('rpt.stopEditing') }}</button>
-          <button v-if="editing || notesOnly" class="btn" :class="{ primary: !canDispatch }" :disabled="saving" @click="save">
-            {{ saving ? t('vuln.saving') : t('vuln.save') }}
-          </button>
-          <button v-if="canDispatch" class="btn primary" :disabled="dispatching || saving" @click="doDispatch">
-            {{ dispatching ? t('rpt.dispatchingBtn') : (status === 'dispatching' ? t('rpt.retry') : t('actions.dispatch')) }}
-          </button>
-        </div>
-      </div>
-
-      <p v-if="notice" class="ok msg">{{ notice }}</p>
-      <p v-if="error" class="err msg">{{ error }}</p>
       <p v-if="loading" class="muted">{{ t('vuln.loading') }}</p>
 
       <template v-else-if="report">
-        <!-- lock banner -->
-        <p v-if="status === 'draft' && lockMine" class="banner mine">
-          {{ t('rpt.youAreEditing', { time: fmtTime(lock.expires_at) }) }}
-        </p>
-        <p v-else-if="status === 'draft' && lockOther" class="banner other">
-          {{ t('rpt.lockedBy', { user: lock.holder_username, time: fmtTime(lock.acquired_at) }) }}
-          <button v-if="isAdmin" class="link" @click="forceRelease">{{ t('rpt.forceRelease') }}</button>
-        </p>
-        <p v-else-if="status === 'dispatching' && report.dispatch_error" class="banner other">{{ report.dispatch_error }}</p>
-
         <!-- General -->
         <section class="panel card">
           <h2 class="secTitle">{{ t('rpt.general') }}</h2>
@@ -497,74 +505,76 @@ watch(() => route.fullPath, () => { if (!isNew.value && report.value?.id !== id.
           </div>
         </section>
 
-        <section class="panel card">
-          <h2 class="secTitle">{{ t('rpt.summary') }}</h2>
-          <MarkdownEditor v-model="form.executive_summary_md" :disabled="!editing"
-                          :image-uploader="editing ? uploadEditorImage : null" />
-        </section>
-
-        <section class="panel card">
-          <h2 class="secTitle">{{ t('rpt.intro') }}</h2>
-          <MarkdownEditor v-model="form.introduction_md" :disabled="!editing"
-                          :image-uploader="editing ? uploadEditorImage : null" />
-        </section>
-
-        <!-- Free-form sections -->
-        <section class="panel card">
-          <h2 class="secTitle">{{ t('rpt.extras') }}</h2>
-          <p class="hint">{{ t('rpt.extrasHint') }}</p>
-          <p v-if="!sections.length" class="muted small">{{ t('rpt.noExtras') }}</p>
-          <div v-for="(s, i) in sections" :key="s.key" class="extra">
-            <div class="extraHead">
-              <input v-model="s.title" :disabled="!editing" :placeholder="t('rpt.sectionTitle')" maxlength="200" />
-              <div v-if="editing" class="extraActs">
-                <button class="link" :disabled="i === 0" @click="moveSection(i, -1)">{{ t('rpt.up') }}</button>
-                <button class="link" :disabled="i === sections.length - 1" @click="moveSection(i, 1)">{{ t('rpt.down') }}</button>
-                <button class="link danger" @click="removeSection(i)">{{ t('vform.removeRef') }}</button>
+        <div class="layout">
+          <div class="stack">
+            <section class="panel card">
+              <h2 class="secTitle">{{ t('rpt.summary') }}</h2>
+              <MarkdownEditor v-model="form.executive_summary_md" :disabled="!editing"
+                              :image-uploader="editing ? uploadEditorImage : null" />
+            </section>
+            <section class="panel card">
+              <h2 class="secTitle">{{ t('rpt.intro') }}</h2>
+              <MarkdownEditor v-model="form.introduction_md" :disabled="!editing"
+                              :image-uploader="editing ? uploadEditorImage : null" />
+            </section>
+            <!-- Free-form sections -->
+            <section class="panel card">
+              <h2 class="secTitle">{{ t('rpt.extras') }}</h2>
+              <p class="hint">{{ t('rpt.extrasHint') }}</p>
+              <p v-if="!sections.length" class="muted small">{{ t('rpt.noExtras') }}</p>
+              <div v-for="(s, i) in sections" :key="s.key" class="extra">
+                <div class="extraHead">
+                  <input v-model="s.title" :disabled="!editing" :placeholder="t('rpt.sectionTitle')" maxlength="200" />
+                  <div v-if="editing" class="extraActs">
+                    <button class="link" :disabled="i === 0" @click="moveSection(i, -1)">{{ t('rpt.up') }}</button>
+                    <button class="link" :disabled="i === sections.length - 1" @click="moveSection(i, 1)">{{ t('rpt.down') }}</button>
+                    <button class="link danger" @click="removeSection(i)">{{ t('vform.removeRef') }}</button>
+                  </div>
+                </div>
+                <MarkdownEditor v-model="s.content_markdown" :disabled="!editing"
+                                :image-uploader="editing ? uploadEditorImage : null" />
               </div>
-            </div>
-            <MarkdownEditor v-model="s.content_markdown" :disabled="!editing"
-                            :image-uploader="editing ? uploadEditorImage : null" />
+              <button v-if="editing" class="link addRef" @click="addSection">{{ t('rpt.addSection') }}</button>
+            </section>
           </div>
-          <button v-if="editing" class="link addRef" @click="addSection">{{ t('rpt.addSection') }}</button>
-        </section>
+          <div class="stack">
+            <!-- Vulnerabilities -->
+            <section class="panel card">
+              <div class="secRow">
+                <h2 class="secTitle">{{ t('rpt.vulns') }} ({{ report.vulnerabilities.length }})</h2>
+                <button v-if="editing" class="btn" @click="addVuln">{{ t('rpt.addVuln') }}</button>
+              </div>
+              <p v-if="!report.vulnerabilities.length" class="muted small">{{ t('rpt.noVulns') }}</p>
+              <table v-else class="vt">
+                <thead>
+                  <tr><th>{{ t('cols.identifier') }}</th><th>{{ t('cols.status') }}</th><th>{{ t('cols.cvss') }}</th><th>{{ t('cols.operators') }}</th></tr>
+                </thead>
+                <tbody>
+                  <tr v-for="v in report.vulnerabilities" :key="v.id" @click="openVuln(v)">
+                    <td class="idcell">{{ v.identifier || '—' }}</td>
+                    <td><span class="pill" :class="'s-' + v.status">{{ t('status.' + v.status) }}</span></td>
+                    <td><span v-if="v.cvss_score != null" class="cvss" :class="sevClass(v.cvss_score)">{{ v.cvss_score }}</span><span v-else>—</span></td>
+                    <td>{{ opNames(v) }}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </section>
 
-        <!-- Vulnerabilities -->
-        <section class="panel card">
-          <div class="secRow">
-            <h2 class="secTitle">{{ t('rpt.vulns') }} ({{ report.vulnerabilities.length }})</h2>
-            <button v-if="editing" class="btn" @click="addVuln">{{ t('rpt.addVuln') }}</button>
+            <section class="panel card">
+              <h2 class="secTitle">{{ t('rpt.evidence') }}</h2>
+              <p class="hint">{{ t('rpt.evidenceHint') }}</p>
+              <AttachmentsPanel :attachments="evidence" :disabled="!editing" :uploading="evUploading" :error="evError"
+                                @upload="onEvidenceUpload" @remove="removeEvidence"
+                                @download="downloadEvidence" @copy-markdown="copyEvidenceMarkdown" />
+            </section>
+
+            <section class="panel card">
+              <h2 class="secTitle">{{ t('vform.notes') }}</h2>
+              <p class="hint">{{ t('vform.notesHint') }}</p>
+              <MarkdownEditor v-model="form.internal_notes" :disabled="!canEditNotes" />
+            </section>
           </div>
-          <p v-if="!report.vulnerabilities.length" class="muted small">{{ t('rpt.noVulns') }}</p>
-          <table v-else class="vt">
-            <thead>
-              <tr><th>{{ t('cols.identifier') }}</th><th>{{ t('cols.status') }}</th><th>{{ t('cols.cvss') }}</th><th>{{ t('cols.operators') }}</th><th>{{ t('cols.updatedAt') }}</th></tr>
-            </thead>
-            <tbody>
-              <tr v-for="v in report.vulnerabilities" :key="v.id" @click="openVuln(v)">
-                <td class="idcell">{{ v.identifier || '—' }}</td>
-                <td><span class="pill" :class="'s-' + v.status">{{ t('status.' + v.status) }}</span></td>
-                <td><span v-if="v.cvss_score != null" class="cvss" :class="sevClass(v.cvss_score)">{{ v.cvss_score }}</span><span v-else>—</span></td>
-                <td>{{ opNames(v) }}</td>
-                <td class="muted">{{ fmtDate(v.updated_at) }}</td>
-              </tr>
-            </tbody>
-          </table>
-        </section>
-
-        <section class="panel card">
-          <h2 class="secTitle">{{ t('rpt.evidence') }}</h2>
-          <p class="hint">{{ t('rpt.evidenceHint') }}</p>
-          <AttachmentsPanel :attachments="evidence" :disabled="!editing" :uploading="evUploading" :error="evError"
-                            @upload="onEvidenceUpload" @remove="removeEvidence"
-                            @download="downloadEvidence" @copy-markdown="copyEvidenceMarkdown" />
-        </section>
-
-        <section class="panel card">
-          <h2 class="secTitle">{{ t('vform.notes') }}</h2>
-          <p class="hint">{{ t('vform.notesHint') }}</p>
-          <MarkdownEditor v-model="form.internal_notes" :disabled="!canEditNotes" />
-        </section>
+        </div>
       </template>
     </template>
   </AppShell>
@@ -588,6 +598,8 @@ watch(() => route.fullPath, () => { if (!isNew.value && report.value?.id !== id.
 .banner .link { margin-left: 12px; }
 
 .card { padding: 16px 18px 18px; margin-bottom: 16px; overflow: visible; }
+.layout { display: grid; grid-template-columns: minmax(0, 1.45fr) minmax(340px, .9fr); gap: 16px; align-items: start; }
+.stack { min-width: 0; }
 .secTitle { margin: 0 0 12px; font-size: 14px; font-weight: 400; color: var(--text); }
 .secRow { display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px; }
 .hint { margin: -6px 0 12px; color: var(--muted); font-size: 12px; }
@@ -616,5 +628,5 @@ watch(() => route.fullPath, () => { if (!isNew.value && report.value?.id !== id.
 .vt td { cursor: pointer; }
 .vt .idcell { font-family: var(--mono); }
 
-@media (max-width: 1100px) { .grid4 { grid-template-columns: 1fr 1fr; } }
+@media (max-width: 1100px) { .grid4 { grid-template-columns: 1fr 1fr; } .layout { grid-template-columns: 1fr; } }
 </style>

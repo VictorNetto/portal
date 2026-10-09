@@ -102,6 +102,18 @@ button { cursor: pointer; }
 
 /* ---------- Page header ---------- */
 .pageTop { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; margin-bottom: 22px; }
+
+/* Detail pages: breadcrumb, title, actions and messages stay at the top while the form
+   scrolls. It covers the scroll area's padding (28px 32px, see AppShell .main) so content
+   passes underneath it cleanly. */
+.stickyTop {
+  position: sticky; top: -28px; z-index: 6;   /* sticky offsets count from inside .main's padding */
+  margin: -28px -32px 18px; padding: 24px 32px 0;
+  background: var(--bg); border-bottom: 1px solid var(--line);
+}
+.stickyTop .pageTop { margin-bottom: 14px; }
+.stickyTop .banner, .stickyTop .msg { margin: 0 0 12px; }
+@media (max-width: 700px) { .stickyTop { position: static; } }
 .titleBlock h1 { margin: 0 0 4px; font-weight: 300; font-size: 26px; color: var(--text); letter-spacing: -.01em; }
 .titleBlock p { margin: 0; color: var(--muted); font-size: 13px; }
 

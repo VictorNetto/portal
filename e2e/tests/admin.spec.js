@@ -133,7 +133,8 @@ test.describe('administration', () => {
 
     await page.selectOption('.pageTop select', 'login')
     await expect(page.locator('tbody .act').first()).toHaveText('login')
-    expect(await page.locator('tbody .act').evaluateAll((els) => els.every((e) => e.textContent === 'login'))).toBe(true)
+    // the filtered list replaces the unfiltered one asynchronously: wait for it to settle
+    await expect.poll(() => page.locator('tbody .act').evaluateAll((els) => els.every((e) => e.textContent === 'login'))).toBe(true)
     await expect(page.locator('tbody')).toContainText(user.username)
     await expect(page.locator('.pageInfo').first()).toContainText('registros')
   })

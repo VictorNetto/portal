@@ -54,6 +54,9 @@ const reportId = computed(() =>
 const inReport = computed(() => !!reportId.value)
 const rLock = computed(() => reportCtx.value?.lock || null)
 const lockMine = computed(() => !!rLock.value?.mine)
+// A vuln of a free draft report: offer to take the report's lock (as on the report page).
+const canTakeReportLock = computed(() =>
+  inReport.value && reportCtx.value?.status === 'draft' && !rLock.value && isWriter.value)
 const lockOther = computed(() => !!rLock.value && !rLock.value.mine)
 const form = ref(blankForm())
 const loading = ref(!isNew.value)
@@ -449,46 +452,59 @@ watch(() => route.fullPath, () => {
 
 <template>
   <AppShell>
-    <nav class="crumbs">
-      <a @click="router.push('/hub')">{{ t('vform.breadcrumbRoot') }}</a>
-      <span>›</span>
-      <template v-if="inReport">
-        <a @click="router.push('/hub?entity=reports')">{{ t('hub.tabReports') }}</a>
+    <!-- Fixed top: breadcrumb, title, actions, messages and the lock state stay in view. -->
+    <div class="stickyTop">
+      <nav class="crumbs">
+        <a @click="router.push('/hub')">{{ t('vform.breadcrumbRoot') }}</a>
         <span>›</span>
-        <a @click="leave">{{ reportCtx?.internal_id || '…' }}</a>
-        <span>›</span>
-      </template>
-      <template v-else>
-        <a @click="router.push('/hub')">{{ t('vform.breadcrumbSection') }}</a>
-        <span>›</span>
-      </template>
-      <strong>{{ isNew ? t('vform.createTitle') : (vuln?.internal_id || vuln?.identifier || t('vuln.draft')) }}</strong>
-    </nav>
+        <template v-if="inReport">
+          <a @click="router.push('/hub?entity=reports')">{{ t('hub.tabReports') }}</a>
+          <span>›</span>
+          <a @click="leave">{{ reportCtx?.internal_id || '…' }}</a>
+          <span>›</span>
+        </template>
+        <template v-else>
+          <a @click="router.push('/hub')">{{ t('vform.breadcrumbSection') }}</a>
+          <span>›</span>
+        </template>
+        <strong>{{ isNew ? t('vform.createTitle') : (vuln?.internal_id || vuln?.identifier || t('vuln.draft')) }}</strong>
+      </nav>
 
-    <div class="pageTop">
-      <div class="titleBlock">
-        <h1 :class="{ mono: !isNew }">
-          {{ isNew ? t('vform.createTitle') : (vuln?.internal_id || t('vuln.draft')) }}
-        </h1>
-        <p v-if="vuln">{{ t('status.' + vuln.status) }} · v{{ vuln.version }}</p>
-        <p v-else-if="isNew">{{ t('vform.createHint') }}</p>
-      </div>
-      <div class="pageActions">
-        <button v-if="!isNew && mayDelete" class="btn danger" @click="remove">{{ t('rowActions.delete') }}</button>
-        <button v-if="!isNew" class="btn" @click="exportAs('pdf')">{{ t('rpt.exportPdf') }}</button>
-        <button v-if="!isNew" class="btn" @click="exportAs('docx')">{{ t('rpt.exportDocx') }}</button>
-        <button class="btn" @click="leave">{{ inReport ? t('rpt.back') : t('vform.cancel') }}</button>
-        <button v-if="isAdmin && correctionTargets.length" class="btn" @click="openCorrection">
-          {{ t('correction.button') }}
-        </button>
-        <button v-for="a in nextActions" :key="a.to" class="btn" :class="{ primary: a.primary }"
-                @click="doTransition(a)">{{ t(a.label) }}</button>
-        <button v-if="isSavedLocal && isWriter" class="btn" @click="doDispatch">{{ t('actions.dispatch') }}</button>
-        <button v-if="isDraft && isWriter" class="btn" :disabled="saving" @click="doSend">{{ t('vform.send') }}</button>
+      <div class="pageTop">
+        <div class="titleBlock">
+          <h1 :class="{ mono: !isNew }">
+            {{ isNew ? t('vform.createTitle') : (vuln?.internal_id || vuln?.identifier || t('vuln.draft')) }}
+          </h1>
+          <p v-if="vuln">{{ t('status.' + vuln.status) }} · v{{ vuln.version }}</p>
+          <p v-else-if="isNew">{{ t('vform.createHint') }}</p>
+        </div>
+        <div class="pageActions">
+          <button v-if="!isNew && mayDelete" class="btn danger" @click="remove">{{ t('rowActions.delete') }}</button>
+          <button v-if="!isNew" class="btn" @click="exportAs('pdf')">{{ t('rpt.exportPdf') }}</button>
+          <button v-if="!isNew" class="btn" @click="exportAs('docx')">{{ t('rpt.exportDocx') }}</button>
+          <button class="btn" @click="leave">{{ inReport ? t('rpt.back') : t('vform.cancel') }}</button>
+          <button v-if="isAdmin && correctionTargets.length" class="btn" @click="openCorrection">
+            {{ t('correction.button') }}
+          </button>
+          <button v-for="a in nextActions" :key="a.to" class="btn" :class="{ primary: a.primary }"
+                  @click="doTransition(a)">{{ t(a.label) }}</button>
+          <button v-if="isSavedLocal && isWriter" class="btn" @click="doDispatch">{{ t('actions.dispatch') }}</button>
+          <button v-if="isDraft && isWriter" class="btn" :disabled="saving" @click="doSend">{{ t('vform.send') }}</button>
+          <button v-if="canTakeReportLock" class="btn primary" @click="takeLock">{{ t('rpt.edit') }}</button>
         <button v-if="editableFields.size" class="btn primary" :disabled="saving" @click="save">
-          {{ saving ? t('vuln.saving') : (isDraft ? t('vform.saveDraft') : t('vuln.save')) }}
-        </button>
+            {{ saving ? t('vuln.saving') : (isDraft ? t('vform.saveDraft') : t('vuln.save')) }}
+          </button>
+        </div>
       </div>
+
+      <p v-if="inReport && reportCtx && reportCtx.status === 'draft' && (lockMine || lockOther)" class="banner"
+         :class="lockMine ? 'mine' : 'other'">
+        <template v-if="lockMine">{{ t('vrep.editing', { report: reportCtx.internal_id, time: fmtTime(rLock.expires_at) }) }}</template>
+        <template v-else>{{ t('vrep.lockedBy', { user: rLock.holder_username, report: reportCtx.internal_id }) }}</template>
+      </p>
+
+      <p v-if="notice" class="ok msg">{{ notice }}</p>
+      <p v-if="error" class="err msg">{{ error }}</p>
     </div>
 
     <section v-if="showCorrection" class="panel card correction">
@@ -514,17 +530,6 @@ watch(() => route.fullPath, () => {
       </div>
     </section>
 
-    <p v-if="inReport && reportCtx && reportCtx.status === 'draft' && (lockMine || lockOther)" class="banner"
-       :class="lockMine ? 'mine' : 'other'">
-      <template v-if="lockMine">{{ t('vrep.editing', { report: reportCtx.internal_id, time: fmtTime(rLock.expires_at) }) }}</template>
-      <template v-else>{{ t('vrep.lockedBy', { user: rLock.holder_username, report: reportCtx.internal_id }) }}</template>
-    </p>
-    <p v-else-if="inReport && reportCtx && reportCtx.status === 'draft' && isWriter" class="banner free">
-      <button class="link" @click="takeLock">{{ t('rpt.edit') }}</button>
-    </p>
-
-    <p v-if="notice" class="ok msg">{{ notice }}</p>
-    <p v-if="error" class="err msg">{{ error }}</p>
 
     <p v-if="loading" class="muted">{{ t('vuln.loading') }}</p>
     <template v-else>
@@ -656,7 +661,6 @@ watch(() => route.fullPath, () => {
 
 .msg { margin: 0 0 14px; font-size: 13px; }
 .ok { color: var(--accent); }
-.locked { background: var(--st-wait-bg); color: var(--st-wait-fg); padding: .6rem .8rem; border-radius: var(--radius); margin: 0 0 16px; }
 
 .card { padding: 16px 18px 18px; margin-bottom: 16px; overflow: visible; }
 .secTitle { margin: 0 0 12px; font-size: 14px; font-weight: 400; color: var(--text); }
