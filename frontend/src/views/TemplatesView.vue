@@ -246,6 +246,8 @@ onMounted(async () => {
               <button class="btn" @click="select(null)">{{ t('common.close') }}</button>
             </template>
           </header>
+          <!-- Only this part scrolls: the title and its buttons stay in view. -->
+          <div class="dBody">
           <dl class="facts">
             <dt>{{ t('tpls.owner') }}</dt><dd>{{ detail.mine ? t('tpls.me') : detail.owner.username }}</dd>
             <dt>{{ t('tpls.statusCol') }}</dt>
@@ -315,6 +317,7 @@ onMounted(async () => {
               <button class="link addSection" @click="addSection">{{ t('rpt.addSection') }}</button>
             </section>
           </div>
+          </div>
         </template>
       </aside>
     </div>
@@ -348,7 +351,9 @@ onMounted(async () => {
 .pill.t-unshared { color: var(--danger); background: var(--panel-2); }
 .ok { color: var(--accent); }
 
-.detail { padding: 16px 18px 18px; position: sticky; top: 0; max-height: calc(100vh - 140px); overflow: auto; }
+.detail { padding: 16px 18px 0; position: sticky; top: 0; max-height: calc(100vh - 140px); display: flex; flex-direction: column; overflow: hidden; }
+.detail > .dHead { flex: 0 0 auto; padding-bottom: 12px; margin-bottom: 0; border-bottom: 1px solid var(--line); }
+.dBody { flex: 1 1 auto; min-height: 0; overflow: auto; padding: 12px 0 18px; }
 .dHead { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
 .dName { margin: 0; font-size: 18px; font-weight: 400; flex: 1; min-width: 0; }
 .nameInput { flex: 1; min-width: 0; font-size: 15px; }
