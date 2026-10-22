@@ -59,6 +59,13 @@ def test_templates_are_private_unless_an_admin_shares_them(admin, writer, writer
     assert new_report(rw, template_id=mine["id"])["introduction_md"] == BODY["introduction_md"]
 
 
+def test_readers_and_auditors_have_no_access_to_templates(admin, reader, auditor):
+    shared = template(admin, is_global=True)
+    for c in (reader, auditor):
+        assert c.get("/report-templates").status_code == 403
+        assert c.get(f"/report-templates/{shared['id']}").status_code == 403
+
+
 def test_only_an_admin_shares_and_readers_cannot_save(admin, writer, reader):
     assert writer.post("/report-templates", {"name": f"pytest-tpl-{tag()}", "is_global": True}).status_code == 403
     assert template(admin, is_global=True)["is_global"]

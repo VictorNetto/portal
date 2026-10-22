@@ -1,7 +1,8 @@
 """Report template rules.
 
-Who sees a template: its owner, everyone when it is global, and admins (all of them).
-Who saves one: anyone who can create reports. Only an admin makes a template global.
+Templates only matter to people who create reports: other roles get 403 everywhere here.
+Among those, a template is seen by its owner, by everyone when it is global, and by admins
+(all of them). Only an admin makes a template global.
 """
 
 import uuid
@@ -28,8 +29,14 @@ def _can_see(user: User, tpl: ReportTemplate) -> bool:
     return user.role == UserRole.admin or tpl.is_global or tpl.owner_id == user.id
 
 
+def _require_creator(user: User) -> None:
+    if not access.can_create(user):
+        raise HTTPException(status.HTTP_403_FORBIDDEN, access.FORBIDDEN)
+
+
 def get_visible(session: Session, template_id: uuid.UUID, user: User) -> ReportTemplate:
     """A template the user may see; 404 otherwise (its existence is not revealed)."""
+    _require_creator(user)
     tpl = session.get(ReportTemplate, template_id)
     if tpl is None or not _can_see(user, tpl):
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Template not found")
@@ -55,6 +62,7 @@ def to_out(tpl: ReportTemplate, user: User) -> TemplateOut:
 
 
 def list_templates(session: Session, user: User) -> list[TemplateListItem]:
+    _require_creator(user)
     stmt = select(ReportTemplate).order_by(ReportTemplate.name)
     if user.role != UserRole.admin:
         stmt = stmt.where(or_(ReportTemplate.owner_id == user.id, ReportTemplate.is_global.is_(True)))
@@ -62,8 +70,7 @@ def list_templates(session: Session, user: User) -> list[TemplateListItem]:
 
 
 def create(session: Session, body: TemplateCreate, user: User, request: Request) -> TemplateOut:
-    if not access.can_create(user):
-        raise HTTPException(status.HTTP_403_FORBIDDEN, access.FORBIDDEN)
+    _require_creator(user)
     if body.is_global and user.role != UserRole.admin:
         raise HTTPException(status.HTTP_403_FORBIDDEN, "Only an admin can make a template available to everyone")
     name = body.name.strip()
