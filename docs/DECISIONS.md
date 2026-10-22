@@ -159,19 +159,23 @@ Seções Adicionais (titles, order, content). Nothing else (no client, dates, pe
 - *Copied, not linked:* the report receives a copy; later changes to the template never reach it.
   The report remembers which template it came from (`reports.template_id`, set to NULL if the
   template is ever deleted).
-- *Visibility:* a template is private to its owner. `is_global` makes it available to everyone; only
-  an admin can set it (at save time, or `PATCH /report-templates/{id}`). Admins see every template.
-  A template a user may not see answers 404, and cannot be used to create a report (422).
+- *Sharing is reviewed* (replaces the earlier "admin shares directly"):
 
-**Templates page** (left menu, for users who can create reports): list with search and a "whose"
-filter, a rendered preview, and — when allowed — **Editar** (name, texts, sections) and **Excluir**.
+  | State | Who sees / uses it | Owner may | Admin may |
+  |---|---|---|---|
+  | `private` | its owner | edit, delete, **request** sharing | edit, delete |
+  | `pending` | its owner (frozen) | **withdraw** the request | **approve** / **reject** (→ private) |
+  | `shared` | everyone | nothing — recreate it to change it | edit, delete, **unshare** |
+  | `unshared` | nobody (owner included; admins see it, cannot use it) | — | delete, **reshare** |
 
-**Who may edit or delete (option B):** the owner while the template is private; admins always.
-Once a template is shared with everyone only admins change or delete it, so a template others rely
-on cannot change or disappear behind their backs. Edits carry a `version` (409 on a stale one, like
-vulnerabilities). Deleting never touches reports created from the template. Readers and auditors
-have no access to templates at all (403). All changes are audited.
+  Only the owner requests; only an admin approves — admins' own templates go through the same two
+  steps, and nothing can be shared at creation. The owner is warned before requesting that an approved
+  template leaves their control. `POST /report-templates/{id}/sharing {action}`; every step is
+  audited, and the template records when it was requested and who decided, when.
+- *Admins* see every template (with an "N aguardando aprovação" queue on the Templates page) and may
+  edit or delete any of them. A template a user may not see answers 404 and cannot start a report (422).
+- *Editing* carries a `version` (409 on a stale one). Deleting never touches reports created from it.
+  Readers and auditors have no access to templates at all (403).
 
-**Not yet:** duplicate, create from scratch on the page, and the admin share/unshare toggle in the UI
-(the API supports it). See `BACKLOG.md`.
+**Not yet:** duplicate, and create from scratch on the page. See `BACKLOG.md`.
 

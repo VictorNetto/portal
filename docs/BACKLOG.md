@@ -7,13 +7,13 @@ When one is picked up, move its outcome to `DECISIONS.md` and delete it here.
 
 ## Report template management — what is left
 
-Built (D11): save from a report, pick on creation, Templates page with preview, edit and delete,
-option B (once shared, admins only).
+Built (D11): save from a report, pick on creation, Templates page with preview, edit, delete, and
+reviewed sharing (owner requests → admin approves; admin unshares / reshares).
 Still open:
 - **Duplicar**: copy a shared template into my own list (the owner's way to keep working on a
-  template an admin shared).
+  template once it is shared — today they would recreate it by hand).
+- A reason when an admin rejects or unshares, shown to the owner; a notification for new requests.
 - **Novo template** from scratch on the page.
-- Admin **share / unshare** toggle on the page (API: `PATCH /report-templates/{id}` with `is_global`).
 - Placeholders such as `{cliente}`, `{inicio}`, `{fim}` filled in on creation.
 - Images in templates: today an embedded image still points to the source report's attachment,
   so people without access to that report see it broken. Needs template-owned attachments.

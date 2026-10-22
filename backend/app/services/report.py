@@ -193,7 +193,7 @@ def _apply_template(session: Session, report: Report, template_id: uuid.UUID, us
     from app.services import report_template
 
     try:
-        tpl = report_template.get_visible(session, template_id, user)
+        tpl = report_template.get_usable(session, template_id, user)
     except HTTPException:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Unknown template") from None
     report.template_id = tpl.id

@@ -1,11 +1,13 @@
 <script setup>
-// Report templates (D11). Find a template, read it, and — when allowed — edit or delete it.
-// Editing: the owner while the template is private; admins always (once a template is
-// shared with everyone, only admins change it). The server enforces the same rules.
+// Report templates (D11). Find a template, read it, and — when allowed — edit, delete or share it.
+// Sharing is reviewed: the owner asks, an admin approves; once shared only admins change it,
+// and an admin may withdraw it (then nobody can use it). The server enforces all of it; the
+// page only offers what the server says this user may do (can_edit, actions).
 import { ref, computed, watch, onMounted } from 'vue'
 import { useRoute, useRouter, onBeforeRouteLeave } from 'vue-router'
 import {
-  listReportTemplates, getReportTemplate, updateReportTemplate, deleteReportTemplate, ApiError,
+  listReportTemplates, getReportTemplate, updateReportTemplate, deleteReportTemplate,
+  changeTemplateSharing, ApiError,
 } from '../api'
 import { useAuthStore } from '../stores/auth'
 import { fmtDate, fmtDateTime } from '../dates'
@@ -28,11 +30,15 @@ const notice = ref('')
 const q = ref('')
 const scope = ref('')   // '' all | mine | global | others (admins only)
 const scopeOf = (x) => (x.mine ? 'mine' : x.is_global ? 'global' : 'others')
+const statusFilter = ref('')
+const pendingCount = computed(() => templates.value.filter((x) => x.share_status === 'pending' && x.actions.includes('approve')).length)
+function showPending() { scope.value = ''; statusFilter.value = 'pending' }
 const filtered = computed(() => {
   const needle = q.value.trim().toLowerCase()
   return templates.value.filter((x) =>
     (!needle || x.name.toLowerCase().includes(needle) || x.owner.username.toLowerCase().includes(needle)) &&
-    (!scope.value || scopeOf(x) === scope.value))
+    (!scope.value || scopeOf(x) === scope.value) &&
+    (!statusFilter.value || x.share_status === statusFilter.value))
 })
 
 async function load() {
@@ -54,7 +60,28 @@ async function loadDetail() {
 }
 watch(selectedId, loadDetail)
 
-const availability = (x) => (x.is_global ? t('tpls.forAll') : t('tpls.onlyOwner'))
+const statusLabel = (x) => t('tpls.status.' + x.share_status)
+
+// --- sharing steps (only the ones the server lists for this user) --------------------------
+const ACTION_ORDER = ['request', 'withdraw', 'reject', 'approve', 'unshare', 'reshare']
+const PRIMARY = new Set(['request', 'approve', 'reshare'])
+const CONFIRM = { request: 'tpls.confirmRequest', unshare: 'tpls.confirmUnshare' }
+const sharingActions = computed(() => ACTION_ORDER.filter((a) => detail.value?.actions.includes(a)))
+const acting = ref(false)
+async function share(action) {
+  const d = detail.value
+  if (CONFIRM[action] && !confirm(t(CONFIRM[action], { name: d.name }))) return
+  acting.value = true; detailError.value = ''
+  try {
+    const updated = await changeTemplateSharing(d.id, action)
+    notice.value = t('tpls.done.' + action, { name: d.name })
+    await load()
+    // still visible to me? (an owner no longer sees a template an admin withdrew)
+    if (templates.value.some((x) => x.id === updated.id)) detail.value = updated
+    else await router.replace({ path: '/templates' })
+  } catch (e) { detailError.value = e instanceof ApiError ? e.detail : t('errors.save') }
+  finally { acting.value = false }
+}
 
 // --- editing ---------------------------------------------------------------------------
 const editing = ref(false)
@@ -166,6 +193,13 @@ onMounted(async () => {
             <option value="global">{{ t('tpl.group.global') }}</option>
             <option v-if="isAdmin" value="others">{{ t('tpl.group.others') }}</option>
           </select>
+          <select v-model="statusFilter" class="filterSel">
+            <option value="">{{ t('tpls.allStatuses') }}</option>
+            <option v-for="s in ['private', 'pending', 'shared', ...(isAdmin ? ['unshared'] : [])]" :key="s" :value="s">
+              {{ t('tpls.status.' + s) }}
+            </option>
+          </select>
+          <button v-if="pendingCount" class="link queue" @click="showPending">{{ t('tpls.pendingQueue', { n: pendingCount }) }}</button>
           <span class="count mono">{{ filtered.length }} / {{ templates.length }}</span>
         </div>
 
@@ -175,7 +209,7 @@ onMounted(async () => {
               <tr>
                 <th>{{ t('tpls.name') }}</th>
                 <th>{{ t('tpls.owner') }}</th>
-                <th>{{ t('tpls.availability') }}</th>
+                <th>{{ t('tpls.statusCol') }}</th>
                 <th>{{ t('tpls.sections') }}</th>
                 <th>{{ t('cols.updatedAt') }}</th>
               </tr>
@@ -184,7 +218,7 @@ onMounted(async () => {
               <tr v-for="x in filtered" :key="x.id" :class="{ sel: x.id === selectedId }" @click="select(x)">
                 <td class="tname">{{ x.name }}</td>
                 <td>{{ x.mine ? t('tpls.me') : x.owner.username }}</td>
-                <td>{{ availability(x) }}</td>
+                <td><span class="pill" :class="'t-' + x.share_status">{{ statusLabel(x) }}</span></td>
                 <td class="mono">{{ x.section_count }}</td>
                 <td class="dateCell" :title="fmtDateTime(x.updated_at)">{{ fmtDate(x.updated_at) }}</td>
               </tr>
@@ -214,10 +248,23 @@ onMounted(async () => {
           </header>
           <dl class="facts">
             <dt>{{ t('tpls.owner') }}</dt><dd>{{ detail.mine ? t('tpls.me') : detail.owner.username }}</dd>
-            <dt>{{ t('tpls.availability') }}</dt><dd>{{ availability(detail) }}</dd>
+            <dt>{{ t('tpls.statusCol') }}</dt>
+            <dd><span class="pill" :class="'t-' + detail.share_status">{{ statusLabel(detail) }}</span></dd>
+            <template v-if="detail.share_requested_at && detail.share_status === 'pending'">
+              <dt>{{ t('tpls.requestedAt') }}</dt><dd>{{ fmtDateTime(detail.share_requested_at) }}</dd>
+            </template>
+            <template v-if="detail.share_decided_by && detail.share_status !== 'pending'">
+              <dt>{{ t('tpls.decidedBy') }}</dt>
+              <dd>{{ detail.share_decided_by.username }} · {{ fmtDateTime(detail.share_decided_at) }}</dd>
+            </template>
             <dt>{{ t('tpls.createdAt') }}</dt><dd>{{ fmtDateTime(detail.created_at) }}</dd>
             <dt>{{ t('cols.updatedAt') }}</dt><dd>{{ fmtDateTime(detail.updated_at) }}</dd>
           </dl>
+
+          <div v-if="!editing && sharingActions.length" class="shareActs">
+            <button v-for="a in sharingActions" :key="a" class="btn" :class="{ primary: PRIMARY.has(a), danger: a === 'unshare' }"
+                    :disabled="acting" @click="share(a)">{{ t('tpls.action.' + a) }}</button>
+          </div>
 
           <!-- Read -->
           <div v-if="!editing" class="content">
@@ -293,6 +340,12 @@ onMounted(async () => {
 .dateCell { color: var(--muted); font-variant-numeric: tabular-nums; }
 .empty { text-align: center; color: var(--muted); padding: 2rem; }
 .msg { margin: 0 0 12px; font-size: 13px; }
+.queue { font-size: 13px; }
+.shareActs { display: flex; gap: 8px; flex-wrap: wrap; margin: 0 0 14px; }
+.pill.t-private { color: var(--st-draft-fg); background: var(--st-draft-bg); }
+.pill.t-pending { color: var(--st-wait-fg); background: var(--st-wait-bg); }
+.pill.t-shared { color: var(--st-fixed-fg); background: var(--st-fixed-bg); }
+.pill.t-unshared { color: var(--danger); background: var(--panel-2); }
 .ok { color: var(--accent); }
 
 .detail { padding: 16px 18px 18px; position: sticky; top: 0; max-height: calc(100vh - 140px); overflow: auto; }

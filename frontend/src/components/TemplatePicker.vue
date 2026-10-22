@@ -13,12 +13,14 @@ const emit = defineEmits(['update:modelValue'])
 const open = ref(false)
 const root = ref(null)
 
-const chosen = computed(() => props.templates.find((tpl) => tpl.id === props.modelValue) || null)
+// Unshared templates are available to nobody (admins see them on the Templates page only).
+const usable = computed(() => props.templates.filter((x) => x.can_use))
+const chosen = computed(() => usable.value.find((tpl) => tpl.id === props.modelValue) || null)
 // Mine first, then the ones shared with everyone, then (admins only) other users' ones.
 const groups = computed(() => [
-  { key: 'mine', items: props.templates.filter((x) => x.mine) },
-  { key: 'global', items: props.templates.filter((x) => !x.mine && x.is_global) },
-  { key: 'others', items: props.templates.filter((x) => !x.mine && !x.is_global) },
+  { key: 'mine', items: usable.value.filter((x) => x.mine) },
+  { key: 'global', items: usable.value.filter((x) => !x.mine && x.is_global) },
+  { key: 'others', items: usable.value.filter((x) => !x.mine && !x.is_global) },
 ].filter((g) => g.items.length))
 
 function pick(id) {
@@ -44,10 +46,10 @@ onUnmounted(() => document.removeEventListener('click', onDoc))
                 :class="{ current: x.id === modelValue }" @click="pick(x.id)">
           <span class="tplName">{{ x.name }}</span>
           <span v-if="g.key === 'others'" class="tplOwner">{{ x.owner.username }}</span>
-          <span v-else-if="g.key === 'mine' && x.is_global" class="tplOwner">{{ t('tpl.sharedTag') }}</span>
+          <span v-else-if="g.key === 'mine' && x.share_status !== 'private'" class="tplOwner">{{ t('tpls.status.' + x.share_status) }}</span>
         </button>
       </template>
-      <p v-if="!templates.length" class="tplEmpty">{{ t('tpl.empty') }}</p>
+      <p v-if="!usable.length" class="tplEmpty">{{ t('tpl.empty') }}</p>
     </div>
   </div>
 </template>

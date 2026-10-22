@@ -141,6 +141,8 @@ export const listReportTemplates = () => api('/report-templates')
 export const getReportTemplate = (id) => api(`/report-templates/${id}`)
 export const updateReportTemplate = (id, body) => api(`/report-templates/${id}`, { method: 'PATCH', body })
 export const deleteReportTemplate = (id) => api(`/report-templates/${id}`, { method: 'DELETE' })
+export const changeTemplateSharing = (id, action) =>
+  api(`/report-templates/${id}/sharing`, { method: 'POST', body: { action } })
 export const createReportTemplate = (body) => api('/report-templates', { method: 'POST', body })
 export const updateReport = (id, body) => api(`/reports/${id}`, { method: 'PATCH', body })
 export const deleteReport = (id) => api(`/reports/${id}`, { method: 'DELETE' })

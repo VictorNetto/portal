@@ -2,9 +2,11 @@
 
 import uuid
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel, Field
 
+from app.models.report_template import ShareStatus
 from app.schemas.vulnerability import OperatorRef
 
 MAX_TEXT = 200_000  # same limit as the report's own Markdown fields
@@ -16,38 +18,47 @@ class TemplateSection(BaseModel):
 
 
 class TemplateCreate(BaseModel):
+    """A new template is always private; sharing goes through a request and an admin's approval."""
+
     name: str = Field(min_length=1, max_length=120)
     executive_summary_md: str | None = Field(default=None, max_length=MAX_TEXT)
     introduction_md: str | None = Field(default=None, max_length=MAX_TEXT)
     sections: list[TemplateSection] = Field(default_factory=list, max_length=50)
-    # Available to every user. Only an admin may set it.
-    is_global: bool = False
 
 
 class TemplateUpdate(BaseModel):
-    """Partial update; only the fields that are sent change.
+    """Partial content update; only the fields that are sent change. `version` is the one the
+    client loaded: a stale version is rejected with 409, so nobody silently overwrites an edit."""
 
-    Editing the content (name, texts, sections) needs `version`, the one the client loaded:
-    a stale version is rejected with 409 so nobody silently overwrites someone else's edit.
-    `is_global` (share with everyone / stop sharing) is admin-only.
-    """
-
-    version: int | None = None
+    version: int
     name: str | None = Field(default=None, min_length=1, max_length=120)
     executive_summary_md: str | None = Field(default=None, max_length=MAX_TEXT)
     introduction_md: str | None = Field(default=None, max_length=MAX_TEXT)
     sections: list[TemplateSection] | None = Field(default=None, max_length=50)
-    is_global: bool | None = None
+
+
+SharingAction = Literal["request", "withdraw", "approve", "reject", "unshare", "reshare"]
+
+
+class SharingChange(BaseModel):
+    """request / withdraw: the owner. approve / reject / unshare / reshare: an admin."""
+
+    action: SharingAction
 
 
 class TemplateListItem(BaseModel):
     id: uuid.UUID
     name: str
-    is_global: bool
+    share_status: ShareStatus
+    is_global: bool            # convenience: share_status == "shared"
     owner: OperatorRef
     mine: bool
-    # May this user edit / delete it? (owner while private; admins always)
-    can_edit: bool
+    can_edit: bool             # may this user edit / delete it right now?
+    can_use: bool              # may this user start a report from it?
+    actions: list[SharingAction]  # sharing steps this user may take now
+    share_requested_at: datetime | None
+    share_decided_at: datetime | None
+    share_decided_by: OperatorRef | None
     version: int
     section_count: int
     created_at: datetime

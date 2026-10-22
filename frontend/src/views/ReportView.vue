@@ -385,13 +385,13 @@ watch(() => route.fullPath, () => { if (!isNew.value && report.value?.id !== id.
 
 // --- Save as template ------------------------------------------------------------
 // What is on screen (unsaved edits included) becomes the template: summary, introduction
-// and the free-form sections. Anyone who can create reports may save one; only an admin
-// can make it available to every user.
+// and the free-form sections. Anyone who can create reports may save one. It starts private;
+// sharing it is asked for on the Templates page and approved by an admin.
 const canSaveTemplate = computed(() => !!report.value && canCreate(auth.user))
-const tplModal = ref({ open: false, name: '', global: false, saving: false, error: '' })
+const tplModal = ref({ open: false, name: '', saving: false, error: '' })
 const tplNameInput = ref(null)
 function openTemplateModal() {
-  tplModal.value = { open: true, name: report.value?.name || '', global: false, saving: false, error: '' }
+  tplModal.value = { open: true, name: report.value?.name || '', saving: false, error: '' }
   setTimeout(() => tplNameInput.value?.select(), 0)
 }
 async function saveTemplate() {
@@ -401,7 +401,6 @@ async function saveTemplate() {
   try {
     const tpl = await createReportTemplate({
       name: m.name.trim(),
-      is_global: isAdmin.value && m.global,
       executive_summary_md: nullIfBlank(form.value.executive_summary_md),
       introduction_md: nullIfBlank(form.value.introduction_md),
       sections: sections.value
@@ -641,9 +640,6 @@ async function saveTemplate() {
           <label>{{ t('tpl.name') }}</label>
           <input ref="tplNameInput" v-model="tplModal.name" maxlength="120" @keydown.enter="saveTemplate" />
         </div>
-        <label v-if="isAdmin" class="forAll">
-          <input v-model="tplModal.global" type="checkbox" /> {{ t('tpl.forAll') }}
-        </label>
         <p v-if="tplModal.error" class="err msg">{{ tplModal.error }}</p>
         <div class="modalActions">
           <button class="btn" @click="tplModal.open = false">{{ t('vform.cancel') }}</button>
@@ -677,8 +673,6 @@ async function saveTemplate() {
 .modalBack { position: fixed; inset: 0; z-index: 50; background: rgba(15, 23, 42, .32); display: grid; place-items: center; padding: 16px; }
 .modal { width: min(460px, 100%); padding: 18px 20px; display: grid; gap: 12px; }
 .modal .secTitle, .modal .hint { margin: 0; }
-.modal .forAll { display: flex; gap: 8px; align-items: center; font-size: 13px; color: var(--text-2); cursor: pointer; }
-.modal .forAll input { width: auto; margin: 0; }
 .modalActions { display: flex; justify-content: flex-end; gap: 8px; }
 .layout { display: grid; grid-template-columns: minmax(0, 1.45fr) minmax(340px, .9fr); gap: 16px; align-items: start; }
 .stack { min-width: 0; }

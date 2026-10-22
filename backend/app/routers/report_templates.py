@@ -9,6 +9,7 @@ from app.db import get_session
 from app.deps import get_current_user
 from app.models.user import User
 from app.schemas.report_template import (
+    SharingChange,
     TemplateCreate,
     TemplateListItem,
     TemplateOut,
@@ -54,8 +55,20 @@ def update_template(
     user: User = Depends(get_current_user),
     session: Session = Depends(get_session),
 ) -> TemplateOut:
-    """Edit the content (owner while private, admins always) and/or share it (admins)."""
+    """Edit the content: the owner while private, admins always."""
     return svc.update(session, template_id, body, user, request)
+
+
+@router.post("/{template_id}/sharing", response_model=TemplateOut)
+def change_sharing(
+    template_id: uuid.UUID,
+    body: SharingChange,
+    request: Request,
+    user: User = Depends(get_current_user),
+    session: Session = Depends(get_session),
+) -> TemplateOut:
+    """request / withdraw (the owner); approve / reject / unshare / reshare (an admin)."""
+    return svc.change_sharing(session, template_id, body.action, user, request)
 
 
 @router.delete("/{template_id}", status_code=status.HTTP_204_NO_CONTENT)
