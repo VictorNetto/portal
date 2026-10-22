@@ -93,8 +93,8 @@ nginx/            Reverse proxy config (nginx.conf = dev, prod.conf.template = p
 scripts/          backup.sh / restore.sh (database + attachments, optionally encrypted)
 docs/
   specs/          Canonical specifications (SPEC.md, FRONTEND_SPEC.md)
-  DECISIONS.md    Resolved design decisions D1–D10 with rationale
-  BACKLOG.md      Parked features and pending decisions (report templates, constraints, …)
+  DECISIONS.md    Resolved design decisions D1–D11 with rationale
+  BACKLOG.md      Parked features and pending decisions (template management, constraints, …)
   DEPLOYMENT.md   Deployment & networking plan + IT-request checklist
   RUNBOOK.md      Operating the production stack: deploy, update, certificates, backup/restore
   INGEST_API.md   Contract for scanners / pipelines

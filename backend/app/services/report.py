@@ -172,15 +172,37 @@ def create(session: Session, body: ReportCreate, user: User, request: Request) -
     )
     report.operators = _resolve_operators(session, body.operator_ids)
     report.viewers = access.resolve_users(session, body.viewer_ids, "viewer")
+    if body.template_id is not None:
+        _apply_template(session, report, body.template_id, user)
     session.add(report)
     session.flush()
     audit.record(
         session, action=AuditAction.create, user_id=user.id,
-        entity_type="report", entity_id=report.id, request=request,
+        entity_type="report", entity_id=report.id,
+        detail={"template_id": str(body.template_id)} if body.template_id else None,
+        request=request,
     )
     session.commit()
     session.refresh(report)
     return to_out(session, report, user)
+
+
+def _apply_template(session: Session, report: Report, template_id: uuid.UUID, user: User) -> None:
+    """Copy a template's text into a new report. The copy is independent: later changes
+    to the template never reach the report."""
+    from app.services import report_template
+
+    try:
+        tpl = report_template.get_visible(session, template_id, user)
+    except HTTPException:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Unknown template") from None
+    report.template_id = tpl.id
+    report.executive_summary_md = tpl.executive_summary_md
+    report.introduction_md = tpl.introduction_md
+    report.sections = [
+        ReportSection(position=i, title=s["title"], content_markdown=s.get("content_markdown"))
+        for i, s in enumerate(tpl.sections or [], start=1)
+    ]
 
 
 def update(

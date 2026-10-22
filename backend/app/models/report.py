@@ -100,6 +100,10 @@ class Report(UUIDPK, Timestamps, Base):
         UUID(as_uuid=True), ForeignKey("users.id"), nullable=False
     )
     deleted_at: Mapped[datetime | None] = mapped_column(nullable=True)
+    # The template the report was created from (its text was copied; kept for traceability).
+    template_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("report_templates.id", ondelete="SET NULL"), nullable=True
+    )
 
     sections: Mapped[list["ReportSection"]] = relationship(
         back_populates="report", cascade="all, delete-orphan"

@@ -142,3 +142,27 @@ Files are never exposed directly: the API proxies every read, so authentication 
 - Dispatch, RVS acknowledgment and the post-acknowledgment transitions follow "may edit this record". Tighten them in the constraints catalogue if needed.
 - Not covered by this decision: groups/teams, sharing requests, read-only sharing for `write_*` roles.
 
+---
+
+## D11 — Report templates (first version) ✅
+
+**What a template is:** the text of a report's sections — Sumário Executivo, Introdução and the
+Seções Adicionais (titles, order, content). Nothing else (no client, dates, people, vulnerabilities).
+
+**How it works**
+- *Saving:* "Salvar como Template" on the report editor opens a modal (name; admins also get
+  "Disponível para todos os usuários"). It saves what is on screen, unsaved edits included.
+  Anyone who can create reports may save one.
+- *Using:* the "Criar Relatório" card has a Template chip, "Nenhum" by default; clicking it lists the
+  templates the user can use (mine, for all users, and — admins only — other users').
+  "Nenhum" keeps the standard starting text (the executive-summary outline).
+- *Copied, not linked:* the report receives a copy; later changes to the template never reach it.
+  The report remembers which template it came from (`reports.template_id`, set to NULL if the
+  template is ever deleted).
+- *Visibility:* a template is private to its owner. `is_global` makes it available to everyone; only
+  an admin can set it (at save time, or `PATCH /report-templates/{id}`). Admins see every template.
+  A template a user may not see answers 404, and cannot be used to create a report (422).
+
+**Not yet (next step):** template management — rename, edit content, delete, share/unshare from the
+UI, and whether a dedicated "Templates" page is needed. See `BACKLOG.md`.
+

@@ -55,6 +55,8 @@ class ReportCreate(BaseModel):
     end_date: date | None = None
     operator_ids: list[uuid.UUID] = Field(default_factory=list)
     viewer_ids: list[uuid.UUID] = Field(default_factory=list)
+    # Start from this template's text (copied). None: the standard starting text.
+    template_id: uuid.UUID | None = None
 
     @model_validator(mode="after")
     def _dates(self) -> "ReportCreate":

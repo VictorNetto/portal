@@ -71,6 +71,7 @@ def _cleanup():
             "UPDATE reports SET deleted_at = now(), lock_user_id = NULL WHERE deleted_at IS NULL AND ("
             "name LIKE 'pytest-%' OR created_by IN (SELECT id FROM users WHERE username LIKE 'pytest-%'))"
         ))
+        s.execute(text("DELETE FROM report_templates WHERE name LIKE 'pytest-%'"))
         s.execute(text("UPDATE api_keys SET revoked_at = now() WHERE revoked_at IS NULL AND label LIKE 'pytest-%'"))
         s.execute(text("UPDATE users SET is_active = false WHERE username LIKE 'pytest-%'"))
         s.commit()

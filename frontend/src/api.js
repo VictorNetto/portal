@@ -137,6 +137,8 @@ export function attachmentObjectUrl(id) {
 export const listReports = () => api('/reports')
 export const getReport = (id) => api(`/reports/${id}`)
 export const createReport = (body) => api('/reports', { method: 'POST', body })
+export const listReportTemplates = () => api('/report-templates')
+export const createReportTemplate = (body) => api('/report-templates', { method: 'POST', body })
 export const updateReport = (id, body) => api(`/reports/${id}`, { method: 'PATCH', body })
 export const deleteReport = (id) => api(`/reports/${id}`, { method: 'DELETE' })
 export const acquireReportLock = (id) => api(`/reports/${id}/lock`, { method: 'POST' })

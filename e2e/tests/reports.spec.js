@@ -48,7 +48,7 @@ test.describe('reports', () => {
     await page.locator('.extraHead input').nth(1).fill('Limitações')
     await page.locator('.extra').nth(0).locator('textarea').fill('OWASP')
     await page.locator('.extra').nth(0).locator('button:has-text("Descer")').click()
-    await page.click('.pageActions button:has-text("Salvar")')
+    await page.click('.pageActions button:text-is("Salvar")')
     await expect(page.locator('.ok.msg')).toContainText('salvo')
 
     await page.reload()                          // leaving releases the lock: take it again
@@ -67,7 +67,7 @@ test.describe('reports', () => {
     await page.locator('input.cvss').fill('91')
     await page.keyboard.press('Enter')
     await page.locator('.mdEditor').first().locator('textarea').fill('Falha crítica')
-    await page.click('.pageActions button:has-text("Salvar")')
+    await page.click('.pageActions button:text-is("Salvar")')
     await expect(page).toHaveURL(/\/vulnerabilities\/[0-9a-f-]{36}$/)
     await expect(page.locator('.banner.mine')).toBeVisible()
     await page.locator('.crumbs a').nth(2).click()                       // back via the report crumb

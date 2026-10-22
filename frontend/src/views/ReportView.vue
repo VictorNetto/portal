@@ -7,6 +7,7 @@ import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
 import { useRoute, useRouter, onBeforeRouteLeave } from 'vue-router'
 import {
   getReport, createReport, updateReport, deleteReport, listUsers,
+  listReportTemplates, createReportTemplate,
   acquireReportLock, heartbeatReport, releaseReportLock, releaseReportLockOnExit, forceReleaseReport,
   addReportSection, updateReportSection, deleteReportSection, reorderReportSections,
   dispatchReport, listReportAttachments, uploadReportAttachment, deleteAttachment,
@@ -21,6 +22,7 @@ import AppShell from '../components/AppShell.vue'
 import MarkdownEditor from '../components/MarkdownEditor.vue'
 import AttachmentsPanel from '../components/AttachmentsPanel.vue'
 import OperatorPicker from '../components/OperatorPicker.vue'
+import TemplatePicker from '../components/TemplatePicker.vue'
 import { canCreate, canWriteRecord, canDeleteRecord } from '../access'
 
 const route = useRoute()
@@ -97,7 +99,12 @@ const dirty = computed(() => !!report.value && snapshot.value !== snapshotOf())
 async function load() {
   try { allUsers.value = await listUsers() } catch { /* non-fatal */ }
   if (isNew.value && !isWriter.value) { router.replace('/hub?entity=reports'); return }
-  if (isNew.value) { selectedOps.value = new Set(auth.user?.id ? [auth.user.id] : []); selectedViewers.value = new Set(); loading.value = false; return }
+  if (isNew.value) {
+    selectedOps.value = new Set(auth.user?.id ? [auth.user.id] : []); selectedViewers.value = new Set()
+    templateId.value = null
+    try { templates.value = await listReportTemplates() } catch { templates.value = [] }
+    loading.value = false; return
+  }
   loading.value = true; error.value = ''
   try { report.value = await getReport(id.value); sync(); await loadEvidence() }
   catch (e) { error.value = e instanceof ApiError ? e.detail : t('errors.load') }
@@ -106,6 +113,8 @@ async function load() {
 
 // --- Creating ---------------------------------------------------------------
 const created = ref({ name: '', client_name: '', start_date: '', end_date: '' })
+const templates = ref([])
+const templateId = ref(null)   // null = "Nenhum"
 async function create() {
   saving.value = true; error.value = ''
   try {
@@ -116,6 +125,7 @@ async function create() {
       end_date: created.value.end_date || null,
       operator_ids: [...selectedOps.value],
       viewer_ids: [...selectedViewers.value],
+      template_id: templateId.value,
     })
     report.value = r
     sync()  // this component instance is reused for /reports/:id, so fill the editor now
@@ -362,6 +372,37 @@ async function remove() {
 
 onMounted(load)
 watch(() => route.fullPath, () => { if (!isNew.value && report.value?.id !== id.value) load() })
+
+// --- Save as template ------------------------------------------------------------
+// What is on screen (unsaved edits included) becomes the template: summary, introduction
+// and the free-form sections. Anyone who can create reports may save one; only an admin
+// can make it available to every user.
+const canSaveTemplate = computed(() => !!report.value && canCreate(auth.user))
+const tplModal = ref({ open: false, name: '', global: false, saving: false, error: '' })
+const tplNameInput = ref(null)
+function openTemplateModal() {
+  tplModal.value = { open: true, name: report.value?.name || '', global: false, saving: false, error: '' }
+  setTimeout(() => tplNameInput.value?.select(), 0)
+}
+async function saveTemplate() {
+  const m = tplModal.value
+  if (m.saving || !m.name.trim()) return
+  m.saving = true; m.error = ''
+  try {
+    const tpl = await createReportTemplate({
+      name: m.name.trim(),
+      is_global: isAdmin.value && m.global,
+      executive_summary_md: nullIfBlank(form.value.executive_summary_md),
+      introduction_md: nullIfBlank(form.value.introduction_md),
+      sections: sections.value
+        .filter((x) => x.title.trim())
+        .map((x) => ({ title: x.title.trim(), content_markdown: nullIfBlank(x.content_markdown) })),
+    })
+    m.open = false
+    notice.value = t('tpl.saved', { name: tpl.name })
+  } catch (e) { m.error = e instanceof ApiError ? e.detail : t('errors.create') }
+  finally { m.saving = false }
+}
 </script>
 
 <template>
@@ -399,6 +440,7 @@ watch(() => route.fullPath, () => { if (!isNew.value && report.value?.id !== id.
             <button class="btn" @click="exportAs('pdf')">{{ t('rpt.exportPdf') }}</button>
             <button class="btn" @click="exportAs('xlsx')">{{ t('rpt.exportXlsx') }}</button>
             <button class="btn" @click="exportAs('docx')">{{ t('rpt.exportDocx') }}</button>
+            <button v-if="canSaveTemplate" class="btn" @click="openTemplateModal">{{ t('tpl.saveAs') }}</button>
             <button v-if="canTakeLock" class="btn primary" @click="takeLock">{{ t('rpt.edit') }}</button>
             <button v-if="lockMine && status === 'draft'" class="btn" @click="giveUpLock">{{ t('rpt.stopEditing') }}</button>
             <button v-if="editing || notesOnly" class="btn" :class="{ primary: !canDispatch }" :disabled="saving" @click="save">
@@ -441,6 +483,10 @@ watch(() => route.fullPath, () => { if (!isNew.value && report.value?.id !== id.
         <div class="twoCol">
           <div class="f"><label>{{ t('rpt.start') }}</label><input v-model="created.start_date" type="date" /></div>
           <div class="f"><label>{{ t('rpt.end') }}</label><input v-model="created.end_date" type="date" /></div>
+        </div>
+        <div class="f">
+          <label>{{ t('tpl.label') }}</label>
+          <TemplatePicker v-model="templateId" :templates="templates" />
         </div>
         <div class="f">
           <label>{{ t('vform.operators') }}</label>
@@ -577,6 +623,28 @@ watch(() => route.fullPath, () => { if (!isNew.value && report.value?.id !== id.
         </div>
       </template>
     </template>
+
+    <!-- Save as template -->
+    <div v-if="tplModal.open" class="modalBack" @click.self="tplModal.open = false" @keydown.esc="tplModal.open = false">
+      <section class="panel modal" role="dialog" aria-modal="true" :aria-label="t('tpl.modalTitle')">
+        <h2 class="secTitle">{{ t('tpl.modalTitle') }}</h2>
+        <p class="hint">{{ t('tpl.modalHint') }}</p>
+        <div class="f">
+          <label>{{ t('tpl.name') }}</label>
+          <input ref="tplNameInput" v-model="tplModal.name" maxlength="120" @keydown.enter="saveTemplate" />
+        </div>
+        <label v-if="isAdmin" class="forAll">
+          <input v-model="tplModal.global" type="checkbox" /> {{ t('tpl.forAll') }}
+        </label>
+        <p v-if="tplModal.error" class="err msg">{{ tplModal.error }}</p>
+        <div class="modalActions">
+          <button class="btn" @click="tplModal.open = false">{{ t('vform.cancel') }}</button>
+          <button class="btn primary" :disabled="tplModal.saving || !tplModal.name.trim()" @click="saveTemplate">
+            {{ t('vuln.save') }}
+          </button>
+        </div>
+      </section>
+    </div>
   </AppShell>
 </template>
 
@@ -598,6 +666,12 @@ watch(() => route.fullPath, () => { if (!isNew.value && report.value?.id !== id.
 .banner .link { margin-left: 12px; }
 
 .card { padding: 16px 18px 18px; margin-bottom: 16px; overflow: visible; }
+.modalBack { position: fixed; inset: 0; z-index: 50; background: rgba(15, 23, 42, .32); display: grid; place-items: center; padding: 16px; }
+.modal { width: min(460px, 100%); padding: 18px 20px; display: grid; gap: 12px; }
+.modal .secTitle, .modal .hint { margin: 0; }
+.modal .forAll { display: flex; gap: 8px; align-items: center; font-size: 13px; color: var(--text-2); cursor: pointer; }
+.modal .forAll input { width: auto; margin: 0; }
+.modalActions { display: flex; justify-content: flex-end; gap: 8px; }
 .layout { display: grid; grid-template-columns: minmax(0, 1.45fr) minmax(340px, .9fr); gap: 16px; align-items: start; }
 .stack { min-width: 0; }
 .secTitle { margin: 0 0 12px; font-size: 14px; font-weight: 400; color: var(--text); }
