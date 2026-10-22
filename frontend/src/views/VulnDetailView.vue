@@ -18,6 +18,7 @@ import CvssInput from '../components/CvssInput.vue'
 import MultiValueInput from '../components/MultiValueInput.vue'
 import AttachmentsPanel from '../components/AttachmentsPanel.vue'
 import OperatorPicker from '../components/OperatorPicker.vue'
+import ExportMenu from '../components/ExportMenu.vue'
 import { canCreate, canWriteRecord, canDeleteRecord } from '../access'
 import VulnTimeline from '../components/VulnTimeline.vue'
 
@@ -314,6 +315,8 @@ async function applyCorrection() {
   } catch (e) { error.value = e instanceof ApiError ? e.detail : t('errors.update') }
 }
 
+const exportOptions = [{ format: 'pdf', label: 'PDF' }, { format: 'docx', label: 'Word' }]
+
 async function exportAs(format) {
   error.value = ''
   try { await downloadAuthed(`/vulnerabilities/${id.value}/export?format=${format}`, `vulnerabilidade.${format}`) }
@@ -480,8 +483,7 @@ watch(() => route.fullPath, () => {
         </div>
         <div class="pageActions">
           <button v-if="!isNew && mayDelete" class="btn danger" @click="remove">{{ t('rowActions.delete') }}</button>
-          <button v-if="!isNew" class="btn" @click="exportAs('pdf')">{{ t('rpt.exportPdf') }}</button>
-          <button v-if="!isNew" class="btn" @click="exportAs('docx')">{{ t('rpt.exportDocx') }}</button>
+          <ExportMenu v-if="!isNew" :options="exportOptions" @export="exportAs" />
           <button class="btn" @click="leave">{{ inReport ? t('rpt.back') : t('vform.cancel') }}</button>
           <button v-if="isAdmin && correctionTargets.length" class="btn" @click="openCorrection">
             {{ t('correction.button') }}

@@ -23,6 +23,7 @@ import MarkdownEditor from '../components/MarkdownEditor.vue'
 import AttachmentsPanel from '../components/AttachmentsPanel.vue'
 import OperatorPicker from '../components/OperatorPicker.vue'
 import TemplatePicker from '../components/TemplatePicker.vue'
+import ExportMenu from '../components/ExportMenu.vue'
 import { canCreate, canWriteRecord, canDeleteRecord } from '../access'
 
 const route = useRoute()
@@ -113,6 +114,11 @@ async function load() {
 
 // --- Creating ---------------------------------------------------------------
 const created = ref({ name: '', client_name: '', start_date: '', end_date: '' })
+// The end date never comes before the start: the picker offers no earlier day (min), and
+// a typed earlier end, or a start moved past the end, pulls the end up to the start.
+function keepEndAfterStart(dates) {
+  if (dates.start_date && dates.end_date && dates.end_date < dates.start_date) dates.end_date = dates.start_date
+}
 const templates = ref([])
 const templateId = ref(null)   // null = "Nenhum"
 async function create() {
@@ -281,6 +287,10 @@ async function doDispatch() {
   } finally { dispatching.value = false }
 }
 
+const exportOptions = [
+  { format: 'pdf', label: 'PDF' }, { format: 'xlsx', label: 'Excel' }, { format: 'docx', label: 'Word' },
+]
+
 async function exportAs(format) {
   error.value = ''
   try { await downloadAuthed(`/reports/${id.value}/export?format=${format}`, `${report.value.internal_id}.${format}`) }
@@ -437,9 +447,7 @@ async function saveTemplate() {
           <div class="pageActions" v-if="report">
             <button v-if="status === 'draft' && mayDelete" class="btn danger" @click="remove">{{ t('rowActions.delete') }}</button>
             <button class="btn" @click="router.push('/hub?entity=reports')">{{ t('rpt.back') }}</button>
-            <button class="btn" @click="exportAs('pdf')">{{ t('rpt.exportPdf') }}</button>
-            <button class="btn" @click="exportAs('xlsx')">{{ t('rpt.exportXlsx') }}</button>
-            <button class="btn" @click="exportAs('docx')">{{ t('rpt.exportDocx') }}</button>
+            <ExportMenu :options="exportOptions" @export="exportAs" />
             <button v-if="canSaveTemplate" class="btn" @click="openTemplateModal">{{ t('tpl.saveAs') }}</button>
             <button v-if="canTakeLock" class="btn primary" @click="takeLock">{{ t('rpt.edit') }}</button>
             <button v-if="lockMine && status === 'draft'" class="btn" @click="giveUpLock">{{ t('rpt.stopEditing') }}</button>
@@ -481,8 +489,8 @@ async function saveTemplate() {
           <input v-field v-model="created.client_name" maxlength="200" />
         </div>
         <div class="twoCol">
-          <div class="f"><label>{{ t('rpt.start') }}</label><input v-model="created.start_date" type="date" /></div>
-          <div class="f"><label>{{ t('rpt.end') }}</label><input v-model="created.end_date" type="date" /></div>
+          <div class="f"><label>{{ t('rpt.start') }}</label><input v-model="created.start_date" type="date" @change="keepEndAfterStart(created)" /></div>
+          <div class="f"><label>{{ t('rpt.end') }}</label><input v-model="created.end_date" type="date" :min="created.start_date || undefined" @change="keepEndAfterStart(created)" /></div>
         </div>
         <div class="f">
           <label>{{ t('tpl.label') }}</label>
@@ -522,8 +530,8 @@ async function saveTemplate() {
               <label>{{ t('rpt.client') }}</label>
               <input v-field v-model="form.client_name" :disabled="!editing" maxlength="200" />
             </div>
-            <div class="f"><label>{{ t('rpt.start') }}</label><input v-model="form.start_date" type="date" :disabled="!editing" /></div>
-            <div class="f"><label>{{ t('rpt.end') }}</label><input v-model="form.end_date" type="date" :disabled="!editing" /></div>
+            <div class="f"><label>{{ t('rpt.start') }}</label><input v-model="form.start_date" type="date" :disabled="!editing" @change="keepEndAfterStart(form)" /></div>
+            <div class="f"><label>{{ t('rpt.end') }}</label><input v-model="form.end_date" type="date" :disabled="!editing" :min="form.start_date || undefined" @change="keepEndAfterStart(form)" /></div>
             <div class="f wide2">
               <label>{{ t('vform.operators') }}</label>
               <OperatorPicker v-model="selectedOps" :users="knownUsers" :disabled="!editing" />

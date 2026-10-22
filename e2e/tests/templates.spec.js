@@ -2,6 +2,7 @@ import { expect, test } from '@playwright/test'
 import { adminToken, api, cleanup, createUser, newReport, tag } from '../support/api.js'
 import { loginUI } from '../support/ui.js'
 
+
 let admin
 let writer
 let other
@@ -57,6 +58,36 @@ test.describe('report templates', () => {
     reports.push(page.url().split('/').pop())
     await expect(page.locator('.mdEditor textarea').nth(1)).toHaveValue(`Intro do template ${u}`)
     await expect(page.locator('.extraHead input').first()).toHaveValue('Metodologia')
+  })
+
+  test('the Templates page lists them and shows what each contains', async ({ page }) => {
+    const u = tag()
+    const writerTok = (await api('/auth/login', { body: { username: writer.username, password: writer.password } })).data.access_token
+    await api('/report-templates', { token: writerTok, body: {
+      name: `e2e-tplpage-${u}`, introduction_md: `**Intro** ${u}`,
+      sections: [{ title: 'Metodologia', content_markdown: 'OWASP' }],
+    } })
+    await loginUI(page, writer.username, writer.password)
+    await page.locator('.sidebar .navItem[aria-label="Templates"]').click()
+    await expect(page).toHaveURL(/\/templates$/)
+    await page.fill('.search', `e2e-tplpage-${u}`)
+    const row = page.locator('.ttable tbody tr').first()
+    await expect(row).toContainText('Você')
+    await expect(row).toContainText('Somente o dono')
+    await row.click()
+    await expect(page).toHaveURL(/template=/)
+    const detail = page.locator('.detail')
+    await expect(detail.locator('.dName')).toHaveText(`e2e-tplpage-${u}`)
+    await expect(detail.locator('.mdView strong').first()).toHaveText('Intro')         // rendered, not raw Markdown
+    await expect(detail.locator('.extraTitle')).toHaveText('Metodologia')
+  })
+
+  test('readers have no Templates page', async ({ page }) => {
+    const reader = await createUser(admin, 'read_all')
+    await loginUI(page, reader.username, reader.password)
+    await expect(page.locator('.sidebar .navItem[aria-label="Templates"]')).toHaveCount(0)
+    await page.goto('/templates')
+    await expect(page).toHaveURL(/\/hub/)
   })
 
   test('templates are private; an admin can make one available to everyone', async ({ browser }) => {

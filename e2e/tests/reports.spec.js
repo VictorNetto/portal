@@ -18,6 +18,19 @@ test.afterAll(async () => cleanup(admin, { reports }))
 const nav = (page, label) => page.locator(`.sidebar .navItem[aria-label="${label}"]`)
 
 test.describe('reports', () => {
+  test('the end date can never come before the start date', async ({ page }) => {
+    await loginUI(page, alice.username, alice.password)
+    await page.goto('/reports/new')
+    const [start, end] = [page.locator('.createCard input[type=date]').nth(0), page.locator('.createCard input[type=date]').nth(1)]
+    await start.fill('2026-09-10')
+    await expect(end).toHaveAttribute('min', '2026-09-10')                        // the picker offers no earlier day
+    await end.fill('2026-09-01')
+    await expect(end).toHaveValue('2026-09-10')                                  // a typed earlier end is pulled up
+    await end.fill('2026-09-15')
+    await start.fill('2026-09-20')
+    await expect(end).toHaveValue('2026-09-20')                                  // moving the start past the end too
+  })
+
   test('create a report, fill it in, order its sections and add a vulnerability', async ({ page }) => {
     const errors = collectPageErrors(page)
     autoDialogs(page)
@@ -131,13 +144,17 @@ test.describe('reports', () => {
     await expect(summary.locator('textarea')).toHaveValue(/!\[Diagrama\]\(\/api\/attachments\//)
     await expect(page.locator('.item')).toHaveCount(2)
 
-    // exports
-    const [pdf] = await Promise.all([page.waitForEvent('download'), page.click('button:has-text("Exportar PDF")')])
-    expect(readFileSync(await pdf.path()).subarray(0, 5).toString()).toBe('%PDF-')
-    const [xlsx] = await Promise.all([page.waitForEvent('download'), page.click('button:has-text("Exportar Excel")')])
-    expect(readFileSync(await xlsx.path()).subarray(0, 2).toString()).toBe('PK')
-    const [docx] = await Promise.all([page.waitForEvent('download'), page.click('button:has-text("Exportar Word")')])
-    expect(readFileSync(await docx.path()).subarray(0, 2).toString()).toBe('PK')
+    // exports: one "Exportar" button opens the formats
+    const exportAs = async (label) => {
+      await page.click('.pageActions .exportWrap > .btn')
+      await expect(page.locator('.exportMenu button')).toHaveText(['PDF', 'Excel', 'Word'])
+      const [file] = await Promise.all([page.waitForEvent('download'), page.click(`.exportMenu button:text-is("${label}")`)])
+      await expect(page.locator('.exportMenu')).toHaveCount(0)                     // the menu closes itself
+      return readFileSync(await file.path())
+    }
+    expect((await exportAs('PDF')).subarray(0, 5).toString()).toBe('%PDF-')
+    expect((await exportAs('Excel')).subarray(0, 2).toString()).toBe('PK')
+    expect((await exportAs('Word')).subarray(0, 2).toString()).toBe('PK')
 
     // dispatch
     await page.click('.pageActions button:has-text("Disparar")')

@@ -8,6 +8,7 @@ import RvsQueueView from './views/RvsQueueView.vue'
 import ApiKeysView from './views/ApiKeysView.vue'
 import AuditView from './views/AuditView.vue'
 import ProfileView from './views/ProfileView.vue'
+import TemplatesView from './views/TemplatesView.vue'
 import ReportView from './views/ReportView.vue'
 
 // Routes follow FRONTEND_SPEC §4.1.
@@ -24,6 +25,7 @@ const routes = [
   { path: '/reports/:id', name: 'report-detail', component: ReportView },
   { path: '/reports/:rid/vulnerabilities/new', name: 'report-vuln-new', component: VulnDetailView },
   { path: '/profile', name: 'profile', component: ProfileView },
+  { path: '/templates', name: 'templates', component: TemplatesView, meta: { roles: ['admin', 'write_all', 'write_restricted'] } },
   { path: '/audit-logs', name: 'audit', component: AuditView, meta: { roles: ['admin', 'auditor'] } },
 ]
 

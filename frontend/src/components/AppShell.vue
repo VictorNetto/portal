@@ -21,6 +21,7 @@ const allNavItems = [
   { icon: 'M12 5v14M5 12h14', label: 'nav.createVuln', to: '/vulnerabilities/new', writer: true },
   { icon: 'M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8zM14 3v5h5M12 12v6M9 15h6', label: 'nav.createReport', to: '/reports/new', writer: true },
   { icon: 'M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01', label: 'nav.rvsQueue', to: '/rvs-queue' },
+  { icon: 'M8 4h10a2 2 0 0 1 2 2v10M4 8a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2zM7.5 12h5M7.5 15.5h5', label: 'nav.templates', to: '/templates', writer: true },
   { icon: 'M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z', label: 'nav.audit', to: '/audit-logs', roles: ['admin', 'auditor'] },
   { icon: 'M16 20v-1.5a3.5 3.5 0 0 0-3.5-3.5h-5A3.5 3.5 0 0 0 4 18.5V20M10 11a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7zM20 20v-1.5a3.5 3.5 0 0 0-2.5-3.35M15 4.2a3.5 3.5 0 0 1 0 6.6', label: 'nav.users', to: '/users', adminOnly: true },
   { icon: 'M21 2l-2 2m-7.6 7.6a5.5 5.5 0 1 1-7.8 7.8 5.5 5.5 0 0 1 7.8-7.8zm0 0L15.5 7.5m0 0 3 3L22 7l-3-3m-3.5 3.5L19 4', label: 'nav.apiKeys', to: '/api-keys', adminOnly: true },
