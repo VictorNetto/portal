@@ -6,8 +6,7 @@ from fastapi import APIRouter, Depends, Request, status
 from sqlalchemy.orm import Session
 
 from app.db import get_session
-from app.deps import get_current_user, require_roles
-from app.models.enums import UserRole
+from app.deps import get_current_user
 from app.models.user import User
 from app.schemas.report_template import (
     TemplateCreate,
@@ -18,8 +17,6 @@ from app.schemas.report_template import (
 from app.services import report_template as svc
 
 router = APIRouter(prefix="/report-templates", tags=["report-templates"])
-
-_admin = require_roles(UserRole.admin)
 
 
 @router.get("", response_model=list[TemplateListItem])
@@ -54,7 +51,18 @@ def update_template(
     template_id: uuid.UUID,
     body: TemplateUpdate,
     request: Request,
-    admin: User = Depends(_admin),
+    user: User = Depends(get_current_user),
     session: Session = Depends(get_session),
 ) -> TemplateOut:
-    return svc.update(session, template_id, body, admin, request)
+    """Edit the content (owner while private, admins always) and/or share it (admins)."""
+    return svc.update(session, template_id, body, user, request)
+
+
+@router.delete("/{template_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_template(
+    template_id: uuid.UUID,
+    request: Request,
+    user: User = Depends(get_current_user),
+    session: Session = Depends(get_session),
+) -> None:
+    svc.delete(session, template_id, user, request)

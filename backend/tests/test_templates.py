@@ -89,3 +89,69 @@ def test_template_input_is_validated(writer):
     assert writer.post("/report-templates", {"name": "x" * 121}).status_code == 422
     assert writer.post("/report-templates", {"name": "ok", "sections": [{"title": ""}]}).status_code == 422
     assert writer.post("/reports", {"name": f"pytest-{tag()}", "template_id": "00000000-0000-0000-0000-000000000000"}).status_code == 422
+
+
+# --- editing and deleting (option B: once shared with everyone, admins only) ---------------
+
+def test_the_owner_edits_a_private_template(writer, writer2):
+    t = template(writer)
+    assert t["can_edit"] and t["version"] == 1
+    r = writer.patch(f"/report-templates/{t['id']}", {
+        "version": 1, "name": "  pytest-renamed  ", "introduction_md": "nova intro",
+        "sections": [{"title": "Só esta", "content_markdown": "x"}, {"title": "   "}],
+    })
+    assert r.status_code == 200, r.text
+    got = r.json()
+    assert got["name"] == "pytest-renamed" and got["introduction_md"] == "nova intro" and got["version"] == 2
+    assert [s["title"] for s in got["sections"]] == ["Só esta"]          # blank titles dropped
+    assert got["executive_summary_md"] == BODY["executive_summary_md"]  # untouched field kept
+    # someone else cannot see it, so cannot edit or delete it either
+    assert writer2.patch(f"/report-templates/{t['id']}", {"version": 2, "name": "x"}).status_code == 404
+    assert writer2.delete(f"/report-templates/{t['id']}").status_code == 404
+
+
+def test_a_stale_edit_is_refused(writer):
+    t = template(writer)
+    assert writer.patch(f"/report-templates/{t['id']}", {"version": 1, "name": "pytest-a"}).status_code == 200
+    r = writer.patch(f"/report-templates/{t['id']}", {"version": 1, "name": "pytest-b"})
+    assert r.status_code == 409 and "Version conflict" in r.json()["detail"]
+    assert writer.patch(f"/report-templates/{t['id']}", {"name": "pytest-c"}).status_code == 422   # version required
+
+
+def test_once_shared_only_an_admin_changes_or_deletes_it(admin, writer, writer2):
+    t = template(writer)
+    admin.patch(f"/report-templates/{t['id']}", {"is_global": True})
+    mine = writer.get(f"/report-templates/{t['id']}").json()
+    assert mine["mine"] and not mine["can_edit"]
+    r = writer.patch(f"/report-templates/{t['id']}", {"version": mine["version"], "name": "pytest-x"})
+    assert r.status_code == 403 and "admin" in r.json()["detail"]
+    assert writer.delete(f"/report-templates/{t['id']}").status_code == 403
+    assert not writer2.get(f"/report-templates/{t['id']}").json()["can_edit"]
+    # the admin can still edit it, and even unshare it (it goes back to the owner's control)
+    adm = admin.get(f"/report-templates/{t['id']}").json()
+    assert adm["can_edit"]
+    assert admin.patch(f"/report-templates/{t['id']}", {"version": adm["version"], "name": "pytest-by-admin"}).status_code == 200
+    assert admin.patch(f"/report-templates/{t['id']}", {"is_global": False}).status_code == 200
+    assert writer.get(f"/report-templates/{t['id']}").json()["can_edit"]
+
+
+def test_deleting_a_template_leaves_its_reports_alone(admin, writer):
+    t = template(writer)
+    rep = new_report(writer, template_id=t["id"])
+    assert writer.delete(f"/report-templates/{t['id']}").status_code == 204
+    assert writer.get(f"/report-templates/{t['id']}").status_code == 404
+    assert t["id"] not in names(writer)
+    kept = writer.get(f"/reports/{rep['id']}").json()
+    assert kept["introduction_md"] == BODY["introduction_md"] and len(kept["sections"]) == 2
+    # an admin may delete anybody's template, shared or not
+    other = template(writer)
+    admin.patch(f"/report-templates/{other['id']}", {"is_global": True})
+    assert admin.delete(f"/report-templates/{other['id']}").status_code == 204
+    entries = admin.get("/audit-logs", params={"entity_type": "report_template", "action": "delete"}).json()
+    rows = entries["items"] if isinstance(entries, dict) else entries
+    assert any(str(e.get("entity_id")) == other["id"] for e in rows)
+
+
+def test_only_admins_share_or_unshare(writer):
+    t = template(writer)
+    assert writer.patch(f"/report-templates/{t['id']}", {"is_global": True}).status_code == 403

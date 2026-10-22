@@ -25,9 +25,19 @@ class TemplateCreate(BaseModel):
 
 
 class TemplateUpdate(BaseModel):
-    """Admin only, for now: make a template available to everyone (or not)."""
+    """Partial update; only the fields that are sent change.
 
-    is_global: bool
+    Editing the content (name, texts, sections) needs `version`, the one the client loaded:
+    a stale version is rejected with 409 so nobody silently overwrites someone else's edit.
+    `is_global` (share with everyone / stop sharing) is admin-only.
+    """
+
+    version: int | None = None
+    name: str | None = Field(default=None, min_length=1, max_length=120)
+    executive_summary_md: str | None = Field(default=None, max_length=MAX_TEXT)
+    introduction_md: str | None = Field(default=None, max_length=MAX_TEXT)
+    sections: list[TemplateSection] | None = Field(default=None, max_length=50)
+    is_global: bool | None = None
 
 
 class TemplateListItem(BaseModel):
@@ -36,6 +46,9 @@ class TemplateListItem(BaseModel):
     is_global: bool
     owner: OperatorRef
     mine: bool
+    # May this user edit / delete it? (owner while private; admins always)
+    can_edit: bool
+    version: int
     section_count: int
     created_at: datetime
     updated_at: datetime

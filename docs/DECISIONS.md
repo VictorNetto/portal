@@ -163,6 +163,15 @@ Seções Adicionais (titles, order, content). Nothing else (no client, dates, pe
   an admin can set it (at save time, or `PATCH /report-templates/{id}`). Admins see every template.
   A template a user may not see answers 404, and cannot be used to create a report (422).
 
-**Not yet (next step):** template management — rename, edit content, delete, share/unshare from the
-UI, and whether a dedicated "Templates" page is needed. See `BACKLOG.md`.
+**Templates page** (left menu, for users who can create reports): list with search and a "whose"
+filter, a rendered preview, and — when allowed — **Editar** (name, texts, sections) and **Excluir**.
+
+**Who may edit or delete (option B):** the owner while the template is private; admins always.
+Once a template is shared with everyone only admins change or delete it, so a template others rely
+on cannot change or disappear behind their backs. Edits carry a `version` (409 on a stale one, like
+vulnerabilities). Deleting never touches reports created from the template. Readers and auditors
+have no access to templates at all (403). All changes are audited.
+
+**Not yet:** duplicate, create from scratch on the page, and the admin share/unshare toggle in the UI
+(the API supports it). See `BACKLOG.md`.
 

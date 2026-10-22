@@ -1,14 +1,18 @@
 <script setup>
-// Report templates (D11). First version: find a template and read what it contains.
-// Editing, renaming, deleting and sharing come next (see docs/BACKLOG.md).
+// Report templates (D11). Find a template, read it, and — when allowed — edit or delete it.
+// Editing: the owner while the template is private; admins always (once a template is
+// shared with everyone, only admins change it). The server enforces the same rules.
 import { ref, computed, watch, onMounted } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
-import { listReportTemplates, getReportTemplate, ApiError } from '../api'
+import { useRoute, useRouter, onBeforeRouteLeave } from 'vue-router'
+import {
+  listReportTemplates, getReportTemplate, updateReportTemplate, deleteReportTemplate, ApiError,
+} from '../api'
 import { useAuthStore } from '../stores/auth'
 import { fmtDate, fmtDateTime } from '../dates'
 import { t } from '../i18n'
 import AppShell from '../components/AppShell.vue'
 import MarkdownView from '../components/MarkdownView.vue'
+import MarkdownEditor from '../components/MarkdownEditor.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -18,6 +22,7 @@ const isAdmin = computed(() => auth.user?.role === 'admin')
 const templates = ref([])
 const loading = ref(true)
 const error = ref('')
+const notice = ref('')
 
 // --- list: search + "whose" filter ---------------------------------------------------
 const q = ref('')
@@ -39,11 +44,10 @@ async function load() {
 
 // --- selection (kept in the URL: /templates?template=<id>) -------------------------------
 const selectedId = computed(() => route.query.template || null)
-const select = (x) => router.replace({ path: '/templates', query: x ? { template: x.id } : {} })
 const detail = ref(null)
 const detailError = ref('')
 async function loadDetail() {
-  detail.value = null; detailError.value = ''
+  detail.value = null; detailError.value = ''; editing.value = false
   if (!selectedId.value) return
   try { detail.value = await getReportTemplate(selectedId.value) }
   catch (e) { detailError.value = e instanceof ApiError ? e.detail : t('errors.load') }
@@ -51,6 +55,87 @@ async function loadDetail() {
 watch(selectedId, loadDetail)
 
 const availability = (x) => (x.is_global ? t('tpls.forAll') : t('tpls.onlyOwner'))
+
+// --- editing ---------------------------------------------------------------------------
+const editing = ref(false)
+const saving = ref(false)
+const draft = ref(null)
+let keySeq = 0
+const snapshot = ref('')
+const draftState = () => JSON.stringify(draft.value && {
+  ...draft.value, sections: draft.value.sections.map(({ title, content_markdown }) => ({ title, content_markdown })),
+})
+const dirty = computed(() => editing.value && draftState() !== snapshot.value)
+
+function startEdit() {
+  const d = detail.value
+  draft.value = {
+    name: d.name,
+    executive_summary_md: d.executive_summary_md || '',
+    introduction_md: d.introduction_md || '',
+    sections: d.sections.map((s) => ({ key: ++keySeq, title: s.title, content_markdown: s.content_markdown || '' })),
+  }
+  snapshot.value = draftState()
+  editing.value = true
+  notice.value = ''; detailError.value = ''
+}
+const confirmDiscard = () => !dirty.value || confirm(t('tpls.discard'))
+function cancelEdit() { if (confirmDiscard()) editing.value = false }
+
+function addSection() { draft.value.sections.push({ key: ++keySeq, title: '', content_markdown: '' }) }
+function moveSection(i, delta) {
+  const list = draft.value.sections
+  const [s] = list.splice(i, 1)
+  list.splice(i + delta, 0, s)
+}
+function removeSection(i) { draft.value.sections.splice(i, 1) }
+
+const blankToNull = (v) => (String(v ?? '').trim() === '' ? null : v)
+async function save() {
+  if (saving.value || !draft.value.name.trim()) return
+  saving.value = true; detailError.value = ''
+  try {
+    detail.value = await updateReportTemplate(detail.value.id, {
+      version: detail.value.version,
+      name: draft.value.name.trim(),
+      executive_summary_md: blankToNull(draft.value.executive_summary_md),
+      introduction_md: blankToNull(draft.value.introduction_md),
+      sections: draft.value.sections
+        .filter((s) => s.title.trim())
+        .map((s) => ({ title: s.title.trim(), content_markdown: blankToNull(s.content_markdown) })),
+    })
+    editing.value = false
+    notice.value = t('tpls.saved', { name: detail.value.name })
+    await load()
+  } catch (e) {
+    if (e instanceof ApiError && e.status === 409) {
+      // Someone else changed it meanwhile: show their version and say why the edit was not saved.
+      const message = e.detail
+      await loadDetail()
+      detailError.value = message
+    } else detailError.value = e instanceof ApiError ? e.detail : t('errors.save')
+  } finally { saving.value = false }
+}
+
+async function remove() {
+  const d = detail.value
+  if (!confirm(t('tpls.confirmDelete', { name: d.name }))) return
+  try {
+    await deleteReportTemplate(d.id)
+    editing.value = false
+    notice.value = t('tpls.deleted', { name: d.name })
+    await router.replace({ path: '/templates' })
+    await load()
+  } catch (e) { detailError.value = e instanceof ApiError ? e.detail : t('errors.delete') }
+}
+
+// Moving to another template, closing the panel or leaving the page asks before dropping edits.
+function select(x) {
+  if (!confirmDiscard()) return
+  editing.value = false
+  router.replace({ path: '/templates', query: x ? { template: x.id } : {} })
+}
+onBeforeRouteLeave((to) => (to.path === '/templates' ? true : confirmDiscard()))
 
 onMounted(async () => {
   document.documentElement.setAttribute('data-entity', 'reports') // templates belong to reports
@@ -69,8 +154,9 @@ onMounted(async () => {
     </div>
 
     <p v-if="error" class="err">{{ error }}</p>
+    <p v-if="notice" class="ok msg">{{ notice }}</p>
 
-    <div class="tplLayout" :class="{ withDetail: !!selectedId }">
+    <div class="tplLayout" :class="{ withDetail: !!selectedId, editing }">
       <div class="listCol">
         <div class="toolbar">
           <input v-model="q" class="search" :placeholder="t('tpls.search')" />
@@ -111,19 +197,30 @@ onMounted(async () => {
       </div>
 
       <aside v-if="selectedId" class="panel detail">
-        <p v-if="detailError" class="err">{{ detailError }}</p>
-        <template v-else-if="detail">
+        <p v-if="detailError" class="err msg">{{ detailError }}</p>
+        <template v-if="detail">
           <header class="dHead">
-            <h2 class="dName">{{ detail.name }}</h2>
-            <button class="btn" @click="select(null)">{{ t('common.close') }}</button>
+            <h2 v-if="!editing" class="dName">{{ detail.name }}</h2>
+            <input v-else v-model="draft.name" class="nameInput" maxlength="120" :aria-label="t('tpl.name')" />
+            <template v-if="editing">
+              <button class="btn" @click="cancelEdit">{{ t('vform.cancel') }}</button>
+              <button class="btn primary" :disabled="saving || !draft.name.trim()" @click="save">{{ t('vuln.save') }}</button>
+            </template>
+            <template v-else>
+              <button v-if="detail.can_edit" class="btn danger" @click="remove">{{ t('rowActions.delete') }}</button>
+              <button v-if="detail.can_edit" class="btn primary" @click="startEdit">{{ t('rpt.edit') }}</button>
+              <button class="btn" @click="select(null)">{{ t('common.close') }}</button>
+            </template>
           </header>
           <dl class="facts">
             <dt>{{ t('tpls.owner') }}</dt><dd>{{ detail.mine ? t('tpls.me') : detail.owner.username }}</dd>
             <dt>{{ t('tpls.availability') }}</dt><dd>{{ availability(detail) }}</dd>
             <dt>{{ t('tpls.createdAt') }}</dt><dd>{{ fmtDateTime(detail.created_at) }}</dd>
+            <dt>{{ t('cols.updatedAt') }}</dt><dd>{{ fmtDateTime(detail.updated_at) }}</dd>
           </dl>
 
-          <div class="content">
+          <!-- Read -->
+          <div v-if="!editing" class="content">
             <section class="block">
               <h3 class="blockTitle">{{ t('rpt.summary') }}</h3>
               <MarkdownView v-if="detail.executive_summary_md" :source="detail.executive_summary_md" />
@@ -144,6 +241,33 @@ onMounted(async () => {
               <p v-if="!detail.sections.length" class="muted">—</p>
             </section>
           </div>
+
+          <!-- Edit -->
+          <div v-else class="content">
+            <section class="block">
+              <h3 class="blockTitle">{{ t('rpt.summary') }}</h3>
+              <MarkdownEditor v-model="draft.executive_summary_md" />
+            </section>
+            <section class="block">
+              <h3 class="blockTitle">{{ t('rpt.intro') }}</h3>
+              <MarkdownEditor v-model="draft.introduction_md" />
+            </section>
+            <section class="block">
+              <h3 class="blockTitle">{{ t('rpt.extras') }} ({{ draft.sections.length }})</h3>
+              <div v-for="(s, i) in draft.sections" :key="s.key" class="extraEdit">
+                <div class="extraHead">
+                  <input v-model="s.title" :placeholder="t('rpt.sectionTitle')" maxlength="200" />
+                  <div class="extraActs">
+                    <button class="link" :disabled="i === 0" @click="moveSection(i, -1)">{{ t('rpt.up') }}</button>
+                    <button class="link" :disabled="i === draft.sections.length - 1" @click="moveSection(i, 1)">{{ t('rpt.down') }}</button>
+                    <button class="link danger" @click="removeSection(i)">{{ t('vform.removeRef') }}</button>
+                  </div>
+                </div>
+                <MarkdownEditor v-model="s.content_markdown" />
+              </div>
+              <button class="link addSection" @click="addSection">{{ t('rpt.addSection') }}</button>
+            </section>
+          </div>
         </template>
       </aside>
     </div>
@@ -153,7 +277,9 @@ onMounted(async () => {
 <style scoped>
 .tplLayout { display: grid; grid-template-columns: 1fr; gap: 16px; align-items: start; }
 .tplLayout.withDetail { grid-template-columns: minmax(0, 1fr) minmax(420px, 1fr); }
-@media (max-width: 1100px) { .tplLayout.withDetail { grid-template-columns: 1fr; } }
+/* While editing, the editors get most of the width. */
+.tplLayout.withDetail.editing { grid-template-columns: minmax(0, .8fr) minmax(520px, 1.4fr); }
+@media (max-width: 1100px) { .tplLayout.withDetail, .tplLayout.withDetail.editing { grid-template-columns: 1fr; } }
 
 .toolbar { display: flex; gap: 8px; align-items: center; margin-bottom: 12px; flex-wrap: wrap; }
 .search { flex: 1 1 200px; min-width: 160px; max-width: 320px; }
@@ -166,10 +292,13 @@ onMounted(async () => {
 .tname { color: var(--text); }
 .dateCell { color: var(--muted); font-variant-numeric: tabular-nums; }
 .empty { text-align: center; color: var(--muted); padding: 2rem; }
+.msg { margin: 0 0 12px; font-size: 13px; }
+.ok { color: var(--accent); }
 
 .detail { padding: 16px 18px 18px; position: sticky; top: 0; max-height: calc(100vh - 140px); overflow: auto; }
-.dHead { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
-.dName { margin: 0; font-size: 18px; font-weight: 400; flex: 1; }
+.dHead { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
+.dName { margin: 0; font-size: 18px; font-weight: 400; flex: 1; min-width: 0; }
+.nameInput { flex: 1; min-width: 0; font-size: 15px; }
 .facts { display: grid; grid-template-columns: 120px 1fr; gap: 6px 12px; margin: 0 0 14px; font-size: 13px; }
 .facts dt { color: var(--muted); }
 .facts dd { margin: 0; }
@@ -177,4 +306,10 @@ onMounted(async () => {
 .blockTitle { margin: 0 0 8px; font-size: 14px; font-weight: 400; color: var(--text); }
 .extra { margin: 0 0 12px; padding-left: 12px; border-left: 2px solid var(--line); }
 .extraTitle { margin: 0 0 6px; font-size: 13px; font-weight: 500; color: var(--text-2); }
+.extraEdit { margin: 0 0 14px; display: grid; gap: 8px; }
+.extraHead { display: flex; gap: 10px; align-items: center; }
+.extraHead input { flex: 1; min-width: 0; }
+.extraActs { display: flex; gap: 10px; flex: 0 0 auto; }
+.extraActs .link:disabled { opacity: .35; cursor: default; text-decoration: none; }
+.addSection { justify-self: start; }
 </style>

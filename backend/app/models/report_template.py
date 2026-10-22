@@ -9,7 +9,7 @@ an admin can make one available to everyone (`is_global`).
 import uuid
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Boolean, ForeignKey, Text, text
+from sqlalchemy import Boolean, ForeignKey, Integer, Text, text
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -36,5 +36,8 @@ class ReportTemplate(UUIDPK, Timestamps, Base):
     sections: Mapped[list] = mapped_column(
         JSONB, nullable=False, server_default=text("'[]'::jsonb")
     )
+
+    # Bumped on every edit; a stale client version is rejected with 409 (as for vulns, D5).
+    version: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("1"))
 
     owner: Mapped["User"] = relationship(lazy="joined")

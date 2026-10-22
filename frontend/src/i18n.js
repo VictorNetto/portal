@@ -73,6 +73,10 @@ const messages = {
       sections: 'Seções',
       createdAt: 'Criado em',
       empty: 'Nenhum template ainda. Use "Salvar como Template" em um relatório.',
+      saved: 'Template "{name}" salvo.',
+      deleted: 'Template "{name}" excluído.',
+      confirmDelete: 'Excluir o template "{name}"? Os relatórios criados a partir dele não são alterados.',
+      discard: 'Descartar as alterações não salvas deste template?',
     },
     tpl: {
       label: 'Template',
@@ -496,6 +500,10 @@ const messages = {
       sections: 'Sections',
       createdAt: 'Created',
       empty: 'No templates yet. Use "Save as Template" on a report.',
+      saved: 'Template "{name}" saved.',
+      deleted: 'Template "{name}" deleted.',
+      confirmDelete: 'Delete the template "{name}"? Reports created from it are not changed.',
+      discard: 'Discard the unsaved changes to this template?',
     },
     tpl: {
       label: 'Template',

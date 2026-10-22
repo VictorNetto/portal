@@ -1,8 +1,13 @@
 """Report template rules.
 
 Templates only matter to people who create reports: other roles get 403 everywhere here.
-Among those, a template is seen by its owner, by everyone when it is global, and by admins
-(all of them). Only an admin makes a template global.
+Among those:
+- a template is seen by its owner, by everyone when it is global, and by admins (all of them);
+- only an admin makes a template global (or stops sharing it);
+- editing and deleting: the owner, while the template is private; admins, always. Once a
+  template is shared with everyone it changes only through an admin (D11, option B), so a
+  template others rely on cannot change or disappear behind their backs.
+Reports created from a template keep their own copy of the text, whatever happens to it.
 """
 
 import uuid
@@ -24,9 +29,15 @@ from app.schemas.report_template import (
 )
 from app.schemas.vulnerability import OperatorRef
 
+_CONTENT = ("name", "executive_summary_md", "introduction_md", "sections")
+
 
 def _can_see(user: User, tpl: ReportTemplate) -> bool:
     return user.role == UserRole.admin or tpl.is_global or tpl.owner_id == user.id
+
+
+def can_edit(user: User, tpl: ReportTemplate) -> bool:
+    return user.role == UserRole.admin or (tpl.owner_id == user.id and not tpl.is_global)
 
 
 def _require_creator(user: User) -> None:
@@ -43,10 +54,22 @@ def get_visible(session: Session, template_id: uuid.UUID, user: User) -> ReportT
     return tpl
 
 
+def _get_editable(session: Session, template_id: uuid.UUID, user: User) -> ReportTemplate:
+    tpl = get_visible(session, template_id, user)
+    if not can_edit(user, tpl):
+        detail = (
+            "A template shared with everyone can only be changed by an admin"
+            if tpl.is_global else access.FORBIDDEN
+        )
+        raise HTTPException(status.HTTP_403_FORBIDDEN, detail)
+    return tpl
+
+
 def _item(tpl: ReportTemplate, user: User) -> dict:
     return dict(
         id=tpl.id, name=tpl.name, is_global=tpl.is_global,
         owner=OperatorRef.model_validate(tpl.owner), mine=tpl.owner_id == user.id,
+        can_edit=can_edit(user, tpl), version=tpl.version,
         section_count=len(tpl.sections or []),
         created_at=tpl.created_at, updated_at=tpl.updated_at,
     )
@@ -69,21 +92,30 @@ def list_templates(session: Session, user: User) -> list[TemplateListItem]:
     return [TemplateListItem(**_item(t, user)) for t in session.scalars(stmt)]
 
 
+def _clean_sections(sections: list[TemplateSection]) -> list[dict]:
+    return [
+        {"title": s.title.strip(), "content_markdown": s.content_markdown}
+        for s in sections if s.title.strip()
+    ]
+
+
+def _clean_name(name: str) -> str:
+    name = name.strip()
+    if not name:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "name cannot be empty")
+    return name
+
+
 def create(session: Session, body: TemplateCreate, user: User, request: Request) -> TemplateOut:
     _require_creator(user)
     if body.is_global and user.role != UserRole.admin:
         raise HTTPException(status.HTTP_403_FORBIDDEN, "Only an admin can make a template available to everyone")
-    name = body.name.strip()
-    if not name:
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "name cannot be empty")
+    name = _clean_name(body.name)
     tpl = ReportTemplate(
         name=name, owner_id=user.id, is_global=body.is_global,
         executive_summary_md=body.executive_summary_md,
         introduction_md=body.introduction_md,
-        sections=[
-            {"title": s.title.strip(), "content_markdown": s.content_markdown}
-            for s in body.sections if s.title.strip()
-        ],
+        sections=_clean_sections(body.sections),
     )
     session.add(tpl)
     session.flush()
@@ -98,16 +130,70 @@ def create(session: Session, body: TemplateCreate, user: User, request: Request)
 
 
 def update(
-    session: Session, template_id: uuid.UUID, body: TemplateUpdate, admin: User, request: Request
+    session: Session, template_id: uuid.UUID, body: TemplateUpdate, user: User, request: Request
 ) -> TemplateOut:
-    tpl = get_visible(session, template_id, admin)
-    if tpl.is_global != body.is_global:
+    changes = body.model_dump(exclude_unset=True, exclude={"version"})
+    content = {k: v for k, v in changes.items() if k in _CONTENT}
+    sharing = "is_global" in changes
+
+    if sharing and user.role != UserRole.admin:
+        get_visible(session, template_id, user)  # 404 first for templates it cannot see
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Only an admin can share or unshare a template")
+    if content:
+        # Lock the row first, so two simultaneous saves cannot both pass the version check.
+        _require_creator(user)
+        session.execute(
+            select(ReportTemplate.id).where(ReportTemplate.id == template_id).with_for_update()
+        )
+        tpl = _get_editable(session, template_id, user)
+    else:
+        tpl = get_visible(session, template_id, user)
+
+    if content:
+        if body.version is None:
+            raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "version is required to edit a template")
+        if body.version != tpl.version:
+            raise HTTPException(
+                status.HTTP_409_CONFLICT,
+                f"Version conflict: you have v{body.version}, current is v{tpl.version}. "
+                "Reload and reapply your changes.",
+            )
+        if "name" in content:
+            tpl.name = _clean_name(content["name"])
+        if "executive_summary_md" in content:
+            tpl.executive_summary_md = content["executive_summary_md"]
+        if "introduction_md" in content:
+            tpl.introduction_md = content["introduction_md"]
+        if "sections" in content:
+            tpl.sections = _clean_sections(body.sections or [])
+        tpl.version += 1
         audit.record(
-            session, action=AuditAction.update, user_id=admin.id,
+            session, action=AuditAction.update, user_id=user.id,
+            entity_type="report_template", entity_id=tpl.id,
+            detail={"fields": sorted(content)}, request=request,
+        )
+
+    if sharing and tpl.is_global != body.is_global:
+        audit.record(
+            session, action=AuditAction.update, user_id=user.id,
             entity_type="report_template", entity_id=tpl.id,
             detail={"is_global": {"from": tpl.is_global, "to": body.is_global}}, request=request,
         )
         tpl.is_global = body.is_global
+
     session.commit()
     session.refresh(tpl)
-    return to_out(tpl, admin)
+    return to_out(tpl, user)
+
+
+def delete(session: Session, template_id: uuid.UUID, user: User, request: Request) -> None:
+    """Remove a template. Reports created from it keep their text (their link is cleared)."""
+    tpl = _get_editable(session, template_id, user)
+    audit.record(
+        session, action=AuditAction.delete, user_id=user.id,
+        entity_type="report_template", entity_id=tpl.id,
+        detail={"name": tpl.name, "owner": tpl.owner.username, "is_global": tpl.is_global},
+        request=request,
+    )
+    session.delete(tpl)
+    session.commit()
