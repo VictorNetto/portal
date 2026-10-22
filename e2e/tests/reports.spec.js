@@ -105,7 +105,7 @@ test.describe('reports', () => {
     // bob sees it read-only and cannot edit
     await pb.goto(`/reports/${own.id}`)
     await expect(pb.locator('.banner.other')).toContainText(alice.username)
-    await expect(pb.locator('input[maxlength="200"]').first()).toBeDisabled()
+    await expect(pb.locator('.grid4 input, .grid4 textarea, .mdEditor, .extraHead')).toHaveCount(0)   // read as a report
     await expect(pb.locator('.pageActions button:has-text("Editar")')).toHaveCount(0)
     await expect(pb.locator('button:has-text("Liberar bloqueio")')).toHaveCount(0)        // not for a writer
     await expect(pb.locator('button:has-text("Parar de editar")')).toHaveCount(0)
@@ -159,7 +159,8 @@ test.describe('reports', () => {
     // dispatch
     await page.click('.pageActions button:has-text("Disparar")')
     await expect(page.locator('.subline .pill')).toHaveText('Disparada')
-    await expect(page.locator('input[maxlength="200"]').first()).toBeDisabled()
+    await expect(page.locator('.grid4 input, .grid4 textarea, .extraHead')).toHaveCount(0)
+    await expect(page.locator('.mdEditor')).toHaveCount(1)                       // only the internal notes stay editable
     await expect(page.locator('.drop')).toHaveCount(0)
     await expect(page.locator('.vt .pill')).toHaveText('Disparada')
 

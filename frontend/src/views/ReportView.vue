@@ -16,7 +16,7 @@ import {
 import { attachmentPath } from '../markdown'
 import { t } from '../i18n'
 import { vField } from '../directives'
-import { fmtDateTime, fmtTime } from '../dates'
+import { fmtDateTime, fmtTime, fmtPlainDate } from '../dates'
 import { useAuthStore } from '../stores/auth'
 import AppShell from '../components/AppShell.vue'
 import MarkdownEditor from '../components/MarkdownEditor.vue'
@@ -24,6 +24,7 @@ import AttachmentsPanel from '../components/AttachmentsPanel.vue'
 import OperatorPicker from '../components/OperatorPicker.vue'
 import TemplatePicker from '../components/TemplatePicker.vue'
 import ExportMenu from '../components/ExportMenu.vue'
+import MarkdownView from '../components/MarkdownView.vue'
 import { canCreate, canWriteRecord, canDeleteRecord } from '../access'
 
 const route = useRoute()
@@ -51,6 +52,7 @@ const allUsers = ref([])
 const selectedOps = ref(new Set())
 const selectedViewers = ref(new Set())
 // The picker needs a name for everyone on the record, even for users that cannot list all accounts.
+const namesOf = (ids) => knownUsers.value.filter((u) => ids.has(u.id)).map((u) => u.username).join(', ')
 const knownUsers = computed(() => {
   const byId = new Map(allUsers.value.map((u) => [u.id, u]))
   for (const u of [...(report.value?.operators || []), ...(report.value?.viewers || [])]) if (!byId.has(u.id)) byId.set(u.id, u)
@@ -522,23 +524,32 @@ async function saveTemplate() {
           <h2 class="secTitle">{{ t('rpt.general') }}</h2>
           <div class="grid4">
             <div class="f wide2">
-              <label>{{ t('rpt.name') }} *</label>
-              <input v-field v-model="form.name" :disabled="!editing" maxlength="200" />
+              <label>{{ t('rpt.name') }}{{ editing ? ' *' : '' }}</label>
+              <input v-if="editing" v-field v-model="form.name" maxlength="200" />
+              <div v-else class="roVal">{{ form.name || '—' }}</div>
             </div>
             <div class="f wide2">
               <label>{{ t('rpt.client') }}</label>
-              <input v-field v-model="form.client_name" :disabled="!editing" maxlength="200" />
+              <input v-if="editing" v-field v-model="form.client_name" maxlength="200" />
+              <div v-else class="roVal">{{ form.client_name || '—' }}</div>
             </div>
-            <div class="f"><label>{{ t('rpt.start') }}</label><input v-model="form.start_date" type="date" :disabled="!editing" @change="keepEndAfterStart(form)" /></div>
-            <div class="f"><label>{{ t('rpt.end') }}</label><input v-model="form.end_date" type="date" :disabled="!editing" :min="form.start_date || undefined" @change="keepEndAfterStart(form)" /></div>
+            <div class="f"><label>{{ t('rpt.start') }}</label>
+              <input v-if="editing" v-model="form.start_date" type="date" @change="keepEndAfterStart(form)" />
+              <div v-else class="roVal">{{ form.start_date && fmtPlainDate(form.start_date) || '—' }}</div>
+            </div>
+            <div class="f"><label>{{ t('rpt.end') }}</label>
+              <input v-if="editing" v-model="form.end_date" type="date" :min="form.start_date || undefined" @change="keepEndAfterStart(form)" />
+              <div v-else class="roVal">{{ form.end_date && fmtPlainDate(form.end_date) || '—' }}</div>
+            </div>
             <div class="f wide2">
               <label>{{ t('vform.operators') }}</label>
-              <OperatorPicker v-model="selectedOps" :users="knownUsers" :disabled="!editing" />
+              <OperatorPicker v-if="editing" v-model="selectedOps" :users="knownUsers" />
+              <div v-else class="roVal">{{ namesOf(selectedOps) || '—' }}</div>
             </div>
             <div v-if="editing || notesOnly || selectedViewers.size" class="f wide2">
               <label>{{ t('vform.sharedWith') }}</label>
-              <OperatorPicker v-model="selectedViewers" :users="knownUsers" :show-self="false"
-                              :disabled="!(editing || notesOnly)" />
+              <OperatorPicker v-if="editing || notesOnly" v-model="selectedViewers" :users="knownUsers" :show-self="false" />
+              <div v-else class="roVal">{{ namesOf(selectedViewers) || '—' }}</div>
             </div>
           </div>
         </section>
@@ -547,13 +558,26 @@ async function saveTemplate() {
         <section class="panel card">
           <h2 class="secTitle">{{ t('rpt.data') }}</h2>
           <div class="grid4">
-            <div class="f"><label>{{ t('rpt.testType') }}</label><input v-field v-model="form.test_type" :disabled="!editing" placeholder="infra, web, mobile, API" /></div>
-            <div class="f"><label>{{ t('rpt.testModel') }}</label><input v-field v-model="form.test_model" :disabled="!editing" placeholder="graybox, blackbox, whitebox" /></div>
-            <div class="f"><label>{{ t('rpt.environment') }}</label><input v-field v-model="form.environment" :disabled="!editing" placeholder="production, staging" /></div>
-            <div class="f"><label>{{ t('rpt.origin') }}</label><input v-field v-model="form.demand_origin" :disabled="!editing" /></div>
+            <div class="f"><label>{{ t('rpt.testType') }}</label>
+              <input v-if="editing" v-field v-model="form.test_type" placeholder="infra, web, mobile, API" />
+              <div v-else class="roVal">{{ form.test_type || '—' }}</div>
+            </div>
+            <div class="f"><label>{{ t('rpt.testModel') }}</label>
+              <input v-if="editing" v-field v-model="form.test_model" placeholder="graybox, blackbox, whitebox" />
+              <div v-else class="roVal">{{ form.test_model || '—' }}</div>
+            </div>
+            <div class="f"><label>{{ t('rpt.environment') }}</label>
+              <input v-if="editing" v-field v-model="form.environment" placeholder="production, staging" />
+              <div v-else class="roVal">{{ form.environment || '—' }}</div>
+            </div>
+            <div class="f"><label>{{ t('rpt.origin') }}</label>
+              <input v-if="editing" v-field v-model="form.demand_origin" />
+              <div v-else class="roVal">{{ form.demand_origin || '—' }}</div>
+            </div>
             <div class="f full">
               <label>{{ t('rpt.scope') }}</label>
-              <textarea v-model="form.scope" rows="3" :disabled="!editing" maxlength="5000"></textarea>
+              <textarea v-if="editing" v-model="form.scope" rows="3" maxlength="5000"></textarea>
+              <div v-else class="roVal pre">{{ form.scope || '—' }}</div>
             </div>
           </div>
         </section>
@@ -562,32 +586,37 @@ async function saveTemplate() {
           <div class="stack">
             <section class="panel card">
               <h2 class="secTitle">{{ t('rpt.summary') }}</h2>
-              <MarkdownEditor v-model="form.executive_summary_md" :disabled="!editing"
-                              :image-uploader="editing ? uploadEditorImage : null" />
+              <MarkdownEditor v-if="editing" v-model="form.executive_summary_md" :image-uploader="uploadEditorImage" />
+              <MarkdownView v-else :source="form.executive_summary_md || '—'" />
             </section>
             <section class="panel card">
               <h2 class="secTitle">{{ t('rpt.intro') }}</h2>
-              <MarkdownEditor v-model="form.introduction_md" :disabled="!editing"
-                              :image-uploader="editing ? uploadEditorImage : null" />
+              <MarkdownEditor v-if="editing" v-model="form.introduction_md" :image-uploader="uploadEditorImage" />
+              <MarkdownView v-else :source="form.introduction_md || '—'" />
             </section>
-            <!-- Free-form sections -->
-            <section class="panel card">
+            <!-- Free-form sections. Read: one card each, as in the report. Edit: one card to manage them. -->
+            <template v-if="!editing">
+              <section v-for="s in sections" :key="s.key" class="panel card">
+                <h2 class="secTitle">{{ s.title || '—' }}</h2>
+                <MarkdownView :source="s.content_markdown || '—'" />
+              </section>
+            </template>
+            <section v-else class="panel card">
               <h2 class="secTitle">{{ t('rpt.extras') }}</h2>
               <p class="hint">{{ t('rpt.extrasHint') }}</p>
               <p v-if="!sections.length" class="muted small">{{ t('rpt.noExtras') }}</p>
               <div v-for="(s, i) in sections" :key="s.key" class="extra">
                 <div class="extraHead">
-                  <input v-model="s.title" :disabled="!editing" :placeholder="t('rpt.sectionTitle')" maxlength="200" />
-                  <div v-if="editing" class="extraActs">
+                  <input v-model="s.title" :placeholder="t('rpt.sectionTitle')" maxlength="200" />
+                  <div class="extraActs">
                     <button class="link" :disabled="i === 0" @click="moveSection(i, -1)">{{ t('rpt.up') }}</button>
                     <button class="link" :disabled="i === sections.length - 1" @click="moveSection(i, 1)">{{ t('rpt.down') }}</button>
                     <button class="link danger" @click="removeSection(i)">{{ t('vform.removeRef') }}</button>
                   </div>
                 </div>
-                <MarkdownEditor v-model="s.content_markdown" :disabled="!editing"
-                                :image-uploader="editing ? uploadEditorImage : null" />
+                <MarkdownEditor v-model="s.content_markdown" :image-uploader="uploadEditorImage" />
               </div>
-              <button v-if="editing" class="link addRef" @click="addSection">{{ t('rpt.addSection') }}</button>
+              <button class="link addRef" @click="addSection">{{ t('rpt.addSection') }}</button>
             </section>
           </div>
           <div class="stack">
@@ -615,7 +644,7 @@ async function saveTemplate() {
 
             <section class="panel card">
               <h2 class="secTitle">{{ t('rpt.evidence') }}</h2>
-              <p class="hint">{{ t('rpt.evidenceHint') }}</p>
+              <p v-if="editing" class="hint">{{ t('rpt.evidenceHint') }}</p>
               <AttachmentsPanel :attachments="evidence" :disabled="!editing" :uploading="evUploading" :error="evError"
                                 @upload="onEvidenceUpload" @remove="removeEvidence"
                                 @download="downloadEvidence" @copy-markdown="copyEvidenceMarkdown" />
@@ -624,7 +653,8 @@ async function saveTemplate() {
             <section class="panel card">
               <h2 class="secTitle">{{ t('vform.notes') }}</h2>
               <p class="hint">{{ t('vform.notesHint') }}</p>
-              <MarkdownEditor v-model="form.internal_notes" :disabled="!canEditNotes" />
+              <MarkdownEditor v-if="canEditNotes" v-model="form.internal_notes" />
+              <MarkdownView v-else :source="form.internal_notes || '—'" />
             </section>
           </div>
         </div>
@@ -674,6 +704,9 @@ async function saveTemplate() {
 .modal { width: min(460px, 100%); padding: 18px 20px; display: grid; gap: 12px; }
 .modal .secTitle, .modal .hint { margin: 0; }
 .modalActions { display: flex; justify-content: flex-end; gap: 8px; }
+/* Read-only values: shown as they read in a report, not as disabled inputs. */
+.roVal { font-size: 14px; color: var(--text); line-height: 1.5; min-height: 21px; word-break: break-word; }
+.roVal.pre { white-space: pre-wrap; }
 .layout { display: grid; grid-template-columns: minmax(0, 1.45fr) minmax(340px, .9fr); gap: 16px; align-items: start; }
 .stack { min-width: 0; }
 .secTitle { margin: 0 0 12px; font-size: 14px; font-weight: 400; color: var(--text); }

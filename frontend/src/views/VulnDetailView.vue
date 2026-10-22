@@ -19,6 +19,7 @@ import MultiValueInput from '../components/MultiValueInput.vue'
 import AttachmentsPanel from '../components/AttachmentsPanel.vue'
 import OperatorPicker from '../components/OperatorPicker.vue'
 import ExportMenu from '../components/ExportMenu.vue'
+import MarkdownView from '../components/MarkdownView.vue'
 import { canCreate, canWriteRecord, canDeleteRecord } from '../access'
 import VulnTimeline from '../components/VulnTimeline.vue'
 
@@ -71,6 +72,10 @@ const allUsers = ref([])
 const selectedOps = ref(new Set()) // user ids
 const selectedViewers = ref(new Set())
 // The picker needs a name for everyone on the record, even for users that cannot list all accounts.
+const sevClass = (score) => { const n = Number(score); return n >= 7 ? 'hi' : n >= 4 ? 'me' : 'lo' }
+const namesOf = (ids) => knownUsers.value.filter((u) => ids.has(u.id)).map((u) => u.username).join(', ')
+// The required mark only matters while the field can be typed into.
+const req = (field) => (canEdit(field) ? ' *' : '')
 const knownUsers = computed(() => {
   const byId = new Map(allUsers.value.map((u) => [u.id, u]))
   for (const u of [...(vuln.value?.operators || []), ...(vuln.value?.viewers || [])]) if (!byId.has(u.id)) byId.set(u.id, u)
@@ -484,7 +489,7 @@ watch(() => route.fullPath, () => {
         <div class="pageActions">
           <button v-if="!isNew && mayDelete" class="btn danger" @click="remove">{{ t('rowActions.delete') }}</button>
           <ExportMenu v-if="!isNew" :options="exportOptions" @export="exportAs" />
-          <button class="btn" @click="leave">{{ inReport ? t('rpt.back') : t('vform.cancel') }}</button>
+          <button class="btn" @click="leave">{{ inReport || !editableFields.size ? t('rpt.back') : t('vform.cancel') }}</button>
           <button v-if="isAdmin && correctionTargets.length" class="btn" @click="openCorrection">
             {{ t('correction.button') }}
           </button>
@@ -544,40 +549,47 @@ watch(() => route.fullPath, () => {
         <h2 class="secTitle">{{ t('vform.general') }}</h2>
         <div class="infoGrid">
           <div class="f">
-            <label>{{ t('vform.identifier') }} *</label>
-            <input v-field v-model="form.identifier" :class="{ invalid: fieldError('identifier') }"
-                   :placeholder="t('vform.identifierPh')" :disabled="!canEdit('identifier')" />
+            <label>{{ t('vform.identifier') }}{{ req('identifier') }}</label>
+            <input v-if="canEdit('identifier')" v-field v-model="form.identifier" :class="{ invalid: fieldError('identifier') }"
+                   :placeholder="t('vform.identifierPh')" />
+            <div v-else class="roVal">{{ form.identifier || '—' }}</div>
             <small v-if="fieldError('identifier')" class="fieldErr">{{ t('vform.required') }}</small>
           </div>
           <div class="f">
             <label>{{ t('vform.cwe') }}</label>
-            <input v-field :value="form.cwe" inputmode="numeric" autocomplete="off" placeholder="CWE-79"
-                   :disabled="!canEdit('cwe')" @input="onCwe" @blur="onCwe" />
+            <input v-if="canEdit('cwe')" v-field :value="form.cwe" inputmode="numeric" autocomplete="off" placeholder="CWE-79"
+                   @input="onCwe" @blur="onCwe" />
+            <div v-else class="roVal">{{ form.cwe || '—' }}</div>
           </div>
           <div class="f">
             <label>{{ t('vform.cvss') }}</label>
-            <CvssInput v-model="form.cvss_score" :disabled="!canEdit('cvss_score')" />
+            <CvssInput v-if="canEdit('cvss_score')" v-model="form.cvss_score" />
+            <div v-else class="roVal">
+              <span v-if="form.cvss_score != null && form.cvss_score !== ''" class="cvss" :class="sevClass(form.cvss_score)">{{ Number(form.cvss_score).toFixed(1) }}</span>
+              <template v-else>—</template>
+            </div>
           </div>
           <div class="f">
             <label>{{ t('vform.cvssVector') }}</label>
-            <input v-field v-model="form.cvss_vector" placeholder="CVSS:3.1/AV:N/AC:L/…"
-                   :disabled="!canEdit('cvss_vector')" />
+            <input v-if="canEdit('cvss_vector')" v-field v-model="form.cvss_vector" placeholder="CVSS:3.1/AV:N/AC:L/…" />
+            <div v-else class="roVal mono">{{ form.cvss_vector || '—' }}</div>
           </div>
 
           <div class="row2">
             <div class="f">
               <label>{{ t('vform.sources') }}</label>
-              <MultiValueInput v-model="form.source" :placeholder="t('vform.sourcesPh')"
-                               :disabled="!canEdit('source')" />
+              <MultiValueInput v-if="canEdit('source')" v-model="form.source" :placeholder="t('vform.sourcesPh')" />
+              <div v-else class="roVal">{{ form.source || '—' }}</div>
             </div>
             <div class="f">
               <label>{{ t('vform.operators') }}</label>
-              <OperatorPicker v-model="selectedOps" :users="knownUsers" :disabled="!canEdit('operators')" />
+              <OperatorPicker v-if="canEdit('operators')" v-model="selectedOps" :users="knownUsers" />
+              <div v-else class="roVal">{{ namesOf(selectedOps) || '—' }}</div>
             </div>
             <div v-if="canEdit('operators') || selectedViewers.size" class="f">
               <label>{{ t('vform.sharedWith') }}</label>
-              <OperatorPicker v-model="selectedViewers" :users="knownUsers" :show-self="false"
-                              :disabled="!canEdit('operators')" />
+              <OperatorPicker v-if="canEdit('operators')" v-model="selectedViewers" :users="knownUsers" :show-self="false" />
+              <div v-else class="roVal">{{ namesOf(selectedViewers) }}</div>
             </div>
           </div>
         </div>
@@ -586,24 +598,27 @@ watch(() => route.fullPath, () => {
       <div class="layout">
         <div class="stack">
           <section class="panel card">
-            <h2 class="secTitle">{{ t('vform.description') }} *</h2>
-            <MarkdownEditor v-model="form.description" :disabled="!canEdit('description')"
+            <h2 class="secTitle">{{ t('vform.description') }}{{ req('description') }}</h2>
+            <MarkdownView v-if="!canEdit('description')" :source="form.description || '—'" />
+            <MarkdownEditor v-else v-model="form.description"
                             :invalid="fieldError('description')"
                             :image-uploader="attachEditable ? uploadEditorImage : null" />
             <small v-if="fieldError('description')" class="fieldErr">{{ t('vform.required') }}</small>
           </section>
 
           <section class="panel card">
-            <h2 class="secTitle">{{ t('vform.finding') }} *</h2>
-            <MarkdownEditor v-model="form.finding_detail" :disabled="!canEdit('finding_detail')"
+            <h2 class="secTitle">{{ t('vform.finding') }}{{ req('finding_detail') }}</h2>
+            <MarkdownView v-if="!canEdit('finding_detail')" :source="form.finding_detail || '—'" />
+            <MarkdownEditor v-else v-model="form.finding_detail"
                             :invalid="fieldError('finding_detail')"
                             :image-uploader="attachEditable ? uploadEditorImage : null" />
             <small v-if="fieldError('finding_detail')" class="fieldErr">{{ t('vform.required') }}</small>
           </section>
 
           <section class="panel card">
-            <h2 class="secTitle">{{ t('vform.mitigation') }} *</h2>
-            <MarkdownEditor v-model="form.mitigation" :disabled="!canEdit('mitigation')"
+            <h2 class="secTitle">{{ t('vform.mitigation') }}{{ req('mitigation') }}</h2>
+            <MarkdownView v-if="!canEdit('mitigation')" :source="form.mitigation || '—'" />
+            <MarkdownEditor v-else v-model="form.mitigation"
                             :invalid="fieldError('mitigation')"
                             :image-uploader="attachEditable ? uploadEditorImage : null" />
             <small v-if="fieldError('mitigation')" class="fieldErr">{{ t('vform.required') }}</small>
@@ -611,30 +626,39 @@ watch(() => route.fullPath, () => {
 
           <section class="panel card">
             <h2 class="secTitle">{{ t('vform.references') }}</h2>
+            <template v-if="!canEdit('references')">
+              <ul v-if="form.references.some((r) => r.trim())" class="refList">
+                <li v-for="r in form.references.filter((x) => x.trim())" :key="r">
+                  <a :href="r" target="_blank" rel="noopener noreferrer">{{ r }}</a>
+                </li>
+              </ul>
+              <p v-else class="roVal">—</p>
+            </template>
+            <template v-else>
             <p class="hint">{{ t('vform.referencesHint') }}</p>
             <div class="refs">
               <div v-for="(_, i) in form.references" :key="i" class="refRow">
                 <div class="f">
                   <input v-field v-model="form.references[i]" type="url" :placeholder="t('vform.refPh')"
-                         :class="{ invalid: showErrors && refInvalid(form.references[i]) }"
-                         :disabled="!canEdit('references')" />
+                         :class="{ invalid: showErrors && refInvalid(form.references[i]) }" />
                   <small v-if="showErrors && refInvalid(form.references[i])" class="fieldErr">{{ t('vform.errRef') }}</small>
                 </div>
-                <button v-if="canEdit('references')" type="button" class="btn" @click="removeRef(i)">
+                <button type="button" class="btn" @click="removeRef(i)">
                   {{ t('vform.removeRef') }}
                 </button>
               </div>
             </div>
-            <button v-if="canEdit('references')" type="button" class="link addRef" @click="addRef">
+            <button type="button" class="link addRef" @click="addRef">
               {{ t('vform.addRef') }}
             </button>
+            </template>
           </section>
         </div>
 
         <div class="stack">
           <section class="panel card">
             <h2 class="secTitle">{{ t('attach.title') }}</h2>
-            <p class="hint">{{ t('attach.hint') }}</p>
+            <p v-if="attachEditable" class="hint">{{ t('attach.hint') }}</p>
             <AttachmentsPanel :attachments="attachments" :disabled="!attachEditable"
                               :uploading="uploading" :error="attachError"
                               @upload="onPanelUpload" @remove="removeAttachment"
@@ -644,7 +668,8 @@ watch(() => route.fullPath, () => {
           <section class="panel card">
             <h2 class="secTitle">{{ t('vform.notes') }}</h2>
             <p class="hint">{{ t('vform.notesHint') }}</p>
-            <MarkdownEditor v-model="form.internal_notes" :disabled="!canEdit('internal_notes')" />
+            <MarkdownEditor v-if="canEdit('internal_notes')" v-model="form.internal_notes" />
+            <MarkdownView v-else :source="form.internal_notes || '—'" />
           </section>
         </div>
       </div>
@@ -674,6 +699,12 @@ watch(() => route.fullPath, () => {
 input.invalid { border-color: var(--danger); }
 .fieldErr { color: var(--danger); font-size: 12px; margin-top: 4px; display: block; }
 
+/* Read-only values: shown as they read in a report, not as disabled inputs. */
+.roVal { font-size: 14px; color: var(--text); line-height: 1.5; min-height: 21px; word-break: break-word; }
+.roVal.mono { font-family: var(--mono); font-size: 13px; }
+.roVal .cvss.hi { color: var(--danger); } .roVal .cvss.me { color: var(--st-wait-fg); } .roVal .cvss.lo { color: var(--muted); }
+.refList { margin: 0; padding-left: 18px; display: grid; gap: 4px; font-size: 13px; }
+.refList a { color: var(--accent); word-break: break-all; }
 .infoGrid { display: grid; grid-template-columns: 1.3fr .85fr .85fr 1.25fr; gap: 16px 24px; align-items: start; }
 .row2 { grid-column: 1 / -1; display: grid; grid-template-columns: 1fr 1.6fr; gap: 24px; }
 

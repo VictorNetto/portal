@@ -58,9 +58,9 @@ test.describe('read-only role', () => {
     await expect(page.locator('.sidebar .navItem[aria-label="Operações"]')).toHaveCount(1)
     await expect(page.locator('h1')).toHaveCount(0)                    // the Hub opens straight on the lists
     await page.goto(`/vulnerabilities/${v.id}`)
-    await expect(page.locator('.infoGrid input').first()).toBeVisible()
+    await expect(page.locator('.infoGrid .roVal').first()).toHaveText(v.identifier)   // shown as text...
     await expect(page.locator('.pageActions .btn.primary, .pageActions .btn.danger')).toHaveCount(0)
-    await expect(page.locator('.infoGrid input').first()).toBeDisabled()
+    await expect(page.locator('.infoGrid input, .mdEditor')).toHaveCount(0)              // ...with no editing controls
     await expect(page.locator('body')).not.toContainText('nenhum campo')   // no explanation text either
     await page.goto('/reports/new')
     await expect(page).toHaveURL(/\/hub/)                            // no creation screen for a reader

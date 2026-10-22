@@ -77,7 +77,8 @@ test.describe('restricted roles', () => {
     await readerPage.click('.vtable tbody tr:first-child td:nth-child(2)')
     await readerPage.click('.details .btn:has-text("Detalhar")')
     await expect(readerPage.locator('.pageActions .btn.primary, .pageActions .btn.danger')).toHaveCount(0)
-    await expect(readerPage.locator('.infoGrid input').first()).toBeDisabled()
+    await expect(readerPage.locator('.infoGrid input, .mdEditor')).toHaveCount(0)
+    await expect(readerPage.locator('.infoGrid .roVal').first()).toContainText('shared')
     // the sharing list is read-only for a reader: its entry shows, no "+"
     await expect(readerPage.locator('.opchip.plus')).toHaveCount(0)
     void hidden
@@ -104,6 +105,7 @@ test.describe('restricted roles', () => {
     await expect(page.locator('.rtable tbody')).toContainText('shared')
     await page.goto(`/reports/${shared.id}`)
     await expect(page.locator('.pageActions .btn.danger')).toHaveCount(0)
-    await expect(page.locator('input[maxlength="200"]').first()).toBeDisabled()
+    await expect(page.locator('.grid4 input, .mdEditor')).toHaveCount(0)
+    await expect(page.locator('.grid4 .roVal').first()).toContainText('shared')
   })
 })
