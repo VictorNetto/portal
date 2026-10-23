@@ -81,6 +81,16 @@ test.describe('session limits', () => {
     await expect(sessionModal(page)).toHaveCount(0)
   })
 
+  test('the profile menu shows the time left: idle / session, as mm:ss', async ({ page }) => {
+    await signedIn(page)
+    await page.clock.fastForward(5 * MIN)
+    await page.click('.profileBtn')                                           // a click is activity: idle restarts
+    const time = page.locator('.profileMenu .sessionTime .mono')
+    await expect(time).toHaveText(/^1[45]:\d\d \/ 5[45]:\d\d$/)
+    await page.clock.fastForward(3 * MIN)
+    await expect(time).toHaveText(/^1[12]:\d\d \/ 5[12]:\d\d$/)
+  })
+
   test('confirmations use the portal modal, not the browser dialog', async ({ page }) => {
     let native = 0
     page.on('dialog', (d) => { native++; d.dismiss() })

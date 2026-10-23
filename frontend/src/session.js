@@ -6,7 +6,14 @@
 // - Activity: the last user action is kept in localStorage so every open tab
 //   shares one idle clock (an idle tab must not end a session used elsewhere).
 
-import { onMounted, onUnmounted } from 'vue'
+import { onMounted, onUnmounted, reactive } from 'vue'
+
+// Time left, in ms, kept current by SessionGuard: idle (weak) and 1 h (strong) limits.
+export const sessionLeft = reactive({ idle: 0, max: 0 })
+export function mmss(ms) {
+  const s = Math.max(0, Math.ceil(ms / 1000))
+  return `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`
+}
 
 const dirtyChecks = new Set()
 

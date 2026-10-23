@@ -5,7 +5,7 @@ import { useAuthStore } from '../stores/auth'
 import { t, locale, setLocale, LOCALES } from '../i18n'
 import { canCreate } from '../access'
 import { confirmDialog } from '../dialog'
-import { hasUnsaved, setDiscarding } from '../session'
+import { hasUnsaved, mmss, sessionLeft, setDiscarding } from '../session'
 
 const router = useRouter()
 const route = useRoute()
@@ -118,6 +118,11 @@ async function signOut() {
         <button class="menuItem" @click="goProfile">{{ t('profile.menu') }}</button>
         <div class="sep"></div>
         <button class="menuItem" @click="signOut">{{ t('signOut') }}</button>
+        <div class="sep"></div>
+        <div class="sessionTime" :title="t('session.timeHint')">
+          <span>{{ t('session.time') }}</span>
+          <span class="mono">{{ mmss(sessionLeft.idle) }} / {{ mmss(sessionLeft.max) }}</span>
+        </div>
       </div>
     </div>
   </header>
@@ -173,6 +178,8 @@ async function signOut() {
   background: var(--panel); color: var(--text-2); font-family: var(--mono); font-size: 12px; font-weight: 400;
 }
 .profileBtn:hover, .profileBtn.open { background: var(--hover); }
+.sessionTime { display: flex; justify-content: space-between; gap: 12px; padding: 6px 12px 4px; font-size: 12px; color: var(--muted); }
+.sessionTime .mono { font-family: var(--mono); color: var(--text); }
 .profileMenu {
   position: absolute; right: 0; top: 38px; min-width: 190px; padding: 4px; z-index: 60;
   display: flex; flex-direction: column;

@@ -6,7 +6,7 @@ import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import { ApiError } from '../api'
-import { hasUnsaved, lastActivity, markActivity, setDiscarding } from '../session'
+import { hasUnsaved, lastActivity, markActivity, sessionLeft, setDiscarding } from '../session'
 import { t } from '../i18n'
 
 const IDLE_WARN_MS = 2 * 60 * 1000   // "are you there?" before the idle end
@@ -65,6 +65,8 @@ function tick() {
   }
   hadSession = true
   const n = now.value
+  sessionLeft.idle = idleEnd() - n
+  sessionLeft.max = auth.sessionEnd ? auth.sessionEnd - n : 0
   if (auth.sessionEnd && n >= auth.sessionEnd) return endSession('max')
   if (n >= idleEnd()) return endSession('idle')
 

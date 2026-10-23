@@ -255,6 +255,8 @@ const messages = {
       endedIdle: 'Sua sessão foi encerrada por inatividade.',
       endedMax: 'Sua sessão expirou. Entre novamente.',
       endedElsewhere: 'Você saiu em outra aba.',
+      time: 'Sessão',
+      timeHint: 'Tempo restante: inatividade (15 min) / sessão (1 h)',
     },
     login: {
       subtitle: 'Entre para continuar',
@@ -701,6 +703,8 @@ const messages = {
       endedIdle: 'You were signed out after a period of inactivity.',
       endedMax: 'Your session expired. Please sign in again.',
       endedElsewhere: 'You signed out in another tab.',
+      time: 'Session',
+      timeHint: 'Time left: inactivity (15 min) / session (1 h)',
     },
     login: {
       subtitle: 'Sign in to continue',
