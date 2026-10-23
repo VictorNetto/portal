@@ -179,3 +179,25 @@ Seções Adicionais (titles, order, content). Nothing else (no client, dates, pe
 
 **Not yet:** duplicate, and create from scratch on the page. See `BACKLOG.md`.
 
+
+## D12 — Session limits and portal dialogs ✅
+
+**Decision:** a session lasts at most **1 hour** from login and ends sooner after **15 minutes without
+activity**. Both limits are enforced by the server, not only on screen.
+
+- Every token carries the session start (`sst`). `/auth/refresh` returns a new pair but keeps the
+  start, so renewing never pushes the 1 h end. The refresh token lives 15 min (capped at the end);
+  the access token 5 min. An idle browser therefore cannot renew after 15 min, whatever it does.
+- The browser renews at most once a minute and only after real activity (mouse, keys, scroll),
+  shared across tabs through `localStorage`. Background calls (lock heartbeat) do not count as
+  activity.
+- On screen (`SessionGuard`): 2 min before the idle end, "Você ainda está aí?" with a countdown;
+  5 min before the 1 h end, "save your work". When the session ends with **unsaved edits**, the page
+  stays and a modal asks for the password again; signing in starts a new session and the edits can
+  be saved. "Descartar e sair" leaves without further questions. With nothing unsaved, the user goes
+  to the login page with the reason.
+- Settings: `SESSION_MAX_MINUTES`, `SESSION_IDLE_MINUTES`, `ACCESS_TOKEN_TTL_MINUTES`.
+
+**Dialogs:** `window.confirm`/`prompt` are replaced by one portal modal (`AppDialog`,
+`confirmDialog()`/`promptDialog()` in `dialog.js`). Only the browser's own "leave this site?" on tab
+close stays native: browsers allow nothing else there.

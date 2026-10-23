@@ -28,8 +28,5 @@ window.addEventListener('password-change-required', () => {
   if (router.currentRoute.value.name !== 'profile') router.push({ name: 'profile' })
 })
 
-// Refresh failed (or no valid refresh token): the session is over.
-window.addEventListener('session-expired', () => {
-  auth.logout()
-  if (router.currentRoute.value.name !== 'login') router.push({ name: 'login' })
-})
+// A failed refresh ('session-expired') is handled by SessionGuard, which can
+// keep unsaved edits alive while the user signs in again.

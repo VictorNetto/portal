@@ -104,3 +104,46 @@ def test_password_changes_and_logins_are_audited(admin):
     mine = [e for e in items if e["actor"] == user.user["username"]]
     actions = {e["action"] for e in mine}
     assert "login" in actions and "update" in actions
+
+
+def _forged_refresh(user_id: str, started_min_ago: int, issued_min_ago: int, life_min: int) -> str:
+    """A refresh token as the server would have signed it in the past."""
+    from datetime import UTC, datetime, timedelta
+
+    import jwt
+
+    from app.config import settings
+
+    now = datetime.now(UTC)
+    payload = {
+        "sub": user_id, "type": "refresh",
+        "sst": int((now - timedelta(minutes=started_min_ago)).timestamp()),
+        "iat": now - timedelta(minutes=issued_min_ago),
+        "exp": now - timedelta(minutes=issued_min_ago) + timedelta(minutes=life_min),
+    }
+    return jwt.encode(payload, settings.jwt_secret, algorithm=settings.jwt_algorithm)
+
+
+def test_session_lasts_one_hour_and_refresh_never_extends_it(writer):
+    from datetime import datetime
+
+    tokens = login(writer.user["username"], writer.password).json()
+    end = datetime.fromisoformat(tokens["session_expires_at"])
+    assert tokens["idle_timeout_seconds"] == 15 * 60
+    r = httpx.post(f"{BASE_URL}/auth/refresh", json={"refresh_token": tokens["refresh_token"]})
+    assert r.status_code == 200
+    assert datetime.fromisoformat(r.json()["session_expires_at"]) == end      # same end
+    assert r.json()["refresh_token"] != tokens["refresh_token"]              # rotated: idle window restarts
+
+    # a session that began 61 minutes ago cannot be renewed, even with a live refresh token
+    stale = _forged_refresh(writer.user["id"], started_min_ago=61, issued_min_ago=1, life_min=15)
+    assert httpx.post(f"{BASE_URL}/auth/refresh", json={"refresh_token": stale}).status_code == 401
+    # a session started 30 minutes ago is still renewable
+    ok = _forged_refresh(writer.user["id"], started_min_ago=30, issued_min_ago=1, life_min=15)
+    assert httpx.post(f"{BASE_URL}/auth/refresh", json={"refresh_token": ok}).status_code == 200
+
+
+def test_idle_session_cannot_be_renewed(writer):
+    # last renewed 16 minutes ago: the refresh token (15 min) is dead
+    idle = _forged_refresh(writer.user["id"], started_min_ago=20, issued_min_ago=16, life_min=15)
+    assert httpx.post(f"{BASE_URL}/auth/refresh", json={"refresh_token": idle}).status_code == 401

@@ -20,8 +20,12 @@ class Settings(BaseSettings):
     # default exists only so local dev runs out of the box.
     jwt_secret: str = "dev-only-insecure-change-me"
     jwt_algorithm: str = "HS256"
-    access_token_ttl_minutes: int = 15
-    refresh_token_ttl_days: int = 7
+    # A session lasts at most session_max_minutes from login, and ends earlier
+    # after session_idle_minutes without activity: the refresh token only lives
+    # that long and is renewed while the user is active (D12).
+    session_max_minutes: int = 60
+    session_idle_minutes: int = 15
+    access_token_ttl_minutes: int = 5
 
     # First-run admin seed (§10.1). If no users exist on startup, an admin is
     # created. If no password is provided here, a random one is generated and

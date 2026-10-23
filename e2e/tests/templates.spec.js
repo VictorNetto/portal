@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test'
 import { adminToken, api, cleanup, createUser, newReport, tag } from '../support/api.js'
-import { loginUI } from '../support/ui.js'
+import { answerDialog, loginUI } from '../support/ui.js'
 
 let admin
 let writer
@@ -110,11 +110,9 @@ test.describe('report templates', () => {
     await owner.goto(`/templates?template=${t.id}`)
     const od = owner.locator('.detail')
     await expect(od.locator('.shareActs .btn')).toHaveText(['Solicitar compartilhamento'])
-    const warnings = []
-    owner.once('dialog', (d) => { warnings.push(d.message()); d.accept() })
     await od.locator('.shareActs .btn').click()
+    expect(await answerDialog(owner, 'Confirmar')).toContain('não poderá mais editar')
     await expect(owner.locator('.ok.msg')).toContainText('precisa aprovar')
-    expect(warnings[0]).toContain('não poderá mais editar')
     await expect(od.locator('.facts .pill')).toHaveText('Aguardando aprovação')
     await expect(od.locator('.btn:has-text("Editar"), .btn:has-text("Excluir")')).toHaveCount(0)   // frozen
     await expect(od.locator('.shareActs .btn')).toHaveText(['Cancelar solicitação'])
@@ -164,8 +162,8 @@ test.describe('report templates', () => {
     const t = await sharedTemplate(await tokenOf(writer), { name: `e2e-tplunsh-${u}` })
     const adm = await newPage(browser, { username: 'admin', password: 'admin' })
     await adm.goto(`/templates?template=${t.id}`)
-    adm.once('dialog', (d) => d.accept())
     await adm.click('.detail .shareActs .btn:has-text("Remover compartilhamento")')
+    await answerDialog(adm, 'Confirmar')
     await expect(adm.locator('.detail .facts .pill')).toHaveText('Indisponível')
     await expect(adm.locator('.detail .shareActs .btn')).toHaveText(['Compartilhar novamente'])
 
@@ -200,10 +198,8 @@ test.describe('report templates', () => {
     await detail.locator('.extraHead input').fill('Nova seção')
 
     // trying to switch template with unsaved edits asks; saying no keeps the editor
-    const dialogs = []
-    page.once('dialog', (d) => { dialogs.push(d.message()); d.dismiss() })
     await page.locator('.ttable tbody tr').first().click()
-    await expect.poll(() => dialogs.length).toBe(1)
+    expect(await answerDialog(page, 'Cancelar')).toContain('alterações')
     await expect(detail.locator('.nameInput')).toBeVisible()
 
     await detail.locator('.btn.primary:has-text("Salvar")').click()
@@ -218,8 +214,8 @@ test.describe('report templates', () => {
     const t = await newTemplate(await tokenOf(writer), { name: `e2e-tpldel-${u}` })
     await loginUI(page, writer.username, writer.password)
     await page.goto(`/templates?template=${t.id}`)
-    page.once('dialog', (d) => d.accept())
     await page.locator('.detail .btn.danger:has-text("Excluir")').click()
+    await answerDialog(page, 'Excluir')
     await expect(page.locator('.ok.msg')).toContainText(`e2e-tpldel-${u}`)
     await expect(page).toHaveURL(/\/templates$/)
     await expect(page.locator(`.ttable tbody tr:has-text("e2e-tpldel-${u}")`)).toHaveCount(0)

@@ -3,7 +3,7 @@
 - User passwords: bcrypt (slow, salted) — they are low-entropy (D7).
 - API keys: SHA-256 of a high-entropy random string — fast, safe because the
   key is unguessable (D7). Verified on every machine-to-machine request.
-- JWTs: short-lived access tokens + longer refresh tokens (§10.1).
+- JWTs: short-lived access tokens + refresh tokens bounded by the session (§10.1, D12).
 """
 
 import hashlib
@@ -52,26 +52,35 @@ def hash_api_key(plaintext: str) -> str:
 TokenType = Literal["access", "refresh"]
 
 
-def _create_token(subject: str, token_type: TokenType, expires_delta: timedelta) -> str:
-    now = datetime.now(UTC)
+def _create_token(subject: str, token_type: TokenType, started: datetime, exp: datetime) -> str:
     payload: dict[str, Any] = {
         "sub": subject,
         "type": token_type,
-        "iat": now,
-        "exp": now + expires_delta,
+        "iat": datetime.now(UTC),
+        "jti": secrets.token_urlsafe(9),  # every token differs, even within one second
+        "sst": int(started.timestamp()),  # session start: never moves on refresh
+        "exp": exp,
     }
     return jwt.encode(payload, settings.jwt_secret, algorithm=settings.jwt_algorithm)
 
 
-def create_access_token(subject: str) -> str:
-    return _create_token(
-        subject, "access", timedelta(minutes=settings.access_token_ttl_minutes)
-    )
+def session_end(started: datetime) -> datetime:
+    return started + timedelta(minutes=settings.session_max_minutes)
 
 
-def create_refresh_token(subject: str) -> str:
-    return _create_token(
-        subject, "refresh", timedelta(days=settings.refresh_token_ttl_days)
+def create_session_tokens(subject: str, started: datetime | None = None) -> tuple[str, str, datetime]:
+    """Return (access, refresh, session end) for a session that began at
+    `started` (now, for a login). Neither token outlives the session; the
+    refresh token also dies after the idle window unless it is renewed."""
+    now = datetime.now(UTC)
+    started = started or now.replace(microsecond=0)  # the token stores whole seconds
+    end = session_end(started)
+    access_exp = min(now + timedelta(minutes=settings.access_token_ttl_minutes), end)
+    refresh_exp = min(now + timedelta(minutes=settings.session_idle_minutes), end)
+    return (
+        _create_token(subject, "access", started, access_exp),
+        _create_token(subject, "refresh", started, refresh_exp),
+        end,
     )
 
 

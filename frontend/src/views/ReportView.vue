@@ -15,6 +15,8 @@ import {
 } from '../api'
 import { attachmentPath } from '../markdown'
 import { t } from '../i18n'
+import { confirmDialog, promptDialog } from '../dialog'
+import { isDiscarding, useUnsaved } from '../session'
 import { vField } from '../directives'
 import { fmtDateTime, fmtTime, fmtPlainDate } from '../dates'
 import { useAuthStore } from '../stores/auth'
@@ -227,12 +229,12 @@ async function takeLock() {
   catch (e) { error.value = e instanceof ApiError ? e.detail : t('errors.update'); await reloadKeepingForm() }
 }
 async function giveUpLock() {
-  if (dirty.value && !confirm(t('rpt.discardChanges'))) return
+  if (dirty.value && !(await confirmDialog(t('rpt.discardChanges'), { danger: true, ok: t('dialog.discard') }))) return
   try { await releaseReportLock(id.value) } catch { /* ignore */ }
   await load()
 }
 async function forceRelease() {
-  if (!confirm(t('rpt.confirmForce', { user: lock.value?.holder_username }))) return
+  if (!(await confirmDialog(t('rpt.confirmForce', { user: lock.value?.holder_username })))) return
   try { await forceReleaseReport(id.value); await reloadKeepingForm() }
   catch (e) { error.value = e instanceof ApiError ? e.detail : t('errors.update') }
 }
@@ -254,11 +256,12 @@ watch(lockMine, (mine) => (mine ? startBeat() : stopBeat()), { immediate: true }
 // Free the lock when leaving, unless the destination is one of this report's own
 // vulnerability editors (the operator is still working on it).
 const KEEP_LOCK_ROUTES = ['vuln-detail', 'report-vuln-new']
-const warnUnload = (e) => { if (editing.value && dirty.value) { e.preventDefault(); e.returnValue = '' } }
+useUnsaved(() => editing.value && dirty.value)
+const warnUnload = (e) => { if (editing.value && dirty.value && !isDiscarding()) { e.preventDefault(); e.returnValue = '' } }
 onMounted(() => window.addEventListener('beforeunload', warnUnload))
 onBeforeUnmount(() => window.removeEventListener('beforeunload', warnUnload))
 onBeforeRouteLeave(async (to) => {
-  if (editing.value && dirty.value && !confirm(t('common.unsavedLeave'))) return false
+  if (editing.value && dirty.value && !isDiscarding() && !(await confirmDialog(t('common.unsavedLeave'), { danger: true, ok: t('dialog.leave') }))) return false
   // Moving from /reports/new to the report just created is not "leaving" it.
   const sameReport = to.name === 'report-detail' && to.params.id === report.value?.id
   if (lockMine.value && !sameReport && !KEEP_LOCK_ROUTES.includes(to.name)) {
@@ -275,7 +278,7 @@ const canDispatch = computed(() => (editing.value && status.value === 'draft') |
 
 async function doDispatch() {
   const retry = status.value === 'dispatching'
-  if (!retry && !confirm(t('rpt.confirmDispatch'))) return
+  if (!retry && !(await confirmDialog(t('rpt.confirmDispatch')))) return
   error.value = ''; notice.value = ''
   if (!retry && dirty.value) { await save(); if (error.value) return }
   dispatching.value = true
@@ -338,13 +341,13 @@ async function onEvidenceUpload(files) {
 async function uploadEditorImage(file) {
   evError.value = ''
   const base = (file.name || 'imagem').replace(/\.[^.]+$/, '')
-  const name = prompt(t('md.imageName'), base)
+  const name = (await promptDialog(t('md.imageName'), { value: base }))
   if (name === null) return null
   const att = await uploadEvidenceOne(file, name.trim() || base)
   return att ? { id: att.id, name: att.display_name || base } : null
 }
 async function removeEvidence(a) {
-  if (!confirm(t('attach.confirmRemove', { name: a.display_name || a.original_filename }))) return
+  if (!(await confirmDialog(t('attach.confirmRemove', { name: a.display_name || a.original_filename }), { danger: true, ok: t('dialog.delete') }))) return
   try {
     await deleteAttachment(a.id)
     evidence.value = evidence.value.filter((x) => x.id !== a.id)
@@ -377,7 +380,7 @@ const sevClass = (s) => (Number(s) >= 7 ? 'hi' : Number(s) >= 4 ? 'me' : 'lo')
 const opNames = (v) => (v.operators?.length ? v.operators.map((o) => o.username).join(', ') : '—')
 
 async function remove() {
-  if (!confirm(t('reports.confirmDelete'))) return
+  if (!(await confirmDialog(t('reports.confirmDelete'), { danger: true, ok: t('dialog.delete') }))) return
   try { await deleteReport(id.value); router.push('/hub?entity=reports') }
   catch (e) { error.value = e instanceof ApiError ? e.detail : t('errors.delete') }
 }
@@ -700,10 +703,6 @@ async function saveTemplate() {
 .banner .link { margin-left: 12px; }
 
 .card { padding: 16px 18px 18px; margin-bottom: 16px; overflow: visible; }
-.modalBack { position: fixed; inset: 0; z-index: 50; background: rgba(15, 23, 42, .32); display: grid; place-items: center; padding: 16px; }
-.modal { width: min(460px, 100%); padding: 18px 20px; display: grid; gap: 12px; }
-.modal .secTitle, .modal .hint { margin: 0; }
-.modalActions { display: flex; justify-content: flex-end; gap: 8px; }
 /* Read-only values: shown as they read in a report, not as disabled inputs. */
 .roVal { font-size: 14px; color: var(--text); line-height: 1.5; min-height: 21px; word-break: break-word; }
 .roVal.pre { white-space: pre-wrap; }

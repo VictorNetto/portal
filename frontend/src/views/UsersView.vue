@@ -5,6 +5,7 @@ import { listUsers, createUser, updateUser, resetUserPassword, getUserAccess, Ap
 import { useAuthStore } from '../stores/auth'
 import { fmtDateTime } from '../dates'
 import { t } from '../i18n'
+import { promptDialog } from '../dialog'
 import AppShell from '../components/AppShell.vue'
 
 const route = useRoute()
@@ -89,7 +90,7 @@ async function toggleActive() {
 }
 
 async function resetPw() {
-  const pw = prompt(t('misc.resetPrompt', { user: selected.value.username }))
+  const pw = (await promptDialog(t('misc.resetPrompt', { user: selected.value.username })))
   if (!pw) return
   error.value = ''
   try { await resetUserPassword(selected.value.id, pw); await load() }

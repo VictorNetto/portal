@@ -4,6 +4,8 @@ import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import { t, locale, setLocale, LOCALES } from '../i18n'
 import { canCreate } from '../access'
+import { confirmDialog } from '../dialog'
+import { hasUnsaved, setDiscarding } from '../session'
 
 const router = useRouter()
 const route = useRoute()
@@ -66,10 +68,13 @@ function goProfile() {
   router.push('/profile')
 }
 
-function signOut() {
+// Asked once here, so the page's own leave guard doesn't ask again after logout.
+async function signOut() {
   profileOpen.value = false
+  if (hasUnsaved() && !(await confirmDialog(t('common.unsavedLeave'), { danger: true, ok: t('dialog.leave') }))) return
+  setDiscarding(true)
   auth.logout()
-  router.push('/login')
+  try { await router.push('/login') } finally { setDiscarding(false) }
 }
 </script>
 

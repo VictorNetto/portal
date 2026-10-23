@@ -1,12 +1,19 @@
 <script setup>
-import { ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { computed, ref } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import { ApiError } from '../api'
 import { t } from '../i18n'
 
 const auth = useAuthStore()
 const router = useRouter()
+const route = useRoute()
+// Why the user is here again (SessionGuard sends ?expired=idle|max|server|signout).
+const notice = computed(() => {
+  const r = route.query.expired
+  if (!r) return ''
+  return t(r === 'idle' ? 'session.endedIdle' : r === 'signout' ? 'session.endedElsewhere' : 'session.endedMax')
+})
 
 const username = ref('')
 const password = ref('')
@@ -32,6 +39,7 @@ async function submit() {
     <form class="card" @submit.prevent="submit">
       <h1>{{ t('brand') }}</h1>
       <p class="sub">{{ t('login.subtitle') }}</p>
+      <p v-if="notice" class="notice">{{ notice }}</p>
 
       <label>{{ t('login.username') }}</label>
       <input v-model="username" autocomplete="username" autofocus />
@@ -65,5 +73,6 @@ button {
 }
 button:hover:not(:disabled) { filter: brightness(.93); }
 button:disabled { opacity: .45; cursor: not-allowed; }
+.notice { margin: 0 0 8px; padding: 8px 10px; border-radius: var(--radius); background: var(--panel-2); color: var(--muted); font-size: 13px; }
 .error { color: var(--danger); font-size: 13px; margin: 6px 0 0; }
 </style>

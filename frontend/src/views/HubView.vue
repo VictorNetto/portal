@@ -6,6 +6,7 @@ import {
 } from '../api'
 import { useAuthStore } from '../stores/auth'
 import { t } from '../i18n'
+import { confirmDialog } from '../dialog'
 import { canCreate, canWriteRecord, canDeleteRecord } from '../access'
 import AppShell from '../components/AppShell.vue'
 import FilterBar from '../components/FilterBar.vue'
@@ -246,7 +247,7 @@ const canDispatchRow = (v) => mayChange(v) && v.status === 'saved_local'
 
 async function dispatchRow(v) {
   menuFor.value = null
-  if (!confirm(t('vuln.confirmDispatch'))) return
+  if (!(await confirmDialog(t('vuln.confirmDispatch')))) return
   error.value = ''; notice.value = ''
   try { await dispatchVuln(v.id); notice.value = t('vuln.dispatched'); await load() }
   catch (e) { error.value = e instanceof ApiError ? e.detail : t('errors.dispatch') }
@@ -271,7 +272,7 @@ async function dispatchSelected() {
   batchOpen.value = false
   const eligible = selectedRows.value.filter(canDispatchRow)
   if (!eligible.length) { error.value = t('hub.nothingToDispatch'); return }
-  if (!confirm(t('hub.confirmBatchDispatch', { n: eligible.length }))) return
+  if (!(await confirmDialog(t('hub.confirmBatchDispatch', { n: eligible.length })))) return
   error.value = ''; notice.value = ''
   const res = await runBatch(eligible, (v) => dispatchVuln(v.id))
   reportBatch(t('actions.dispatch'), res, selectedRows.value.length - eligible.length)
@@ -282,7 +283,7 @@ async function deleteSelected() {
   batchOpen.value = false
   const rows = selectedRows.value.filter((r) => mayDelete(r) && !(isVulns.value && inOpenReport(r)))
   if (!rows.length) return
-  if (!confirm(t('hub.confirmBatchDelete', { n: rows.length }))) return
+  if (!(await confirmDialog(t('hub.confirmBatchDelete', { n: rows.length }), { danger: true, ok: t('dialog.delete') }))) return
   error.value = ''; notice.value = ''
   const res = await runBatch(rows, (r) => (isVulns.value ? deleteVuln(r.id) : deleteReport(r.id)))
   reportBatch(t('rowActions.delete'), res, selectedRows.value.length - rows.length)
@@ -296,7 +297,7 @@ function goCreate() { router.push(entity.value === 'vulns' ? '/vulnerabilities/n
 async function removeRow(id) {
   menuFor.value = null
   const isVuln = entity.value === 'vulns'
-  if (!confirm(t(isVuln ? 'vuln.confirmDelete' : 'reports.confirmDelete'))) return
+  if (!(await confirmDialog(t(isVuln ? 'vuln.confirmDelete' : 'reports.confirmDelete'), { danger: true, ok: t('dialog.delete') }))) return
   try {
     await (isVuln ? deleteVuln(id) : deleteReport(id))
     if (preview.value?.id === id) preview.value = null

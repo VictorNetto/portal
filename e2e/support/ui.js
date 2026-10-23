@@ -10,7 +10,9 @@ export async function loginUI(page, username, password) {
   await expect(page.locator('.vtable')).toBeVisible()
 }
 
-/** Accept every confirm()/alert(); answer prompt() with `promptValue`. */
+/** Answer every portal dialog (the AppDialog modal) and any native one: accept
+ *  (prompts get `promptValue`) or, with accept:false, cancel. Returns the list of
+ *  dialogs seen as { type, message }. Call before the page navigates. */
 export function autoDialogs(page, { promptValue = 'Diagrama', accept = true } = {}) {
   const seen = []
   page.on('dialog', async (d) => {
@@ -18,7 +20,41 @@ export function autoDialogs(page, { promptValue = 'Diagrama', accept = true } = 
     if (!accept) return d.dismiss()
     return d.type() === 'prompt' ? d.accept(promptValue) : d.accept()
   })
+  page.exposeBinding('__e2eDialog', (_src, d) => { seen.push(d) })
+  const install = ({ accept, promptValue }) => {
+    if (window.__e2eDialogsOn) return
+    window.__e2eDialogsOn = true
+    const answer = (box) => {
+      if (box.dataset.e2eDone) return
+      box.dataset.e2eDone = '1'
+      const input = box.querySelector('input')
+      try { window.__e2eDialog({ type: input ? 'prompt' : 'confirm', message: box.querySelector('.dMsg')?.textContent || '' }) } catch { /* binding not ready */ }
+      setTimeout(() => {
+        if (input && accept) {
+          input.value = promptValue
+          input.dispatchEvent(new Event('input', { bubbles: true }))
+        }
+        const btns = box.querySelectorAll('.modalActions .btn')
+        ;(accept ? btns[btns.length - 1] : btns[0])?.click()
+      }, 50)
+    }
+    new MutationObserver(() => document.querySelectorAll('.appDialog .modal').forEach(answer))
+      .observe(document, { childList: true, subtree: true })
+  }
+  page.addInitScript(install, { accept, promptValue })                         // pages loaded later
+  page.evaluate(install, { accept, promptValue }).catch(() => {})              // the page already open
+  page.on('domcontentloaded', () => page.evaluate(install, { accept, promptValue }).catch(() => {}))  // init script may register late
   return seen
+}
+
+/** Click a button in the portal dialog (AppDialog) and return its message. */
+export async function answerDialog(page, button) {
+  const box = page.locator('.appDialog .modal')
+  await expect(box).toBeVisible()
+  const message = await box.locator('.dMsg').textContent()
+  await box.locator('.modalActions .btn', { hasText: button }).click()
+  await expect(box).toHaveCount(0)
+  return message
 }
 
 /** Type into the Hub filter and let the list settle. */

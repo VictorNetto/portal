@@ -3,7 +3,7 @@
 // Sharing is reviewed: the owner asks, an admin approves; once shared only admins change it,
 // and an admin may withdraw it (then nobody can use it). The server enforces all of it; the
 // page only offers what the server says this user may do (can_edit, actions).
-import { ref, computed, watch, onMounted } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter, onBeforeRouteLeave } from 'vue-router'
 import {
   listReportTemplates, getReportTemplate, updateReportTemplate, deleteReportTemplate,
@@ -12,6 +12,8 @@ import {
 import { useAuthStore } from '../stores/auth'
 import { fmtDate, fmtDateTime } from '../dates'
 import { t } from '../i18n'
+import { confirmDialog } from '../dialog'
+import { isDiscarding, useUnsaved } from '../session'
 import AppShell from '../components/AppShell.vue'
 import MarkdownView from '../components/MarkdownView.vue'
 import MarkdownEditor from '../components/MarkdownEditor.vue'
@@ -70,7 +72,7 @@ const sharingActions = computed(() => ACTION_ORDER.filter((a) => detail.value?.a
 const acting = ref(false)
 async function share(action) {
   const d = detail.value
-  if (CONFIRM[action] && !confirm(t(CONFIRM[action], { name: d.name }))) return
+  if (CONFIRM[action] && !(await confirmDialog(t(CONFIRM[action], { name: d.name })))) return
   acting.value = true; detailError.value = ''
   try {
     const updated = await changeTemplateSharing(d.id, action)
@@ -106,8 +108,9 @@ function startEdit() {
   editing.value = true
   notice.value = ''; detailError.value = ''
 }
-const confirmDiscard = () => !dirty.value || confirm(t('tpls.discard'))
-function cancelEdit() { if (confirmDiscard()) editing.value = false }
+const confirmDiscard = async () => !dirty.value || isDiscarding() || (await confirmDialog(t('tpls.discard'), { danger: true, ok: t('dialog.discard') }))
+async function cancelEdit() { if (await confirmDiscard()) editing.value = false }
+useUnsaved(() => dirty.value)
 
 function addSection() { draft.value.sections.push({ key: ++keySeq, title: '', content_markdown: '' }) }
 function moveSection(i, delta) {
@@ -146,7 +149,7 @@ async function save() {
 
 async function remove() {
   const d = detail.value
-  if (!confirm(t('tpls.confirmDelete', { name: d.name }))) return
+  if (!(await confirmDialog(t('tpls.confirmDelete', { name: d.name }), { danger: true, ok: t('dialog.delete') }))) return
   try {
     await deleteReportTemplate(d.id)
     editing.value = false
@@ -157,12 +160,15 @@ async function remove() {
 }
 
 // Moving to another template, closing the panel or leaving the page asks before dropping edits.
-function select(x) {
-  if (!confirmDiscard()) return
+async function select(x) {
+  if (!(await confirmDiscard())) return
   editing.value = false
   router.replace({ path: '/templates', query: x ? { template: x.id } : {} })
 }
 onBeforeRouteLeave((to) => (to.path === '/templates' ? true : confirmDiscard()))
+const warnUnload = (e) => { if (dirty.value && !isDiscarding()) { e.preventDefault(); e.returnValue = '' } }
+onMounted(() => window.addEventListener('beforeunload', warnUnload))
+onUnmounted(() => window.removeEventListener('beforeunload', warnUnload))
 
 onMounted(async () => {
   document.documentElement.setAttribute('data-entity', 'reports') // templates belong to reports

@@ -10,6 +10,8 @@ import {
 import { attachmentPath } from '../markdown'
 import { fmtTime } from '../dates'
 import { t } from '../i18n'
+import { confirmDialog, promptDialog } from '../dialog'
+import { isDiscarding, useUnsaved } from '../session'
 import { vField } from '../directives'
 import { useAuthStore } from '../stores/auth'
 import AppShell from '../components/AppShell.vue'
@@ -272,7 +274,7 @@ async function doSend() {
 }
 
 async function doDispatch() {
-  if (!confirm(t('vuln.confirmDispatch'))) return
+  if (!(await confirmDialog(t('vuln.confirmDispatch')))) return
   error.value = ''; notice.value = ''
   try { vuln.value = await dispatchVuln(id.value); syncForm(); notice.value = t('vuln.dispatched') }
   catch (e) { error.value = e instanceof ApiError ? e.detail : t('errors.dispatch') }
@@ -329,7 +331,7 @@ async function exportAs(format) {
 }
 
 async function remove() {
-  if (!confirm(t('vuln.confirmDelete'))) return
+  if (!(await confirmDialog(t('vuln.confirmDelete'), { danger: true, ok: t('dialog.delete') }))) return
   try { await deleteVuln(id.value); router.push(inReport.value ? `/reports/${reportId.value}` : '/hub') }
   catch (e) { error.value = e instanceof ApiError ? e.detail : t('errors.delete') }
 }
@@ -388,14 +390,14 @@ async function onPanelUpload(files) {
 async function uploadEditorImage(file) {
   attachError.value = ''
   const base = (file.name || 'imagem').replace(/\.[^.]+$/, '')
-  const name = prompt(t('md.imageName'), base)
+  const name = (await promptDialog(t('md.imageName'), { value: base }))
   if (name === null) return null
   const att = await uploadOne(file, name.trim() || base)
   return att ? { id: att.id, name: att.display_name || base } : null
 }
 
 async function removeAttachment(a) {
-  if (!confirm(t('attach.confirmRemove', { name: a.display_name || a.original_filename }))) return
+  if (!(await confirmDialog(t('attach.confirmRemove', { name: a.display_name || a.original_filename }), { danger: true, ok: t('dialog.delete') }))) return
   attachError.value = ''
   try {
     await deleteAttachment(a.id)
@@ -440,11 +442,12 @@ onUnmounted(stopBeat)
 // Keep the lock when moving between the report and its own vulnerabilities;
 // release it when leaving for anywhere else.
 const KEEP_LOCK_ROUTES = ['report-detail', 'vuln-detail', 'report-vuln-new']
-const warnUnload = (e) => { if (dirty.value) { e.preventDefault(); e.returnValue = '' } }
+useUnsaved(() => dirty.value)
+const warnUnload = (e) => { if (dirty.value && !isDiscarding()) { e.preventDefault(); e.returnValue = '' } }
 onMounted(() => window.addEventListener('beforeunload', warnUnload))
 onUnmounted(() => window.removeEventListener('beforeunload', warnUnload))
 onBeforeRouteLeave(async (to) => {
-  if (dirty.value && !confirm(t('common.unsavedLeave'))) return false
+  if (dirty.value && !isDiscarding() && !(await confirmDialog(t('common.unsavedLeave'), { danger: true, ok: t('dialog.leave') }))) return false
   if (inReport.value && lockMine.value && !KEEP_LOCK_ROUTES.includes(to.name)) {
     try { await releaseReportLock(reportId.value) } catch { /* ignore */ }
   }

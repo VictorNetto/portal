@@ -2,6 +2,7 @@
 import { ref, onMounted } from 'vue'
 import { listApiKeys, createApiKey, revokeApiKey, ApiError } from '../api'
 import { t } from '../i18n'
+import { confirmDialog } from '../dialog'
 import AppShell from '../components/AppShell.vue'
 
 const keys = ref([])
@@ -42,7 +43,7 @@ async function copyKey() {
 }
 
 async function revoke(k) {
-  if (!confirm(t('misc.confirmRevoke', { label: k.label }))) return
+  if (!(await confirmDialog(t('misc.confirmRevoke', { label: k.label }), { danger: true, ok: t('dialog.revoke') }))) return
   error.value = ''
   try { await revokeApiKey(k.id); await load() }
   catch (e) { error.value = e instanceof ApiError ? e.detail : t('errors.revoke') }
