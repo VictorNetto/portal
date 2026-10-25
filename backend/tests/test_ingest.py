@@ -7,8 +7,8 @@ from conftest import BASE_URL, tag
 URL = f"{BASE_URL}/ingest/vulnerabilities"
 
 
-def make_key(admin, role="write_all", **extra):
-    r = admin.post("/api-keys", {"label": f"pytest-{tag()}", "role": role, **extra})
+def make_key(admin, scopes=("vulns:write",), **extra):
+    r = admin.post("/api-keys", {"label": f"pytest-{tag()}", "scopes": list(scopes), **extra})
     assert r.status_code == 201, r.text
     return r.json()
 
@@ -39,7 +39,7 @@ def test_authentication_failures_are_indistinguishable(admin, key):
     assert len({r.text for r in responses}) == 1            # same message: no hint about which keys exist
 
 
-def test_keys_do_not_work_outside_ingest(key):
+def test_keys_do_not_work_on_the_ui_endpoints(key):
     headers = {"X-API-Key": key["plaintext"]}
     for path in ("/vulnerabilities", "/users", "/reports", "/audit-logs", "/api-keys"):
         assert httpx.get(f"{BASE_URL}{path}", headers=headers).status_code == 401
@@ -50,9 +50,9 @@ def test_a_user_session_is_not_an_api_key(writer):
     assert r.status_code == 401
 
 
-def test_only_writing_roles_can_ingest(admin):
-    assert post(make_key(admin, "read_all"), {"identifier": "pytest-x"}).status_code == 403
-    assert post(make_key(admin, "auditor"), {"identifier": "pytest-x"}).status_code == 403
+def test_only_keys_with_vulns_write_can_ingest(admin):
+    r = post(make_key(admin, ["vulns:read", "reports:read", "exports", "rvs:write"]), {"identifier": "pytest-x"})
+    assert r.status_code == 403 and "vulns:write" in r.json()["detail"]
 
 
 def test_creates_a_draft_by_default(admin, writer, key):

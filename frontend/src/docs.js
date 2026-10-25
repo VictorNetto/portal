@@ -148,22 +148,43 @@ Um relatório copia o texto do template no momento da criação; mudanças poste
     subs: [
       {
         id: 'api-visao', title: 'Visão geral e endpoints',
-        md: `A API permite que ferramentas (scanners, C2, pipelines de recon) **criem vulnerabilidades** no portal sem passar pela interface. Ela é separada da API usada pelo próprio portal: uma chave de API **só** funciona nos endpoints \`/api/ingest/*\`.
+        md: `A API permite que outros sistemas **leiam** vulnerabilidades e relatórios, **baixem** exportações, **registrem IDs de RVS** e **criem** vulnerabilidades. Ela é separada da API usada pelo próprio portal: uma chave de API **só** funciona em \`/api/v1/*\` (e no antigo \`/api/ingest/*\`).
 
-- \`POST /api/ingest/vulnerabilities\`: cria uma vulnerabilidade (em *Rascunho* ou *Salva*). Exige chave de API.
-- \`GET /api/health\`: verifica se o portal está no ar. Não exige chave. Resposta: \`{"status": "ok", ...}\`.`,
+Cada endpoint exige um **escopo** na chave:
+
+- \`GET /api/v1/vulnerabilities\`: lista, com filtros e paginação. Escopo \`vulns:read\`.
+- \`GET /api/v1/vulnerabilities/{ref}\`: uma vulnerabilidade completa. \`vulns:read\`.
+- \`GET /api/v1/vulnerabilities/{ref}/attachments\`: as evidências dela. \`vulns:read\`.
+- \`GET /api/v1/attachments/{id}/content\`: baixa um arquivo de evidência. \`vulns:read\` (de vulnerabilidade) ou \`reports:read\` (de relatório).
+- \`GET /api/v1/vulnerabilities/{ref}/export?format=pdf|docx\`: o mesmo arquivo do botão *Exportar*. \`exports\`.
+- \`GET /api/v1/rvs-queue\`: disparadas aguardando ID de RVS. \`rvs:write\` ou \`vulns:read\`.
+- \`POST /api/v1/vulnerabilities/{ref}/rvs\`: registra o ID de RVS. \`rvs:write\`.
+- \`POST /api/v1/vulnerabilities\`: cria uma vulnerabilidade. \`vulns:write\`.
+- \`GET /api/v1/reports\`: lista de relatórios. \`reports:read\`.
+- \`GET /api/v1/reports/{ref}\`: um relatório com seções, vulnerabilidades e evidências. \`reports:read\`.
+- \`GET /api/v1/reports/{ref}/export?format=pdf|xlsx|docx\`: arquivos do relatório. \`exports\`.
+- \`GET /api/health\`: verifica se o portal está no ar. Sem chave.
+
+\`{ref}\` aceita o UUID ou o número do registro (\`VULN-0012\`, \`OP-0003\`), sem diferenciar maiúsculas.`,
       },
       {
-        id: 'api-chaves', title: 'Chaves e papéis',
-        md: `Somente um **administrador** cria chaves, em *Chaves de API*. Peça uma ao administrador informando para que ferramenta ela será usada. A chave é exibida **uma única vez**, na criação: guarde-a em um cofre de segredos. O portal mantém apenas um hash e o prefixo (8 caracteres) para identificação.
+        id: 'api-chaves', title: 'Chaves e escopos',
+        md: `Somente um **administrador** cria chaves, em *Chaves de API*, escolhendo um nome, os **escopos** e, se quiser, uma **data de expiração**. A chave completa aparece **uma única vez**; o portal guarda só um hash e o prefixo (8 caracteres).
 
-Cada chave tem um **papel**, que limita o que ela pode fazer:
+Escopos:
 
-- **Editor (todos)** ou **Administrador**: podem criar vulnerabilidades. Prefira *Editor (todos)*, o mínimo necessário.
-- **Leitor (todos)** ou **Auditor**: não criam nada (\`403\`). Hoje não há endpoints de leitura para chaves.
-- Qualquer que seja o papel, a chave **não** acessa usuários, relatórios, chaves nem a auditoria: fora de \`/api/ingest/*\` a resposta é \`401\`.
-- A chave pode ser **revogada** a qualquer momento. Chave ausente, desconhecida, revogada ou expirada recebe sempre o mesmo \`401\`.
-- A vulnerabilidade criada pertence ao administrador que emitiu a chave. Nos **Logs de Auditoria**, o autor aparece como \`api:<prefixo da chave>\`.`,
+- \`vulns:read\`: ler vulnerabilidades e suas evidências.
+- \`vulns:write\`: criar vulnerabilidades.
+- \`rvs:write\`: ver a Fila RVS e registrar IDs de RVS.
+- \`reports:read\`: ler relatórios e suas evidências.
+- \`exports\`: baixar PDF, Word e Excel.
+
+Dê a cada sistema **só o que ele usa**: um sistema de chamados que apenas registra RVS precisa só de \`rvs:write\`.
+
+- Uma chave lê **todos** os registros que seu escopo permite; as restrições por usuário (Editor e Leitor restritos) valem para pessoas, não para sistemas.
+- Fora de \`/api/v1/*\` e \`/api/ingest/*\`, nenhuma chave funciona (\`401\`), qualquer que seja o escopo.
+- Chave ausente, desconhecida, revogada ou expirada recebe sempre o mesmo \`401\`. Chave sem o escopo do endpoint recebe \`403\`.
+- Criações, registros de RVS, exportações e downloads de evidência ficam nos **Logs de Auditoria** com o autor \`api:<prefixo da chave>\`. Vulnerabilidades criadas pela API pertencem ao administrador que emitiu a chave.`,
       },
       {
         id: 'api-auth', title: 'Autenticação',
@@ -175,8 +196,42 @@ Content-Type: application/json
 \`\`\``,
       },
       {
+        id: 'api-leitura', title: 'Leitura, paginação e sincronização',
+        md: `As listas (\`/vulnerabilities\` e \`/reports\`) vêm em ordem de **última alteração** e em páginas:
+
+\`\`\`
+{"items": [ ... ], "next_cursor": "MjAyNi0xMC0wOF..."}
+\`\`\`
+
+- \`limit\`: itens por página, de 1 a 200 (padrão 50).
+- \`cursor\`: passe o \`next_cursor\` recebido para obter a próxima página. \`null\` indica o fim.
+- \`updated_since\`: só o que foi criado ou alterado a partir desse momento (ISO 8601, ex. \`2026-10-25T14:00:00Z\`).
+
+Filtros de \`/vulnerabilities\`: \`status\` (repita para vários: \`status=dispatched&status=acknowledged\`), \`source\` (contém), \`report\` (UUID, número ou \`none\` para as que não estão em relatório) e \`cvss_min\`. Filtros de \`/reports\`: \`status\` e \`client\` (contém).
+
+**Para sincronizar** outro sistema: guarde o \`updated_at\` do último item processado e, na próxima execução, peça \`updated_since\` com esse valor, seguindo \`next_cursor\` até o fim. Um item alterado de novo volta a aparecer.
+
+- As listas trazem um **resumo**; busque \`/{ref}\` para o conteúdo completo.
+- Datas e horas estão em **UTC**.
+- **Notas internas** nunca saem pela API, assim como nas exportações.`,
+      },
+      {
+        id: 'api-rvs', title: 'Fila RVS e registro de RVS',
+        md: `Um sistema de chamados pode buscar as vulnerabilidades **disparadas** que aguardam ID de RVS e devolver o ID quando o chamado for aberto:
+
+\`\`\`
+GET /api/v1/rvs-queue
+POST /api/v1/vulnerabilities/VULN-0012/rvs   {"rvs_id": "RVS-2026-001"}
+\`\`\`
+
+A resposta é a vulnerabilidade completa, agora **Reconhecida**. Regras:
+
+- Só vulnerabilidades **Disparadas** aceitam RVS; outras recebem \`409\`.
+- O ID não pode ser alterado depois (\`409\` em uma segunda tentativa).`,
+      },
+      {
         id: 'api-criar', title: 'Criar uma vulnerabilidade',
-        md: `\`POST /api/ingest/vulnerabilities\`
+        md: `\`POST /api/v1/vulnerabilities\`, escopo \`vulns:write\`. O antigo \`POST /api/ingest/vulnerabilities\` faz o mesmo e continua funcionando.
 
 Corpo JSON de até **1 MB**. Todos os campos são opcionais, respeitando as regras abaixo:
 
@@ -206,54 +261,59 @@ Resposta \`201\`:
       },
       {
         id: 'api-exemplos', title: 'Exemplos',
-        md: `Rascunho vindo de um scanner (o campo \`host\`, desconhecido, vai para os metadados):
+        md: `Ler uma vulnerabilidade pelo número:
 
 \`\`\`
-curl -sS -X POST https://<portal>/api/ingest/vulnerabilities \\
-  -H "X-API-Key: $PORTAL_KEY" -H "Content-Type: application/json" \\
-  -d '{
-        "identifier": "Exposed .git directory",
-        "source": "nuclei",
-        "cwe": "527",
-        "cvss_score": 5.3,
-        "references": ["https://cwe.mitre.org/data/definitions/527.html"],
-        "operators": ["jonathan"],
-        "host": "app.example.com"
-      }'
-# 201 {"id":"…","internal_id":null,"status":"draft"}
+curl -sS https://<portal>/api/v1/vulnerabilities/VULN-0002 -H "X-API-Key: $PORTAL_KEY"
+# {"id": "08ff5461-…", "internal_id": "VULN-0002", "status": "fixed",
+#  "identifier": "SSRF - app-mobile", "cwe": "CWE-918", "rvs_id": "RVS-2026-1004",
+#  "operators": ["jonathan"], "fixed_at": "2026-10-08T12:59:30.244446", ...}
 \`\`\`
 
-Vulnerabilidade completa, já **Salva**:
-
-\`\`\`
-curl -sS -X POST https://<portal>/api/ingest/vulnerabilities \\
-  -H "X-API-Key: $PORTAL_KEY" -H "Content-Type: application/json" \\
-  -d '{
-        "status": "saved_local",
-        "identifier": "SQL injection em /login",
-        "description": "O parâmetro **user** é concatenado na consulta.",
-        "finding_detail": "Payload: 1 OR 1=1",
-        "mitigation": "Usar consultas parametrizadas.",
-        "cvss_score": 9.8,
-        "source": "burp"
-      }'
-# 201 {"id":"…","internal_id":"VULN-0533","status":"saved_local"}
-\`\`\`
-
-Python:
+Sincronizar o que mudou (Python):
 
 \`\`\`
 import os, requests
 
-resp = requests.post(
-    "https://<portal>/api/ingest/vulnerabilities",
-    headers={"X-API-Key": os.environ["PORTAL_KEY"]},
-    json={"identifier": "Open redirect", "source": "custom-scanner",
-          "metadata": {"scan_id": "2026-10-25-01"}},
-    timeout=30,
-)
-resp.raise_for_status()
-print(resp.json()["id"])
+API = "https://<portal>/api/v1"
+H = {"X-API-Key": os.environ["PORTAL_KEY"]}
+
+def changed_since(since):
+    params = {"updated_since": since, "limit": 200}
+    while True:
+        page = requests.get(f"{API}/vulnerabilities", headers=H, params=params, timeout=30).json()
+        yield from page["items"]
+        if not page["next_cursor"]:
+            break
+        params["cursor"] = page["next_cursor"]
+
+for v in changed_since("2026-10-25T00:00:00Z"):
+    print(v["internal_id"], v["status"], v["updated_at"])
+\`\`\`
+
+Registrar um RVS:
+
+\`\`\`
+curl -sS -X POST https://<portal>/api/v1/vulnerabilities/VULN-0012/rvs \\
+  -H "X-API-Key: $PORTAL_KEY" -H "Content-Type: application/json" \\
+  -d '{"rvs_id": "RVS-2026-001"}'
+\`\`\`
+
+Baixar o PDF de um relatório:
+
+\`\`\`
+curl -sS -o OP-0001.pdf "https://<portal>/api/v1/reports/OP-0001/export?format=pdf" \\
+  -H "X-API-Key: $PORTAL_KEY"
+\`\`\`
+
+Criar um rascunho a partir de um scanner (o campo \`host\`, desconhecido, vai para os metadados):
+
+\`\`\`
+curl -sS -X POST https://<portal>/api/v1/vulnerabilities \\
+  -H "X-API-Key: $PORTAL_KEY" -H "Content-Type: application/json" \\
+  -d '{"identifier": "Exposed .git directory", "source": "nuclei", "cwe": "527",
+       "cvss_score": 5.3, "operators": ["jonathan"], "host": "app.example.com"}'
+# 201 {"id":"…","internal_id":null,"status":"draft"}
 \`\`\``,
       },
       {
@@ -261,9 +321,11 @@ print(resp.json()["id"])
         md: `O corpo de erro sempre traz \`detail\`: um texto ou, em erros de formato, uma lista com o campo e o motivo.
 
 - \`401\`: chave ausente, inválida, revogada ou expirada. \`{"detail": "Invalid or missing API key"}\`
-- \`403\`: o papel da chave não pode criar. \`{"detail": "This API key's role cannot create vulnerabilities"}\`
+- \`403\`: a chave não tem o escopo do endpoint. \`{"detail": "This API key lacks the scope 'rvs:write'"}\`
+- \`404\`: o registro não existe (ou foi excluído).
+- \`409\`: a ação não cabe no status atual, ex. RVS em vulnerabilidade não disparada ou já registrado.
 - \`413\`: corpo acima de 1 MB.
-- \`422\`: dados inválidos. Exemplos:
+- \`422\`: dados ou parâmetros inválidos (inclusive \`cursor\` inválido). Exemplos:
 
 \`\`\`
 {"detail": "Required for status 'saved_local': description, finding_detail, mitigation"}
@@ -273,9 +335,10 @@ print(resp.json()["id"])
       },
       {
         id: 'api-praticas', title: 'Boas práticas',
-        md: `- Uma chave por ferramenta, com papel *Editor (todos)*. Revogue as que não forem mais usadas.
+        md: `- Uma chave por sistema, só com os escopos que ele usa e com data de expiração. Revogue as que não forem mais usadas.
 - Nunca coloque a chave no código ou em repositórios: leia de uma variável de ambiente ou de um cofre.
-- **Não há deduplicação:** repetir a mesma requisição cria outro registro. Depois de um erro de rede, confira no portal (filtro \`source:\`) antes de reenviar.
+- Para sincronizar, use \`updated_since\` + \`next_cursor\` em vez de baixar tudo a cada execução.
+- **Não há deduplicação** na criação: repetir a mesma requisição cria outro registro. Depois de um erro de rede, confira (filtro \`source\`) antes de reenviar.
 - Envie como \`draft\` quando um analista ainda precisa revisar o achado.`,
       },
     ],
@@ -300,12 +363,13 @@ Para papéis com acesso total (Administrador, Editor e Leitor todos, Auditor) a 
       },
       {
         id: 'adm-chaves', title: 'Chaves de API',
-        md: `Menu ➝ *Chaves de API*. Crie uma chave por ferramenta, com um nome que a identifique e o papel **Editor (todos)**.
+        md: `Menu ➝ *Chaves de API*. Crie uma chave por sistema, com um nome que o identifique, **só os escopos que ele usa** e, de preferência, uma data de expiração.
 
-- A chave completa aparece **uma única vez**, logo após a criação: copie e entregue ao responsável pela ferramenta por um canal seguro. Depois, o portal mostra só o prefixo.
+- A chave completa aparece **uma única vez**, logo após a criação: copie e entregue ao responsável pelo sistema por um canal seguro. Depois, o portal mostra só o prefixo.
+- A lista mostra os escopos, a expiração e o último uso de cada chave.
 - **Revogar** desativa a chave na hora; revogue as que não forem mais usadas ou que possam ter vazado.
 
-Detalhes de uso na seção **API**.`,
+Escopos e endpoints na seção **API**.`,
       },
       {
         id: 'adm-templates', title: 'Aprovação de templates',
@@ -473,22 +537,43 @@ A report copies the template's text when it is created; later changes to the tem
     subs: [
       {
         id: 'api-visao', title: 'Overview and endpoints',
-        md: `The API lets tools (scanners, C2s, recon pipelines) **create vulnerabilities** in the portal without the interface. It is separate from the API the portal itself uses: an API key works **only** on the \`/api/ingest/*\` endpoints.
+        md: `The API lets other systems **read** vulnerabilities and reports, **download** exports, **record RVS IDs** and **create** vulnerabilities. It is separate from the API the portal itself uses: an API key works **only** on \`/api/v1/*\` (and the older \`/api/ingest/*\`).
 
-- \`POST /api/ingest/vulnerabilities\`: creates a vulnerability (as *Draft* or *Saved*). Needs an API key.
-- \`GET /api/health\`: checks the portal is up. No key needed. Response: \`{"status": "ok", ...}\`.`,
+Each endpoint needs a **scope** on the key:
+
+- \`GET /api/v1/vulnerabilities\`: list, with filters and paging. Scope \`vulns:read\`.
+- \`GET /api/v1/vulnerabilities/{ref}\`: one complete vulnerability. \`vulns:read\`.
+- \`GET /api/v1/vulnerabilities/{ref}/attachments\`: its evidence. \`vulns:read\`.
+- \`GET /api/v1/attachments/{id}/content\`: downloads an evidence file. \`vulns:read\` (a vulnerability's) or \`reports:read\` (a report's).
+- \`GET /api/v1/vulnerabilities/{ref}/export?format=pdf|docx\`: the same file as the *Export* button. \`exports\`.
+- \`GET /api/v1/rvs-queue\`: dispatched ones waiting for an RVS ID. \`rvs:write\` or \`vulns:read\`.
+- \`POST /api/v1/vulnerabilities/{ref}/rvs\`: records the RVS ID. \`rvs:write\`.
+- \`POST /api/v1/vulnerabilities\`: creates a vulnerability. \`vulns:write\`.
+- \`GET /api/v1/reports\`: list of reports. \`reports:read\`.
+- \`GET /api/v1/reports/{ref}\`: one report with sections, vulnerabilities and evidence. \`reports:read\`.
+- \`GET /api/v1/reports/{ref}/export?format=pdf|xlsx|docx\`: report files. \`exports\`.
+- \`GET /api/health\`: checks the portal is up. No key.
+
+\`{ref}\` takes the UUID or the record's number (\`VULN-0012\`, \`OP-0003\`), case-insensitive.`,
       },
       {
-        id: 'api-chaves', title: 'Keys and roles',
-        md: `Only an **administrator** creates keys, under *API Keys*. Ask one, saying which tool it is for. The key is shown **only once**, when created: keep it in a secrets vault. The portal stores only a hash and the prefix (8 characters) to identify it.
+        id: 'api-chaves', title: 'Keys and scopes',
+        md: `Only an **administrator** creates keys, under *API Keys*, choosing a name, the **scopes** and, optionally, an **expiry date**. The full key is shown **only once**; the portal keeps only a hash and the prefix (8 characters).
 
-Each key has a **role**, which limits what it can do:
+Scopes:
 
-- **Editor (all)** or **Administrator**: can create vulnerabilities. Prefer *Editor (all)*, the least needed.
-- **Reader (all)** or **Auditor**: create nothing (\`403\`). There are no read endpoints for keys yet.
-- Whatever its role, a key does **not** reach users, reports, keys or the audit log: outside \`/api/ingest/*\` the answer is \`401\`.
-- A key can be **revoked** at any time. A missing, unknown, revoked or expired key always gets the same \`401\`.
-- The vulnerability created belongs to the administrator who issued the key. In the **Audit Logs**, the actor shows as \`api:<key prefix>\`.`,
+- \`vulns:read\`: read vulnerabilities and their evidence.
+- \`vulns:write\`: create vulnerabilities.
+- \`rvs:write\`: see the RVS queue and record RVS IDs.
+- \`reports:read\`: read reports and their evidence.
+- \`exports\`: download PDF, Word and Excel.
+
+Give each system **only what it uses**: a ticketing system that only records RVS IDs needs just \`rvs:write\`.
+
+- A key reads **every** record its scope allows; per-user restrictions (Restricted editor and reader) apply to people, not systems.
+- Outside \`/api/v1/*\` and \`/api/ingest/*\`, no key works (\`401\`), whatever its scopes.
+- A missing, unknown, revoked or expired key always gets the same \`401\`. A key without the endpoint's scope gets \`403\`.
+- Creations, RVS records, exports and evidence downloads are in the **Audit Logs** with the actor \`api:<key prefix>\`. Vulnerabilities created through the API belong to the administrator who issued the key.`,
       },
       {
         id: 'api-auth', title: 'Authentication',
@@ -500,8 +585,42 @@ Content-Type: application/json
 \`\`\``,
       },
       {
+        id: 'api-leitura', title: 'Reading, paging and syncing',
+        md: `Lists (\`/vulnerabilities\` and \`/reports\`) come in **last-change** order and in pages:
+
+\`\`\`
+{"items": [ ... ], "next_cursor": "MjAyNi0xMC0wOF..."}
+\`\`\`
+
+- \`limit\`: items per page, 1 to 200 (default 50).
+- \`cursor\`: pass the \`next_cursor\` you got to fetch the next page. \`null\` means the end.
+- \`updated_since\`: only what was created or changed from that moment on (ISO 8601, e.g. \`2026-10-25T14:00:00Z\`).
+
+\`/vulnerabilities\` filters: \`status\` (repeat for several: \`status=dispatched&status=acknowledged\`), \`source\` (contains), \`report\` (UUID, number, or \`none\` for those outside any report) and \`cvss_min\`. \`/reports\` filters: \`status\` and \`client\` (contains).
+
+**To sync** another system: keep the \`updated_at\` of the last item you processed and, on the next run, ask for \`updated_since\` with that value, following \`next_cursor\` to the end. An item changed again shows up again.
+
+- Lists carry a **summary**; fetch \`/{ref}\` for the full content.
+- Dates and times are in **UTC**.
+- **Internal notes** never leave through the API, as in the exports.`,
+      },
+      {
+        id: 'api-rvs', title: 'RVS queue and RVS IDs',
+        md: `A ticketing system can fetch the **dispatched** vulnerabilities waiting for an RVS ID and send the ID back once its ticket is open:
+
+\`\`\`
+GET /api/v1/rvs-queue
+POST /api/v1/vulnerabilities/VULN-0012/rvs   {"rvs_id": "RVS-2026-001"}
+\`\`\`
+
+The response is the full vulnerability, now **Acknowledged**. Rules:
+
+- Only **Dispatched** vulnerabilities take an RVS ID; others get \`409\`.
+- The ID can't be changed afterwards (\`409\` on a second try).`,
+      },
+      {
         id: 'api-criar', title: 'Create a vulnerability',
-        md: `\`POST /api/ingest/vulnerabilities\`
+        md: `\`POST /api/v1/vulnerabilities\`, scope \`vulns:write\`. The older \`POST /api/ingest/vulnerabilities\` does the same and keeps working.
 
 JSON body of up to **1 MB**. Every field is optional, under the rules below:
 
@@ -531,54 +650,59 @@ Rules:
       },
       {
         id: 'api-exemplos', title: 'Examples',
-        md: `A draft from a scanner (the unknown \`host\` field goes to the metadata):
+        md: `Read a vulnerability by its number:
 
 \`\`\`
-curl -sS -X POST https://<portal>/api/ingest/vulnerabilities \\
-  -H "X-API-Key: $PORTAL_KEY" -H "Content-Type: application/json" \\
-  -d '{
-        "identifier": "Exposed .git directory",
-        "source": "nuclei",
-        "cwe": "527",
-        "cvss_score": 5.3,
-        "references": ["https://cwe.mitre.org/data/definitions/527.html"],
-        "operators": ["jonathan"],
-        "host": "app.example.com"
-      }'
-# 201 {"id":"…","internal_id":null,"status":"draft"}
+curl -sS https://<portal>/api/v1/vulnerabilities/VULN-0002 -H "X-API-Key: $PORTAL_KEY"
+# {"id": "08ff5461-…", "internal_id": "VULN-0002", "status": "fixed",
+#  "identifier": "SSRF - app-mobile", "cwe": "CWE-918", "rvs_id": "RVS-2026-1004",
+#  "operators": ["jonathan"], "fixed_at": "2026-10-08T12:59:30.244446", ...}
 \`\`\`
 
-A complete vulnerability, already **Saved**:
-
-\`\`\`
-curl -sS -X POST https://<portal>/api/ingest/vulnerabilities \\
-  -H "X-API-Key: $PORTAL_KEY" -H "Content-Type: application/json" \\
-  -d '{
-        "status": "saved_local",
-        "identifier": "SQL injection on /login",
-        "description": "The **user** parameter is concatenated into the query.",
-        "finding_detail": "Payload: 1 OR 1=1",
-        "mitigation": "Use parameterised queries.",
-        "cvss_score": 9.8,
-        "source": "burp"
-      }'
-# 201 {"id":"…","internal_id":"VULN-0533","status":"saved_local"}
-\`\`\`
-
-Python:
+Sync what changed (Python):
 
 \`\`\`
 import os, requests
 
-resp = requests.post(
-    "https://<portal>/api/ingest/vulnerabilities",
-    headers={"X-API-Key": os.environ["PORTAL_KEY"]},
-    json={"identifier": "Open redirect", "source": "custom-scanner",
-          "metadata": {"scan_id": "2026-10-25-01"}},
-    timeout=30,
-)
-resp.raise_for_status()
-print(resp.json()["id"])
+API = "https://<portal>/api/v1"
+H = {"X-API-Key": os.environ["PORTAL_KEY"]}
+
+def changed_since(since):
+    params = {"updated_since": since, "limit": 200}
+    while True:
+        page = requests.get(f"{API}/vulnerabilities", headers=H, params=params, timeout=30).json()
+        yield from page["items"]
+        if not page["next_cursor"]:
+            break
+        params["cursor"] = page["next_cursor"]
+
+for v in changed_since("2026-10-25T00:00:00Z"):
+    print(v["internal_id"], v["status"], v["updated_at"])
+\`\`\`
+
+Record an RVS ID:
+
+\`\`\`
+curl -sS -X POST https://<portal>/api/v1/vulnerabilities/VULN-0012/rvs \\
+  -H "X-API-Key: $PORTAL_KEY" -H "Content-Type: application/json" \\
+  -d '{"rvs_id": "RVS-2026-001"}'
+\`\`\`
+
+Download a report's PDF:
+
+\`\`\`
+curl -sS -o OP-0001.pdf "https://<portal>/api/v1/reports/OP-0001/export?format=pdf" \\
+  -H "X-API-Key: $PORTAL_KEY"
+\`\`\`
+
+Create a draft from a scanner (the unknown \`host\` field goes to the metadata):
+
+\`\`\`
+curl -sS -X POST https://<portal>/api/v1/vulnerabilities \\
+  -H "X-API-Key: $PORTAL_KEY" -H "Content-Type: application/json" \\
+  -d '{"identifier": "Exposed .git directory", "source": "nuclei", "cwe": "527",
+       "cvss_score": 5.3, "operators": ["jonathan"], "host": "app.example.com"}'
+# 201 {"id":"…","internal_id":null,"status":"draft"}
 \`\`\``,
       },
       {
@@ -586,9 +710,11 @@ print(resp.json()["id"])
         md: `The error body always has \`detail\`: a text or, for format errors, a list with the field and the reason.
 
 - \`401\`: missing, invalid, revoked or expired key. \`{"detail": "Invalid or missing API key"}\`
-- \`403\`: the key's role cannot create. \`{"detail": "This API key's role cannot create vulnerabilities"}\`
+- \`403\`: the key lacks the endpoint's scope. \`{"detail": "This API key lacks the scope 'rvs:write'"}\`
+- \`404\`: the record doesn't exist (or was deleted).
+- \`409\`: the action doesn't fit the current status, e.g. an RVS ID on a vulnerability not dispatched, or already set.
 - \`413\`: body over 1 MB.
-- \`422\`: invalid data. Examples:
+- \`422\`: invalid data or parameters (an invalid \`cursor\` included). Examples:
 
 \`\`\`
 {"detail": "Required for status 'saved_local': description, finding_detail, mitigation"}
@@ -598,9 +724,10 @@ print(resp.json()["id"])
       },
       {
         id: 'api-praticas', title: 'Good practice',
-        md: `- One key per tool, with role *Editor (all)*. Revoke keys no longer in use.
+        md: `- One key per system, with only the scopes it uses and an expiry date. Revoke keys no longer in use.
 - Never put the key in code or repositories: read it from an environment variable or a vault.
-- **There is no de-duplication:** repeating a request creates another record. After a network error, check the portal (\`source:\` filter) before sending again.
+- To sync, use \`updated_since\` + \`next_cursor\` instead of downloading everything on each run.
+- **There is no de-duplication** on create: repeating a request creates another record. After a network error, check (\`source\` filter) before sending again.
 - Send as \`draft\` when an analyst still needs to review the finding.`,
       },
     ],
@@ -625,12 +752,13 @@ For roles with full access (Administrator, Editor and Reader all, Auditor) the p
       },
       {
         id: 'adm-chaves', title: 'API keys',
-        md: `Menu ➝ *API Keys*. Create one key per tool, with a name that identifies it and the **Editor (all)** role.
+        md: `Menu ➝ *API Keys*. Create one key per system, with a name that identifies it, **only the scopes it uses** and, preferably, an expiry date.
 
-- The full key is shown **only once**, right after creation: copy it and hand it to the tool's owner over a safe channel. Afterwards the portal shows only its prefix.
+- The full key is shown **only once**, right after creation: copy it and hand it to the system's owner over a safe channel. Afterwards the portal shows only its prefix.
+- The list shows each key's scopes, expiry and last use.
 - **Revoke** disables a key at once; revoke keys no longer in use or that may have leaked.
 
-Usage details in the **API** section.`,
+Scopes and endpoints in the **API** section.`,
       },
       {
         id: 'adm-templates', title: 'Template approval',

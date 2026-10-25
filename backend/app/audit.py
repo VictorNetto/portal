@@ -27,6 +27,13 @@ def client_ip(request: Request | None) -> str | None:
     return request.client.host if request.client else None
 
 
+def by(actor) -> dict:
+    """Audit kwargs for whoever acts: a user (session) or an API key."""
+    from app.models.user import ApiKey
+
+    return {"api_key_id": actor.id} if isinstance(actor, ApiKey) else {"user_id": actor.id}
+
+
 def record(
     session: Session,
     *,

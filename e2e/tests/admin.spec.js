@@ -99,7 +99,8 @@ test.describe('administration', () => {
     const label = `e2e-key-${tag()}`
     await page.click('.pageTop .btn.primary')
     await page.locator('.formRow input').first().fill(label)
-    await page.locator('.formRow select').selectOption('write_all')
+    await expect(page.locator('.formActions .btn.primary')).toBeDisabled()       // at least one permission
+    await page.locator('.scope', { hasText: 'vulns:write' }).locator('input').check()
     await page.click('.formActions .btn.primary')
 
     const reveal = page.locator('.keyReveal')
@@ -114,6 +115,7 @@ test.describe('administration', () => {
     const row = page.locator(`tbody tr:has-text("${label}")`)
     await expect(row).toContainText(plaintext.slice(0, 8))                      // only the prefix is kept
     await expect(row.locator('.pill')).toHaveText('Ativa')
+    await expect(row.locator('.scopeTag')).toHaveText(['vulns:write'])
     const ingest = (key) => fetch(`${process.env.E2E_BASE_URL || 'http://nginx:80'}/api/ingest/vulnerabilities`, {
       method: 'POST', headers: { 'X-API-Key': key, 'Content-Type': 'application/json' },
       body: JSON.stringify({ identifier: `e2e-ingest-${tag()}` }),

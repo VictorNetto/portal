@@ -2,16 +2,22 @@
 
 import uuid
 from datetime import datetime
+from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
-from app.models.enums import UserRole
+Scope = Literal["vulns:read", "vulns:write", "rvs:write", "reports:read", "exports"]  # app/scopes.py
 
 
 class ApiKeyCreate(BaseModel):
     label: str = Field(min_length=1, max_length=150)
-    role: UserRole
+    scopes: list[Scope] = Field(min_length=1)
     expires_at: datetime | None = None
+
+    @field_validator("scopes")
+    @classmethod
+    def _unique(cls, v: list[str]) -> list[str]:
+        return sorted(set(v))
 
 
 class ApiKeyOut(BaseModel):
@@ -20,7 +26,7 @@ class ApiKeyOut(BaseModel):
     id: uuid.UUID
     label: str
     key_prefix: str
-    role: UserRole
+    scopes: list[str]
     expires_at: datetime | None
     revoked_at: datetime | None
     last_used_at: datetime | None

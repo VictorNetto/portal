@@ -14,7 +14,7 @@ A self-hosted web platform for a professional red team to **manage, document, an
 | **Attachments** | Pluggable storage (local volume or S3/MinIO), type/content validation, 50 MB cap, proxied + audited reads |
 | **Exports** | PDF, Excel and Word for reports; PDF/Word for a vulnerability; batch ZIP/Excel from the Hub. Internal notes are never exported |
 | **Dispatch** | Decoupled dispatcher: `stub` (default, logs only) or `smtp` (real email with PDF + Excel + non-image files) |
-| **Ingest API** | `POST /ingest/vulnerabilities` with API keys for scanners — see [docs/INGEST_API.md](docs/INGEST_API.md) |
+| **Integration API** | `/api/v1` with scoped API keys: read vulnerabilities/reports, exports, RVS IDs, create vulnerabilities — see [docs/API.md](docs/API.md) |
 | **Administration** | Users and roles (admin · write_all · read_all · write_restricted · read_restricted · auditor; see D10), forced password change on first login, API keys, audit log viewer |
 | **Hub** | Vulnerabilities / Reports tabs, filter language, details drawer with timeline, row and batch actions, RVS queue |
 | **i18n** | PT-BR and EN (language selector in the profile menu) |
@@ -97,7 +97,7 @@ docs/
   BACKLOG.md      Parked features and pending decisions (template management, constraints, …)
   DEPLOYMENT.md   Deployment & networking plan + IT-request checklist
   RUNBOOK.md      Operating the production stack: deploy, update, certificates, backup/restore
-  INGEST_API.md   Contract for scanners / pipelines
+  API.md          Integration API (scoped keys) for other systems
 prototypes/       Original HTML prototypes of the screens
 ```
 

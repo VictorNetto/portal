@@ -42,7 +42,7 @@ def create_key(
         label=body.label,
         key_prefix=prefix,
         key_hash=key_hash,
-        role=body.role,
+        scopes=body.scopes,
         created_by=admin.id,
         expires_at=body.expires_at,
     )
@@ -51,7 +51,7 @@ def create_key(
     audit.record(
         session, action=AuditAction.api_key_create, user_id=admin.id,
         entity_type="api_key", entity_id=key.id,
-        detail={"label": key.label, "role": key.role.value}, request=request,
+        detail={"label": key.label, "scopes": key.scopes}, request=request,
     )
     session.commit()
     session.refresh(key)

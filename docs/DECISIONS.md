@@ -201,3 +201,21 @@ activity**. Both limits are enforced by the server, not only on screen.
 **Dialogs:** `window.confirm`/`prompt` are replaced by one portal modal (`AppDialog`,
 `confirmDialog()`/`promptDialog()` in `dialog.js`). Only the browser's own "leave this site?" on tab
 close stays native: browsers allow nothing else there.
+
+## D13 — Integration API with scoped keys ✅
+
+**Decision:** other systems integrate through `/api/v1`, authenticated by API keys that carry
+**scopes** (`vulns:read`, `vulns:write`, `rvs:write`, `reports:read`, `exports`) instead of a user
+role. An admin picks the scopes and an optional expiry per key.
+
+- Keys read every record their scope allows (per-user access is for people). They never reach the
+  UI endpoints.
+- Records are addressed by UUID or number; lists are keyset-paginated by `updated_at` with
+  `updated_since`, which is enough to sync without a change feed for now.
+- Responses use their own schemas (no internal notes, viewers or locks) so integrations don't follow
+  UI changes. Writes and exports are audited with the key as the actor.
+- Migration: existing keys whose role could create vulnerabilities got `vulns:write`; the others
+  had no ability and got no scope.
+- **Out for now:** dispatch through the API (it emails people; stays a human decision), deletes and
+  admin actions. **Later:** de-duplication (`external_id`), updates/lifecycle, batch, evidence
+  upload, webhooks.

@@ -107,3 +107,17 @@ def get_api_key(
     key.last_used_at = now
     session.commit()  # record usage even if the request is later rejected
     return key
+
+
+def require_scope(*any_of: str):
+    """Dependency: an API key holding at least one of `any_of` (D13)."""
+
+    def checker(key: ApiKey = Depends(get_api_key)) -> ApiKey:
+        if not set(any_of) & set(key.scopes or []):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"This API key lacks the scope {' or '.join(repr(s) for s in any_of)}",
+            )
+        return key
+
+    return checker

@@ -1,16 +1,18 @@
 """Machine-facing ingest endpoints (SPEC §11).
 
 Authenticated with an API key (`X-API-Key`), never with a user session. API keys
-are accepted ONLY here — they cannot reach the UI endpoints, user management or
-the audit log, whatever role they carry.
+are accepted ONLY here and under /v1 (routers/integration.py) — they cannot reach
+the UI endpoints, user management or the audit log, whatever scopes they carry.
+`POST /v1/vulnerabilities` is the same operation; this path stays for existing
+callers.
 """
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
 
+from app import scopes
 from app.db import get_session
-from app.deps import get_api_key
-from app.models.enums import UserRole
+from app.deps import require_scope
 from app.models.user import ApiKey
 from app.schemas.ingest import IngestResult, IngestVuln
 from app.services import ingest as svc
@@ -35,13 +37,8 @@ def _limit_body(request: Request) -> None:
 def ingest_vulnerability(
     payload: IngestVuln,
     request: Request,
-    key: ApiKey = Depends(get_api_key),
+    key: ApiKey = Depends(require_scope(scopes.VULNS_WRITE)),
     session: Session = Depends(get_session),
 ) -> IngestResult:
-    # Only keys scoped to a writing role may create records.
-    if key.role not in (UserRole.admin, UserRole.write_all):
-        raise HTTPException(
-            status.HTTP_403_FORBIDDEN, "This API key's role cannot create vulnerabilities"
-        )
     vuln = svc.create(session, payload, key, request)
     return IngestResult(id=vuln.id, internal_id=vuln.internal_id, status=vuln.status.value)

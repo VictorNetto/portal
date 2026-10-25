@@ -36,9 +36,10 @@ test.describe('documentation', () => {
     await page.goto('/docs')
     await page.click('.toc .tocSection:text-is("API")')
     await expect(page.locator('#doc-api-visao')).toBeInViewport()
-    await expect(subTitles(page, 'api')).toHaveText(['Visão geral e endpoints', 'Chaves e papéis', 'Autenticação', 'Criar uma vulnerabilidade', 'Exemplos', 'Erros', 'Boas práticas'])
+    await expect(subTitles(page, 'api')).toHaveText(['Visão geral e endpoints', 'Chaves e escopos', 'Autenticação', 'Leitura, paginação e sincronização', 'Fila RVS e registro de RVS', 'Criar uma vulnerabilidade', 'Exemplos', 'Erros', 'Boas práticas'])
     await expect(page.locator('#doc-api-auth pre')).toContainText('X-API-Key')
-    await expect(page.locator('#doc-api-exemplos pre', { hasText: 'curl -sS -X POST' })).toHaveCount(2)
+    await expect(page.locator('#doc-api-exemplos pre', { hasText: 'curl -sS' })).toHaveCount(4)
+    await expect(page.locator('#doc-api-visao')).toContainText('GET /api/v1/rvs-queue')
     await expect(subTitles(page, 'relatorios')).toContainText(['Templates', 'Salvar como Template', 'Compartilhamento e aprovação'])
   })
 

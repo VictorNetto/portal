@@ -227,12 +227,20 @@ def export_report(
     """(bytes, media_type, filename). Internal notes are never included."""
     if fmt not in ("pdf", "xlsx", "docx"):
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "format must be pdf, xlsx or docx")
-    report = report_svc.get_report(session, report_id, user)
+    return export_report_obj(session, report_svc.get_report(session, report_id, user), fmt, user, request)
+
+
+def export_report_obj(
+    session: Session, report: Report, fmt: str, actor, request: Request
+) -> tuple[bytes, str, str]:
+    """Export a report the caller may read; `actor` is a user or an API key."""
+    if fmt not in ("pdf", "xlsx", "docx"):
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "format must be pdf, xlsx or docx")
     vulns = report_svc._vulns_of(session, report)
     if fmt == "docx":
         docx_bytes = render.report_docx(report, vulns, _image_loader(_owned_attachments(session, report, vulns)))
         audit.record(
-            session, action=AuditAction.export, user_id=user.id,
+            session, action=AuditAction.export, **audit.by(actor),
             entity_type="report", entity_id=report.id, detail={"format": fmt}, request=request,
         )
         session.commit()
@@ -240,7 +248,7 @@ def export_report(
                 f"{report.internal_id}_{datetime.now().strftime('%Y%m%d')}.docx")
     pdf, xlsx, _files = build_package(session, report, vulns)
     audit.record(
-        session, action=AuditAction.export, user_id=user.id,
+        session, action=AuditAction.export, **audit.by(actor),
         entity_type="report", entity_id=report.id, detail={"format": fmt}, request=request,
     )
     session.commit()
@@ -334,15 +342,16 @@ def export_reports_batch(
 
 
 def export_vulnerability_pdf(
-    session: Session, vuln: Vulnerability, user: User, request: Request, fmt: str = "pdf"
+    session: Session, vuln: Vulnerability, user, request: Request, fmt: str = "pdf"
 ) -> tuple[bytes, str, str]:
+    """`user` is whoever exports: a user or an API key (it is only audited)."""
     owned = list(session.scalars(select(Attachment).where(Attachment.vulnerability_id == vuln.id)))
     if fmt == "docx":
         data, media, ext = render.vulnerability_docx(vuln, _image_loader(owned)), DOCX_MIME, "docx"
     else:
         data, media, ext = render.vulnerability_pdf(vuln, _image_loader(owned)), "application/pdf", "pdf"
     audit.record(
-        session, action=AuditAction.export, user_id=user.id,
+        session, action=AuditAction.export, **audit.by(user),
         entity_type="vulnerability", entity_id=vuln.id, detail={"format": ext}, request=request,
     )
     session.commit()

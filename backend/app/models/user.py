@@ -4,7 +4,7 @@ import uuid
 from datetime import datetime
 
 from sqlalchemy import Boolean, Enum, ForeignKey, Text, func, text
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import ARRAY, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db import Base
@@ -38,9 +38,8 @@ class ApiKey(UUIDPK, Base):
     # Full key hashed with SHA-256 (D7); key is 32+ bytes CSPRNG so a fast hash
     # is safe. Plaintext shown exactly once at creation.
     key_hash: Mapped[str] = mapped_column(Text, unique=True, nullable=False)
-    role: Mapped[UserRole] = mapped_column(
-        Enum(UserRole, name="user_role", create_type=False), nullable=False
-    )
+    # What the key may do (app/scopes.py, D13).
+    scopes: Mapped[list[str]] = mapped_column(ARRAY(Text), server_default="{}", nullable=False)
     created_by: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("users.id"), nullable=False
     )

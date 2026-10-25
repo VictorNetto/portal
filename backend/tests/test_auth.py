@@ -88,7 +88,7 @@ def test_user_and_key_management_is_admin_only(writer, reader):
     for c in (writer, reader):
         assert c.post("/users", {"username": "pytest-x", "password": "Temp-12345", "role": "read_all"}).status_code == 403
         assert c.get("/api-keys").status_code == 403
-        assert c.post("/api-keys", {"label": "pytest-x", "role": "write_all"}).status_code == 403
+        assert c.post("/api-keys", {"label": "pytest-x", "scopes": ["vulns:write"]}).status_code == 403
 
 
 def test_audit_log_is_for_admin_and_auditor_only(admin, auditor, writer, reader):
