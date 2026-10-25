@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { expect, test } from '@playwright/test'
 import { adminToken, cleanup, createUser, login, newReport, pdfFile, pngFile, reportVuln, tag } from '../support/api.js'
-import { autoDialogs, collectPageErrors, loginUI } from '../support/ui.js'
+import { autoDialogs, collectPageErrors, loginUI, navTo } from '../support/ui.js'
 
 let admin
 let alice
@@ -14,8 +14,6 @@ test.beforeAll(async () => {
   bob = await createUser(admin, 'write_all')
 })
 test.afterAll(async () => cleanup(admin, { reports }))
-
-const nav = (page, label) => page.locator(`.sidebar .navItem[aria-label="${label}"]`)
 
 test.describe('reports', () => {
   test('the end date can never come before the start date', async ({ page }) => {
@@ -36,7 +34,7 @@ test.describe('reports', () => {
     autoDialogs(page)
     await loginUI(page, alice.username, alice.password)
 
-    await nav(page, 'Criar Relatório').click()
+    await navTo(page, 'Criar Relatório')
     await expect(page).toHaveURL(/\/reports\/new$/)
     expect(await page.evaluate(() => document.documentElement.dataset.entity)).toBe('reports')   // indigo accent
 

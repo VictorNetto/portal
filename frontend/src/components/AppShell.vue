@@ -16,14 +16,18 @@ const expanded = ref(false)
 const forced = computed(() => !!auth.user?.must_change_password)
 
 // Nav items. `to` navigates; `soon` marks not-yet-built destinations (stubbed);
-// `adminOnly` / `roles` hide the item from users without access. Icons are thin
-// outline paths (24x24 grid) — the nav rail is the only place icons are used.
+// `adminOnly` / `roles` hide the item from users without access; `children`
+// makes a group (a flyout on the collapsed rail, indented entries when expanded).
+// Icons are thin outline paths (24x24 grid) — the nav rail is the only place
+// icons are used.
 const allNavItems = [
   { icon: 'M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z', label: 'nav.hub', to: '/hub' },
   { icon: 'M12 5v14M5 12h14', label: 'nav.createVuln', to: '/vulnerabilities/new', writer: true },
-  { icon: 'M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8zM14 3v5h5M12 12v6M9 15h6', label: 'nav.createReport', to: '/reports/new', writer: true },
+  {
+    icon: 'M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8zM14 3v5h5M12 12v6M9 15h6', label: 'nav.reports', writer: true,
+    children: [{ label: 'nav.createReport', to: '/reports/new' }, { label: 'nav.templates', to: '/templates' }],
+  },
   { icon: 'M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01', label: 'nav.rvsQueue', to: '/rvs-queue' },
-  { icon: 'M8 4h10a2 2 0 0 1 2 2v10M4 8a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2zM7.5 12h5M7.5 15.5h5', label: 'nav.templates', to: '/templates', writer: true },
   { icon: 'M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z', label: 'nav.audit', to: '/audit-logs', roles: ['admin', 'auditor'] },
   { icon: 'M16 20v-1.5a3.5 3.5 0 0 0-3.5-3.5h-5A3.5 3.5 0 0 0 4 18.5V20M10 11a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7zM20 20v-1.5a3.5 3.5 0 0 0-2.5-3.35M15 4.2a3.5 3.5 0 0 1 0 6.6', label: 'nav.users', to: '/users', adminOnly: true },
   { icon: 'M21 2l-2 2m-7.6 7.6a5.5 5.5 0 1 1-7.8 7.8 5.5 5.5 0 0 1 7.8-7.8zm0 0L15.5 7.5m0 0 3 3L22 7l-3-3m-3.5 3.5L19 4', label: 'nav.apiKeys', to: '/api-keys', adminOnly: true },
@@ -39,6 +43,7 @@ const navItems = computed(() =>
   }))
 
 function isActive(item) {
+  if (item.children) return item.children.some(isActive)
   if (!item.to) return false
   if (item.to === '/hub') {
     return route.path === '/hub' ||
@@ -47,10 +52,17 @@ function isActive(item) {
   return route.path === item.to
 }
 
+// The group whose flyout is pinned open by a click (hover opens it too).
+const openGroup = ref(null)
 function go(item) {
   if (item.soon || forced.value) return
+  if (item.children) {
+    if (!expanded.value) openGroup.value = openGroup.value === item.label ? null : item.label
+    return
+  }
   router.push(item.to)
   expanded.value = false
+  openGroup.value = null
 }
 
 // Profile menu: language, profile page, sign out. Closes on any outside click.
@@ -59,6 +71,7 @@ function onDocClick(e) {
   if (profileOpen.value && !e.target.closest('.profileWrap')) profileOpen.value = false
   // The expanded nav is transient: a click anywhere outside it collapses it.
   if (expanded.value && !e.target.closest('.sidebar')) expanded.value = false
+  if (openGroup.value && !e.target.closest('.navGroup')) openGroup.value = null
 }
 onMounted(() => document.addEventListener('click', onDocClick))
 onUnmounted(() => document.removeEventListener('click', onDocClick))
@@ -80,26 +93,36 @@ async function signOut() {
 
 <template>
   <nav class="sidebar" :class="{ expanded, locked: forced }" :aria-label="t('brand')"
-       @mouseleave="expanded = false">
+       @mouseleave="expanded = false; openGroup = null">
     <button class="hamb" @click="expanded = !expanded" aria-label="Menu">
       <svg viewBox="0 0 24 24" class="ico"><path d="M4 7h16M4 12h16M4 17h16" /></svg>
     </button>
-    <button
-      v-for="item in navItems"
-      :key="item.label"
-      class="navItem"
-      :class="{ active: isActive(item), soon: item.soon }"
-      :aria-label="t(item.label)"
-      :aria-current="isActive(item) ? 'page' : undefined"
-      @click="go(item)"
-    >
-      <span class="navIcon"><svg viewBox="0 0 24 24" class="ico"><path :d="item.icon" /></svg></span>
-      <span class="navLabel">
-        {{ t(item.label) }}
-        <small v-if="item.soon" class="soonTag">{{ t('comingSoon') }}</small>
-      </span>
-      <span class="tip">{{ t(item.label) }}</span>
-    </button>
+    <div v-for="item in navItems" :key="item.label" :class="{ navGroup: item.children, open: openGroup === item.label }">
+      <button
+        class="navItem"
+        :class="{ active: isActive(item), soon: item.soon }"
+        :aria-label="t(item.label)"
+        :aria-current="isActive(item) && !item.children ? 'page' : undefined"
+        :aria-haspopup="item.children ? 'menu' : undefined"
+        @click="go(item)"
+      >
+        <span class="navIcon"><svg viewBox="0 0 24 24" class="ico"><path :d="item.icon" /></svg></span>
+        <span class="navLabel">
+          {{ t(item.label) }}
+          <small v-if="item.soon" class="soonTag">{{ t('comingSoon') }}</small>
+        </span>
+        <span v-if="!item.children" class="tip">{{ t(item.label) }}</span>
+      </button>
+      <!-- Collapsed rail: a flyout beside the icon. Expanded rail: indented entries. -->
+      <div v-if="item.children" class="subList" role="menu" :aria-label="t(item.label)">
+        <div class="subTitle">{{ t(item.label) }}</div>
+        <button v-for="c in item.children" :key="c.to" class="navSub" role="menuitem"
+                :class="{ active: isActive(c) }" :aria-label="t(c.label)"
+                :aria-current="isActive(c) ? 'page' : undefined" @click="go(c)">
+          {{ t(c.label) }}
+        </button>
+      </div>
+    </div>
   </nav>
 
   <header class="header">
@@ -165,6 +188,33 @@ async function signOut() {
   padding: 4px 9px; border-radius: 3px; font-size: 12px; white-space: nowrap; z-index: 50;
 }
 .sidebar:not(.expanded) .navItem:hover .tip { display: block; }
+
+/* Groups. Collapsed: the entries fly out beside the icon (padding bridges the
+   gap so the pointer can travel to them). Expanded: they sit indented below. */
+.navGroup { position: relative; }
+.subList { display: none; }
+.sidebar:not(.expanded) .navGroup:hover .subList,
+.sidebar:not(.expanded) .navGroup.open .subList {
+  display: block; position: absolute; left: var(--sidebar); top: 0; z-index: 50; padding-left: 6px;
+}
+.sidebar:not(.expanded) .subList::before {
+  content: ''; position: absolute; inset: 0 0 0 6px; background: var(--nav-bg); border-radius: 3px; z-index: -1;
+}
+.sidebar:not(.expanded) .subList { min-width: 190px; padding-top: 4px; padding-bottom: 4px; }
+.subTitle { padding: 6px 14px 4px; font-size: 11px; color: var(--nav-fg); }
+.sidebar.expanded .subList { display: block; padding-bottom: 4px; }
+/* Expanded, the entry itself is the selection; the group header is only a label. */
+.sidebar.expanded .navGroup > .navItem { cursor: default; }
+.sidebar.expanded .navGroup > .navItem.active, .sidebar.expanded .navGroup > .navItem:hover { background: transparent; }
+.sidebar.expanded .subTitle { display: none; }
+.navSub {
+  display: block; width: 100%; height: 34px; padding: 0 14px; border: 0; background: transparent;
+  text-align: left; white-space: nowrap; font-size: 13px; color: #d5e0ec;
+}
+.sidebar.expanded .navSub { padding-left: var(--sidebar); height: 32px; }
+.navSub:hover:not(.active) { background: var(--nav-hover); }
+.navSub.active { background: var(--nav-active); }
+.sidebar.locked .navSub { opacity: .35; pointer-events: none; }
 
 .header {
   height: var(--header); position: fixed; top: 0; left: var(--sidebar); right: 0;

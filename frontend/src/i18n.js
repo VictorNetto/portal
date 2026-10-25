@@ -8,6 +8,7 @@ const messages = {
     nav: {
       hub: 'Operações',
       createVuln: 'Criar Vulnerabilidade',
+      reports: 'Relatórios',
       createReport: 'Criar Relatório',
       rvsQueue: 'Fila RVS',
       templates: 'Templates',
@@ -481,6 +482,7 @@ const messages = {
     nav: {
       hub: 'Operations',
       createVuln: 'Create Vulnerability',
+      reports: 'Reports',
       createReport: 'Create Report',
       rvsQueue: 'RVS Queue',
       templates: 'Templates',

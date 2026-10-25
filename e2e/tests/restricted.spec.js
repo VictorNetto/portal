@@ -23,7 +23,7 @@ test.describe('restricted roles', () => {
     const foreign = await mk({ identifier: `e2e-x-${u}-foreign` })
     const assigned = await mk({ identifier: `e2e-x-${u}-assigned`, operator_ids: [rw.id] })
     await loginUI(page, rw.username, rw.password)
-    await expect(page.locator('.sidebar .navItem[aria-label^="Criar"]')).toHaveCount(2)
+    await expect(page.locator('.sidebar [aria-label^="Criar"]')).toHaveCount(2)       // vulnerability + report (in Relatórios)
 
     // create one through the UI: the logged user is the default operator
     await page.click('.btn.primary:has-text("Criar")')
@@ -72,7 +72,7 @@ test.describe('restricted roles', () => {
     expect(await rowCount(readerPage)).toBe(1)
     await expect(readerPage.locator('.vtable tbody')).toContainText('shared')
     await expect(readerPage.locator('.btn.primary:has-text("Criar")')).toHaveCount(0)
-    await expect(readerPage.locator('.sidebar .navItem[aria-label^="Criar"]')).toHaveCount(0)
+    await expect(readerPage.locator('.sidebar [aria-label^="Criar"]')).toHaveCount(0)
 
     await readerPage.click('.vtable tbody tr:first-child td:nth-child(2)')
     await readerPage.click('.details .btn:has-text("Detalhar")')

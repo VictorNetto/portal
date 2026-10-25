@@ -54,7 +54,7 @@ test.describe('read-only role', () => {
     vulns.push(v.id)
     await loginUI(page, reader.username, reader.password)
     await expect(page.locator('.btn.primary:has-text("Criar")')).toHaveCount(0)
-    await expect(page.locator('.sidebar .navItem[aria-label^="Criar"]')).toHaveCount(0)
+    await expect(page.locator('.sidebar [aria-label^="Criar"]')).toHaveCount(0)
     await expect(page.locator('.sidebar .navItem[aria-label="Operações"]')).toHaveCount(1)
     await expect(page.locator('h1')).toHaveCount(0)                    // the Hub opens straight on the lists
     await page.goto(`/vulnerabilities/${v.id}`)

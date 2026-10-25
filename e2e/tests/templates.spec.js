@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test'
 import { adminToken, api, cleanup, createUser, newReport, tag } from '../support/api.js'
-import { answerDialog, loginUI } from '../support/ui.js'
+import { answerDialog, loginUI, navTo } from '../support/ui.js'
 
 let admin
 let writer
@@ -79,7 +79,7 @@ test.describe('report templates', () => {
       sections: [{ title: 'Metodologia', content_markdown: 'OWASP' }],
     })
     await loginUI(page, writer.username, writer.password)
-    await page.locator('.sidebar .navItem[aria-label="Templates"]').click()
+    await navTo(page, 'Templates')
     await expect(page).toHaveURL(/\/templates$/)
     await page.fill('.search', `e2e-tplpage-${u}`)
     const row = page.locator('.ttable tbody tr').first()
@@ -93,10 +93,30 @@ test.describe('report templates', () => {
     await expect(detail.locator('.extraTitle')).toHaveText('Metodologia')
   })
 
+  test('Relatórios groups report creation and templates: a flyout on the rail, indented when expanded', async ({ page }) => {
+    await loginUI(page, writer.username, writer.password)
+    const group = page.locator('.sidebar .navGroup')
+    await expect(group.locator('.subList')).toBeHidden()
+    await group.locator('.navItem[aria-label="Relatórios"]').hover()
+    await expect(group.locator('.subList')).toBeVisible()
+    await expect(group.locator('.navSub')).toHaveText(['Criar Relatório', 'Templates'])
+    await group.locator('.navSub', { hasText: 'Templates' }).click()
+    await expect(page).toHaveURL(/\/templates$/)
+    await expect(group.locator('.navItem')).toHaveClass(/active/)                 // the group shows where you are
+    await page.mouse.move(800, 400)
+    await expect(group.locator('.subList')).toBeHidden()
+
+    await page.click('.sidebar .hamb')                                            // expanded: entries indented below
+    await expect(group.locator('.subTitle')).toBeHidden()
+    await expect(group.locator('.navSub.active')).toHaveText('Templates')
+    await group.locator('.navSub', { hasText: 'Criar Relatório' }).click()
+    await expect(page).toHaveURL(/\/reports\/new$/)
+  })
+
   test('readers have no Templates page', async ({ page }) => {
     const reader = await createUser(admin, 'read_all')
     await loginUI(page, reader.username, reader.password)
-    await expect(page.locator('.sidebar .navItem[aria-label="Templates"]')).toHaveCount(0)
+    await expect(page.locator('.sidebar [aria-label="Templates"], .sidebar [aria-label="Relatórios"]')).toHaveCount(0)
     await page.goto('/templates')
     await expect(page).toHaveURL(/\/hub/)
   })
