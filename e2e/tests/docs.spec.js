@@ -16,6 +16,18 @@ test.describe('documentation', () => {
     await expect(page.locator('.toc .tocItem.current')).toHaveText('Fila RVS')
   })
 
+  test('the integration API section documents the endpoint, the key roles and examples', async ({ page }) => {
+    const writer = await createUser(await adminToken(), 'write_all')
+    await loginUI(page, writer.username, writer.password)
+    await page.goto('/docs')
+    await page.click('.toc .tocItem:has-text("API de integração")')
+    const api = page.locator('#doc-api')
+    await expect(api).toBeInViewport()
+    await expect(api.locator('h3')).toHaveText(['Endpoints', 'Chaves e papéis', 'Autenticação', 'POST /api/ingest/vulnerabilities', 'Exemplos', 'Erros', 'Boas práticas'])
+    await expect(api.locator('pre').first()).toContainText('X-API-Key')
+    await expect(api.locator('pre', { hasText: 'curl -sS -X POST' })).toHaveCount(2)
+  })
+
   test('a reader sees only the topics for what they can use, in their language', async ({ page }) => {
     const reader = await createUser(await adminToken(), 'read_all')
     await loginUI(page, reader.username, reader.password)
@@ -23,7 +35,7 @@ test.describe('documentation', () => {
     await expect(page.locator('#doc-sessao')).toBeInViewport()
     const titles = page.locator('.docCard h2')
     await expect(titles).toContainText(['Vulnerabilidades', 'Relatórios'])
-    for (const hidden of ['Templates', 'Administração', 'Logs de auditoria']) {
+    for (const hidden of ['Templates', 'API de integração', 'Administração', 'Logs de auditoria']) {
       await expect(page.locator(`.docCard h2:text-is("${hidden}")`)).toHaveCount(0)
     }
     await page.click('.profileBtn')
