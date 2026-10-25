@@ -36,10 +36,20 @@ test.describe('documentation', () => {
     await page.goto('/docs')
     await page.click('.toc .tocSection:text-is("API")')
     await expect(page.locator('#doc-api-visao')).toBeInViewport()
-    await expect(subTitles(page, 'api')).toHaveText(['Visão geral e endpoints', 'Chaves e escopos', 'Autenticação', 'Leitura, paginação e sincronização', 'Fila RVS e registro de RVS', 'Criar uma vulnerabilidade', 'Exemplos', 'Erros', 'Boas práticas'])
+    await expect(subTitles(page, 'api')).toHaveText([
+      'Visão geral', 'Chaves e escopos', 'Autenticação', 'Convenções: referências, paginação e sincronização',
+      'Listar vulnerabilidades', 'Ler uma vulnerabilidade', 'Evidências de uma vulnerabilidade', 'Baixar uma evidência',
+      'Exportar uma vulnerabilidade', 'Fila RVS', 'Registrar o ID de RVS', 'Criar uma vulnerabilidade',
+      'Listar relatórios', 'Ler um relatório', 'Exportar um relatório', 'Verificar o portal', 'Erros', 'Boas práticas',
+    ])
     await expect(page.locator('#doc-api-auth pre')).toContainText('X-API-Key')
-    await expect(page.locator('#doc-api-exemplos pre', { hasText: 'curl -sS' })).toHaveCount(4)
-    await expect(page.locator('#doc-api-visao')).toContainText('GET /api/v1/rvs-queue')
+    await expect(page.locator('#doc-api-convencoes pre').last()).toContainText('def changed_since')
+    // every endpoint page states its method, path and scope, and shows a curl example
+    for (const id of ['vulns', 'vuln', 'vuln-atts', 'att', 'vuln-export', 'rvsq', 'rvs', 'reports', 'report', 'report-export']) {
+      await expect(page.locator(`#doc-api-ep-${id} .mdView p`).first()).toContainText(/(GET|POST) \/api\/v1\//)
+      await expect(page.locator(`#doc-api-ep-${id} pre`).first()).toContainText('curl -sS')
+    }
+    await expect(page.locator('#doc-api-ep-rvs')).toContainText('RVS ID is already set')
     await expect(subTitles(page, 'relatorios')).toContainText(['Templates', 'Salvar como Template', 'Compartilhamento e aprovação'])
   })
 

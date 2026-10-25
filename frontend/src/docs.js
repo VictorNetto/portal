@@ -147,25 +147,23 @@ Um relatório copia o texto do template no momento da criação; mudanças poste
     id: 'api', title: 'API', roles: CREATORS,
     subs: [
       {
-        id: 'api-visao', title: 'Visão geral e endpoints',
-        md: `A API permite que outros sistemas **leiam** vulnerabilidades e relatórios, **baixem** exportações, **registrem IDs de RVS** e **criem** vulnerabilidades. Ela é separada da API usada pelo próprio portal: uma chave de API **só** funciona em \`/api/v1/*\`.
+        id: 'api-visao', title: 'Visão geral',
+        md: `A API permite que outros sistemas **leiam** vulnerabilidades e relatórios, **baixem** evidências e exportações, **registrem IDs de RVS** e **criem** vulnerabilidades. Ela é separada da API usada pelo próprio portal: uma chave de API **só** funciona em \`/api/v1/*\`.
 
-Cada endpoint exige um **escopo** na chave:
+Endpoints (cada um tem uma subseção abaixo, com parâmetros, resposta, erros e exemplo):
 
-- \`GET /api/v1/vulnerabilities\`: lista, com filtros e paginação. Escopo \`vulns:read\`.
-- \`GET /api/v1/vulnerabilities/{ref}\`: uma vulnerabilidade completa. \`vulns:read\`.
-- \`GET /api/v1/vulnerabilities/{ref}/attachments\`: as evidências dela. \`vulns:read\`.
-- \`GET /api/v1/attachments/{id}/content\`: baixa um arquivo de evidência. \`vulns:read\` (de vulnerabilidade) ou \`reports:read\` (de relatório).
-- \`GET /api/v1/vulnerabilities/{ref}/export?format=pdf|docx\`: o mesmo arquivo do botão *Exportar*. \`exports\`.
-- \`GET /api/v1/rvs-queue\`: disparadas aguardando ID de RVS. \`rvs:write\` ou \`vulns:read\`.
-- \`POST /api/v1/vulnerabilities/{ref}/rvs\`: registra o ID de RVS. \`rvs:write\`.
-- \`POST /api/v1/vulnerabilities\`: cria uma vulnerabilidade. \`vulns:write\`.
-- \`GET /api/v1/reports\`: lista de relatórios. \`reports:read\`.
-- \`GET /api/v1/reports/{ref}\`: um relatório com seções, vulnerabilidades e evidências. \`reports:read\`.
-- \`GET /api/v1/reports/{ref}/export?format=pdf|xlsx|docx\`: arquivos do relatório. \`exports\`.
-- \`GET /api/health\`: verifica se o portal está no ar. Sem chave.
-
-\`{ref}\` aceita o UUID ou o número do registro (\`VULN-0012\`, \`OP-0003\`), sem diferenciar maiúsculas.`,
+- \`GET /api/v1/vulnerabilities\`: listar vulnerabilidades. \`vulns:read\`
+- \`GET /api/v1/vulnerabilities/{ref}\`: ler uma vulnerabilidade. \`vulns:read\`
+- \`GET /api/v1/vulnerabilities/{ref}/attachments\`: evidências dela. \`vulns:read\`
+- \`GET /api/v1/attachments/{id}/content\`: baixar uma evidência. \`vulns:read\` ou \`reports:read\`
+- \`GET /api/v1/vulnerabilities/{ref}/export\`: exportar (PDF, Word). \`exports\`
+- \`GET /api/v1/rvs-queue\`: Fila RVS. \`rvs:write\` ou \`vulns:read\`
+- \`POST /api/v1/vulnerabilities/{ref}/rvs\`: registrar o ID de RVS. \`rvs:write\`
+- \`POST /api/v1/vulnerabilities\`: criar uma vulnerabilidade. \`vulns:write\`
+- \`GET /api/v1/reports\`: listar relatórios. \`reports:read\`
+- \`GET /api/v1/reports/{ref}\`: ler um relatório. \`reports:read\`
+- \`GET /api/v1/reports/{ref}/export\`: exportar (PDF, Excel, Word). \`exports\`
+- \`GET /api/health\`: verificar o portal. Sem chave.`,
       },
       {
         id: 'api-chaves', title: 'Chaves e escopos',
@@ -196,8 +194,10 @@ Content-Type: application/json
 \`\`\``,
       },
       {
-        id: 'api-leitura', title: 'Leitura, paginação e sincronização',
-        md: `As listas (\`/vulnerabilities\` e \`/reports\`) vêm em ordem de **última alteração** e em páginas:
+        id: 'api-convencoes', title: 'Convenções: referências, paginação e sincronização',
+        md: `\`{ref}\` aceita o UUID ou o número do registro (\`VULN-0012\`, \`OP-0003\`), sem diferenciar maiúsculas. Respostas e corpos são JSON em UTF-8.
+
+As listas (\`/vulnerabilities\` e \`/reports\`) vêm em ordem de **última alteração** e em páginas:
 
 \`\`\`
 {"items": [ ... ], "next_cursor": "MjAyNi0xMC0wOF..."}
@@ -213,25 +213,285 @@ Filtros de \`/vulnerabilities\`: \`status\` (repita para vários: \`status=dispa
 
 - As listas trazem um **resumo**; busque \`/{ref}\` para o conteúdo completo.
 - Datas e horas estão em **UTC**.
-- **Notas internas** nunca saem pela API, assim como nas exportações.`,
+- **Notas internas** nunca saem pela API, assim como nas exportações.
+
+Exemplo de sincronização (Python):
+
+\`\`\`
+import os, requests
+
+API = "https://<portal>/api/v1"
+H = {"X-API-Key": os.environ["PORTAL_KEY"]}
+
+def changed_since(since):
+    params = {"updated_since": since, "limit": 200}
+    while True:
+        page = requests.get(f"{API}/vulnerabilities", headers=H, params=params, timeout=30)
+        page.raise_for_status()
+        page = page.json()
+        yield from page["items"]
+        if not page["next_cursor"]:
+            break
+        params["cursor"] = page["next_cursor"]
+
+for v in changed_since("2026-10-25T00:00:00Z"):
+    print(v["internal_id"], v["status"], v["updated_at"])
+\`\`\``,
       },
       {
-        id: 'api-rvs', title: 'Fila RVS e registro de RVS',
-        md: `Um sistema de chamados pode buscar as vulnerabilidades **disparadas** que aguardam ID de RVS e devolver o ID quando o chamado for aberto:
+        id: 'api-ep-vulns', title: 'Listar vulnerabilidades',
+        md: `**\`GET /api/v1/vulnerabilities\`** · escopo \`vulns:read\`
+
+Lista vulnerabilidades (não excluídas) em ordem de última alteração, em páginas.
+
+**Parâmetros** (query)
+
+- \`status\`: um ou mais status; repita o parâmetro para vários (\`status=dispatched&status=acknowledged\`).
+- \`source\`: a fonte contém o texto (sem diferenciar maiúsculas).
+- \`report\`: UUID ou número do relatório; \`none\` para as que não estão em relatório.
+- \`cvss_min\`: CVSS maior ou igual (0 a 10).
+- \`updated_since\`: só as criadas ou alteradas a partir desse momento (ISO 8601).
+- \`limit\`: 1 a 200 (padrão 50); \`cursor\`: o \`next_cursor\` da página anterior.
+
+**Resposta \`200\`**: \`{"items": [...], "next_cursor": "…" | null}\`. Cada item tem:
+
+- \`id\` (UUID) e \`internal_id\` (\`VULN-xxxx\`, nulo enquanto for rascunho).
+- \`status\`: \`draft\`, \`saved_local\`, \`dispatching\`, \`dispatched\`, \`acknowledged\`, \`waiting_fix\`, \`pending_retest\` ou \`fixed\`.
+- \`identifier\`, \`cwe\`, \`cvss_score\` (número ou nulo), \`source\`, \`rvs_id\` (nulo até o registro de RVS).
+- \`report\`: \`{id, internal_id, name, status}\` do relatório a que pertence, ou nulo.
+- \`created_at\`, \`updated_at\` (UTC).
+
+**Erros**: \`422\` para status, data ou cursor inválidos; \`404\` se o relatório de \`report\` não existir.
+
+**Exemplo**
 
 \`\`\`
-GET /api/v1/rvs-queue
-POST /api/v1/vulnerabilities/VULN-0012/rvs   {"rvs_id": "RVS-2026-001"}
+curl -sS "https://<portal>/api/v1/vulnerabilities?status=acknowledged&limit=1" \\
+  -H "X-API-Key: $PORTAL_KEY"
 \`\`\`
 
-A resposta é a vulnerabilidade completa, agora **Reconhecida**. Regras:
+\`\`\`
+{
+  "items": [
+    {
+      "id": "92157428-3168-4c4e-9031-569928030ee9",
+      "internal_id": "VULN-0003",
+      "status": "acknowledged",
+      "identifier": "Cross-Site Scripting (armazenado) - bi",
+      "cwe": "CWE-79",
+      "cvss_score": 10,
+      "source": "nuclei",
+      "rvs_id": "RVS-2026-1005",
+      "report": null,
+      "created_at": "2026-10-08T12:59:30.258918",
+      "updated_at": "2026-10-08T12:59:30.315866"
+    }
+  ],
+  "next_cursor": "MjAyNi0xMC0wOFQxMjo1OTozMC4zMTU4NjZ8OTIxNTc0Mjgt…"
+}
+\`\`\``,
+      },
+      {
+        id: 'api-ep-vuln', title: 'Ler uma vulnerabilidade',
+        md: `**\`GET /api/v1/vulnerabilities/{ref}\`** · escopo \`vulns:read\`
 
-- Só vulnerabilidades **Disparadas** aceitam RVS; outras recebem \`409\`.
-- O ID não pode ser alterado depois (\`409\` em uma segunda tentativa).`,
+Uma vulnerabilidade completa.
+
+**Parâmetros**: \`ref\` (caminho): UUID ou número (\`VULN-0003\`).
+
+**Resposta \`200\`**: os campos do resumo (ver *Listar vulnerabilidades*) e também:
+
+- \`description\`, \`finding_detail\`, \`mitigation\`: textos em Markdown.
+- \`references\` (lista de URLs), \`cvss_vector\`.
+- \`operators\`: logins dos operadores.
+- \`metadata\`: dados livres enviados pela ferramenta que a criou.
+- \`saved_local_at\`, \`dispatched_at\`, \`acknowledged_at\`, \`waiting_fix_at\`, \`pending_retest_at\`, \`fixed_at\`: quando entrou em cada status (UTC), ou nulo.
+
+Notas internas e a lista *Compartilhado com* não são enviadas.
+
+**Erros**: \`404\` \`{"detail": "Vulnerability not found"}\`.
+
+**Exemplo**
+
+\`\`\`
+curl -sS https://<portal>/api/v1/vulnerabilities/VULN-0003 -H "X-API-Key: $PORTAL_KEY"
+\`\`\`
+
+\`\`\`
+{
+  "id": "92157428-3168-4c4e-9031-569928030ee9",
+  "internal_id": "VULN-0003",
+  "status": "acknowledged",
+  "identifier": "Cross-Site Scripting (armazenado) - bi",
+  "cwe": "CWE-79",
+  "cvss_score": 10,
+  "source": "nuclei",
+  "rvs_id": "RVS-2026-1005",
+  "report": null,
+  "created_at": "2026-10-08T12:59:30.258918",
+  "updated_at": "2026-10-08T12:59:30.315866",
+  "description": "Conteúdo persistido e renderizado sem escape.",
+  "finding_detail": "Identificado em bi. Reprodução: requisição ao endpoint /bi/v2/recurso/…",
+  "mitigation": "Sanitizar na entrada e escapar na saída.",
+  "references": [],
+  "cvss_vector": "AV:N/AC:L/PR:N/UI:N/S:C/C:H/I:H/A:N",
+  "operators": [
+    "benjamin",
+    "michelle"
+  ],
+  "metadata": {},
+  "saved_local_at": "2026-10-08T12:59:30.282810",
+  "dispatched_at": "2026-10-08T12:59:30.301332",
+  "acknowledged_at": "2026-10-08T12:59:30.319272",
+  "waiting_fix_at": null,
+  "pending_retest_at": null,
+  "fixed_at": null
+}
+\`\`\``,
+      },
+      {
+        id: 'api-ep-vuln-atts', title: 'Evidências de uma vulnerabilidade',
+        md: `**\`GET /api/v1/vulnerabilities/{ref}/attachments\`** · escopo \`vulns:read\`
+
+Os arquivos anexados à vulnerabilidade, do mais antigo ao mais novo. Use o \`id\` para baixar cada um.
+
+**Parâmetros**: \`ref\` (caminho).
+
+**Resposta \`200\`**: lista de \`{id, filename, display_name, mime_type, size_bytes, created_at}\`.
+
+**Erros**: \`404\`.
+
+**Exemplo**
+
+\`\`\`
+curl -sS https://<portal>/api/v1/vulnerabilities/VULN-0012/attachments -H "X-API-Key: $PORTAL_KEY"
+\`\`\`
+
+\`\`\`
+[
+  {
+    "id": "3f1c2a9e-5b7d-4e61-9a0c-2d8e4b6f1a73",
+    "filename": "login-burp.png",
+    "display_name": "Requisição de login",
+    "mime_type": "image/png",
+    "size_bytes": 48213,
+    "created_at": "2026-10-20T14:02:11.502114"
+  }
+]
+\`\`\``,
+      },
+      {
+        id: 'api-ep-att', title: 'Baixar uma evidência',
+        md: `**\`GET /api/v1/attachments/{id}/content\`** · escopo \`vulns:read\` ou \`reports:read\`
+
+O conteúdo do arquivo, com o \`Content-Type\` dele e \`Content-Disposition: attachment\`. A evidência de uma vulnerabilidade exige \`vulns:read\`; a de um relatório, \`reports:read\`. Cada download fica registrado na auditoria.
+
+**Parâmetros**: \`id\` (caminho): o \`id\` da evidência.
+
+**Resposta \`200\`**: o arquivo (binário).
+
+**Erros**: \`404\` se o arquivo não existir ou se a chave não tiver o escopo do dono dele.
+
+**Exemplo**
+
+\`\`\`
+curl -sS -o login-burp.png https://<portal>/api/v1/attachments/3f1c2a9e-5b7d-4e61-9a0c-2d8e4b6f1a73/content \\
+  -H "X-API-Key: $PORTAL_KEY"
+\`\`\``,
+      },
+      {
+        id: 'api-ep-vuln-export', title: 'Exportar uma vulnerabilidade',
+        md: `**\`GET /api/v1/vulnerabilities/{ref}/export\`** · escopo \`exports\`
+
+O mesmo arquivo do botão *Exportar*, com as imagens de evidência. Fica registrado na auditoria.
+
+**Parâmetros**: \`ref\` (caminho); \`format\` (query): \`pdf\` (padrão) ou \`docx\`.
+
+**Resposta \`200\`**: o arquivo, com \`Content-Disposition: attachment; filename*=UTF-8''VULN-0002.docx\`.
+
+**Erros**: \`404\`; \`422\` para outro formato.
+
+**Exemplo**
+
+\`\`\`
+curl -sS -o VULN-0002.pdf "https://<portal>/api/v1/vulnerabilities/VULN-0002/export?format=pdf" \\
+  -H "X-API-Key: $PORTAL_KEY"
+\`\`\``,
+      },
+      {
+        id: 'api-ep-rvsq', title: 'Fila RVS',
+        md: `**\`GET /api/v1/rvs-queue\`** · escopo \`rvs:write\` ou \`vulns:read\`
+
+Vulnerabilidades **disparadas** que ainda não têm ID de RVS, da disparada há mais tempo para a mais recente. Sem paginação.
+
+**Parâmetros**: Nenhum.
+
+**Resposta \`200\`**: lista de resumos (mesmos campos de *Listar vulnerabilidades*).
+
+**Exemplo**
+
+\`\`\`
+curl -sS https://<portal>/api/v1/rvs-queue -H "X-API-Key: $PORTAL_KEY"
+\`\`\`
+
+\`\`\`
+[
+  {
+    "id": "6598c3c4-c1eb-43d3-8412-3c36d1682462",
+    "internal_id": "VULN-0001",
+    "status": "dispatched",
+    "identifier": "Deserialização insegura - erp",
+    "cwe": "CWE-502",
+    "cvss_score": 3.3,
+    "source": "nessus",
+    "rvs_id": null,
+    "report": null,
+    "created_at": "2026-10-08T12:59:30.068791",
+    "updated_at": "2026-10-08T12:59:30.108013"
+  }
+]
+\`\`\``,
+      },
+      {
+        id: 'api-ep-rvs', title: 'Registrar o ID de RVS',
+        md: `**\`POST /api/v1/vulnerabilities/{ref}/rvs\`** · escopo \`rvs:write\`
+
+Registra o ID de RVS de uma vulnerabilidade disparada, que passa a **Reconhecida**. O ID não pode ser alterado depois. Fica registrado na auditoria.
+
+**Parâmetros**: \`ref\` (caminho).
+
+**Corpo** (JSON): \`{"rvs_id": "RVS-2026-001"}\`: texto de 1 a 200 caracteres.
+
+**Resposta \`200\`**: a vulnerabilidade completa (como em *Ler uma vulnerabilidade*), com \`status: "acknowledged"\` e o \`rvs_id\`.
+
+**Erros**
+
+- \`409\` se não estiver disparada: \`{"detail": "RVS ID can only be set on a dispatched vuln (current: acknowledged)"}\`
+- \`409\` se o ID já foi registrado: \`{"detail": "RVS ID is already set"}\`
+- \`404\`; \`422\` para \`rvs_id\` vazio.
+
+**Exemplo**
+
+\`\`\`
+curl -sS -X POST https://<portal>/api/v1/vulnerabilities/VULN-0001/rvs \\
+  -H "X-API-Key: $PORTAL_KEY" -H "Content-Type: application/json" \\
+  -d '{"rvs_id": "RVS-2026-001"}'
+\`\`\`
+
+\`\`\`
+{
+  "id": "6598c3c4-c1eb-43d3-8412-3c36d1682462",
+  "internal_id": "VULN-0001",
+  "status": "acknowledged",
+  "rvs_id": "RVS-2026-001",
+  "acknowledged_at": "2026-10-25T16:30:02.118204",
+  "…": "demais campos de Ler uma vulnerabilidade"
+}
+\`\`\``,
       },
       {
         id: 'api-criar', title: 'Criar uma vulnerabilidade',
-        md: `\`POST /api/v1/vulnerabilities\`, escopo \`vulns:write\`.
+        md: `**\`POST /api/v1/vulnerabilities\`** · escopo \`vulns:write\`
 
 Corpo JSON de até **1 MB**. Todos os campos são opcionais, respeitando as regras abaixo:
 
@@ -257,63 +517,184 @@ Resposta \`201\`:
 {"id": "72643b23-af52-42d9-a139-c1aea6f70a15", "internal_id": null, "status": "draft"}
 \`\`\`
 
-\`id\` identifica a vulnerabilidade (\`/vulnerabilities/<id>\` no portal). \`internal_id\` é o número \`VULN-xxxx\`, presente apenas quando o status é \`saved_local\`.`,
-      },
-      {
-        id: 'api-exemplos', title: 'Exemplos',
-        md: `Ler uma vulnerabilidade pelo número:
+\`id\` identifica a vulnerabilidade (\`/vulnerabilities/<id>\` no portal). \`internal_id\` é o número \`VULN-xxxx\`, presente apenas quando o status é \`saved_local\`.
 
-\`\`\`
-curl -sS https://<portal>/api/v1/vulnerabilities/VULN-0002 -H "X-API-Key: $PORTAL_KEY"
-# {"id": "08ff5461-…", "internal_id": "VULN-0002", "status": "fixed",
-#  "identifier": "SSRF - app-mobile", "cwe": "CWE-918", "rvs_id": "RVS-2026-1004",
-#  "operators": ["jonathan"], "fixed_at": "2026-10-08T12:59:30.244446", ...}
-\`\`\`
-
-Sincronizar o que mudou (Python):
-
-\`\`\`
-import os, requests
-
-API = "https://<portal>/api/v1"
-H = {"X-API-Key": os.environ["PORTAL_KEY"]}
-
-def changed_since(since):
-    params = {"updated_since": since, "limit": 200}
-    while True:
-        page = requests.get(f"{API}/vulnerabilities", headers=H, params=params, timeout=30).json()
-        yield from page["items"]
-        if not page["next_cursor"]:
-            break
-        params["cursor"] = page["next_cursor"]
-
-for v in changed_since("2026-10-25T00:00:00Z"):
-    print(v["internal_id"], v["status"], v["updated_at"])
-\`\`\`
-
-Registrar um RVS:
-
-\`\`\`
-curl -sS -X POST https://<portal>/api/v1/vulnerabilities/VULN-0012/rvs \\
-  -H "X-API-Key: $PORTAL_KEY" -H "Content-Type: application/json" \\
-  -d '{"rvs_id": "RVS-2026-001"}'
-\`\`\`
-
-Baixar o PDF de um relatório:
-
-\`\`\`
-curl -sS -o OP-0001.pdf "https://<portal>/api/v1/reports/OP-0001/export?format=pdf" \\
-  -H "X-API-Key: $PORTAL_KEY"
-\`\`\`
-
-Criar um rascunho a partir de um scanner (o campo \`host\`, desconhecido, vai para os metadados):
+**Exemplo**
 
 \`\`\`
 curl -sS -X POST https://<portal>/api/v1/vulnerabilities \\
   -H "X-API-Key: $PORTAL_KEY" -H "Content-Type: application/json" \\
   -d '{"identifier": "Exposed .git directory", "source": "nuclei", "cwe": "527",
        "cvss_score": 5.3, "operators": ["jonathan"], "host": "app.example.com"}'
-# 201 {"id":"…","internal_id":null,"status":"draft"}
+\`\`\`
+
+\`\`\`
+201
+{
+  "id": "72643b23-af52-42d9-a139-c1aea6f70a15",
+  "internal_id": null,
+  "status": "draft"
+}
+\`\`\``,
+      },
+      {
+        id: 'api-ep-reports', title: 'Listar relatórios',
+        md: `**\`GET /api/v1/reports\`** · escopo \`reports:read\`
+
+Lista relatórios (não excluídos) em ordem de última alteração, em páginas.
+
+**Parâmetros** (query)
+
+- \`status\`: \`draft\`, \`dispatching\` ou \`dispatched\`; repita para vários.
+- \`client\`: o nome do cliente contém o texto.
+- \`updated_since\`, \`limit\`, \`cursor\`: como em *Listar vulnerabilidades*.
+
+**Resposta \`200\`**: \`{"items": [...], "next_cursor": …}\`. Cada item tem \`id\`, \`internal_id\` (\`OP-xxxx\`), \`name\`, \`client_name\`, \`status\`, \`start_date\`, \`end_date\` (datas \`AAAA-MM-DD\`), \`dispatched_at\`, \`vulnerability_count\`, \`created_at\`, \`updated_at\`.
+
+**Exemplo**
+
+\`\`\`
+curl -sS "https://<portal>/api/v1/reports?status=dispatched&limit=1" -H "X-API-Key: $PORTAL_KEY"
+\`\`\`
+
+\`\`\`
+{
+  "items": [
+    {
+      "id": "056c3eee-6d69-47c2-876a-f099dcbc45f9",
+      "internal_id": "OP-0001",
+      "name": "Pentest Aplicação Web - Portal do Cliente",
+      "client_name": "Banco Aurora S.A.",
+      "status": "dispatched",
+      "start_date": "2026-08-03",
+      "end_date": "2026-08-21",
+      "dispatched_at": "2026-10-08T12:59:35.258463",
+      "vulnerability_count": 3,
+      "created_at": "2026-10-08T12:59:35.029437",
+      "updated_at": "2026-10-08T12:59:35.204803"
+    }
+  ],
+  "next_cursor": "MjAyNi0xMC0wOFQxMjo1OTozNS4yMDQ4MDN8MDU2YzNlZWUt…"
+}
+\`\`\``,
+      },
+      {
+        id: 'api-ep-report', title: 'Ler um relatório',
+        md: `**\`GET /api/v1/reports/{ref}\`** · escopo \`reports:read\`
+
+Um relatório completo.
+
+**Parâmetros**: \`ref\` (caminho): UUID ou número (\`OP-0001\`).
+
+**Resposta \`200\`**: os campos do resumo e também:
+
+- \`test_type\`, \`test_model\`, \`environment\`, \`demand_origin\`, \`scope\`.
+- \`executive_summary_md\`, \`introduction_md\`: Markdown.
+- \`sections\`: Seções Adicionais em ordem, \`{position, title, content_markdown}\`.
+- \`operators\`: logins.
+- \`vulnerabilities\`: resumos das vulnerabilidades do relatório.
+- \`attachments\`: as evidências do relatório, como em *Evidências de uma vulnerabilidade*.
+
+Notas internas não são enviadas.
+
+**Erros**: \`404\` \`{"detail": "Report not found"}\`.
+
+**Exemplo**
+
+\`\`\`
+curl -sS https://<portal>/api/v1/reports/OP-0001 -H "X-API-Key: $PORTAL_KEY"
+\`\`\`
+
+\`\`\`
+{
+  "id": "056c3eee-6d69-47c2-876a-f099dcbc45f9",
+  "internal_id": "OP-0001",
+  "name": "Pentest Aplicação Web - Portal do Cliente",
+  "client_name": "Banco Aurora S.A.",
+  "status": "dispatched",
+  "start_date": "2026-08-03",
+  "end_date": "2026-08-21",
+  "dispatched_at": "2026-10-08T12:59:35.258463",
+  "vulnerability_count": 3,
+  "created_at": "2026-10-08T12:59:35.029437",
+  "updated_at": "2026-10-08T12:59:35.204803",
+  "test_type": "Pentest",
+  "test_model": "Gray box",
+  "environment": "Homologação",
+  "demand_origin": "Contratação anual",
+  "scope": "banco-aurora-s.a..example",
+  "executive_summary_md": "Foram identificadas vulnerabilidades que exigem **atenção prioritária**…",
+  "introduction_md": "Resultados do trabalho realizado para **Banco Aurora S.A.**.",
+  "sections": [
+    {
+      "position": 1,
+      "title": "Metodologia",
+      "content_markdown": "Testes manuais e automatizados, seguindo OWASP e PTES."
+    }
+  ],
+  "operators": [
+    "jonathan"
+  ],
+  "vulnerabilities": [
+    {
+      "id": "e4a61965-ab90-41f6-b0d3-d05db0816f74",
+      "internal_id": "VULN-0074",
+      "status": "dispatched",
+      "identifier": "Falta de rate limiting - intranet",
+      "cwe": "CWE-770",
+      "cvss_score": 8.1,
+      "source": "manual",
+      "rvs_id": null,
+      "report": {
+        "id": "056c3eee-6d69-47c2-876a-f099dcbc45f9",
+        "internal_id": "OP-0001",
+        "name": "Pentest Aplicação Web - Portal do Cliente",
+        "status": "dispatched"
+      },
+      "created_at": "2026-10-08T12:59:35.119620",
+      "updated_at": "2026-10-08T12:59:35.204803"
+    }
+  ],
+  "attachments": []
+}
+\`\`\``,
+      },
+      {
+        id: 'api-ep-report-export', title: 'Exportar um relatório',
+        md: `**\`GET /api/v1/reports/{ref}/export\`** · escopo \`exports\`
+
+Os mesmos arquivos do botão *Exportar*: o relatório em PDF ou Word, ou a planilha das vulnerabilidades em Excel. Fica registrado na auditoria.
+
+**Parâmetros**: \`ref\` (caminho); \`format\` (query): \`pdf\` (padrão), \`xlsx\` ou \`docx\`.
+
+**Resposta \`200\`**: o arquivo, com \`Content-Disposition\` (ex. \`OP-0001_20261025.pdf\`, \`OP-0001_vulnerabilidades_20261025.xlsx\`).
+
+**Erros**: \`404\`; \`422\` para outro formato.
+
+**Exemplo**
+
+\`\`\`
+curl -sS -o OP-0001.xlsx "https://<portal>/api/v1/reports/OP-0001/export?format=xlsx" \\
+  -H "X-API-Key: $PORTAL_KEY"
+\`\`\``,
+      },
+      {
+        id: 'api-ep-health', title: 'Verificar o portal',
+        md: `**\`GET /api/health\`** · sem chave
+
+Responde \`200\` enquanto o portal está no ar. Útil para monitoração.
+
+**Exemplo**
+
+\`\`\`
+curl -sS https://<portal>/api/health
+\`\`\`
+
+\`\`\`
+{
+  "status": "ok",
+  "environment": "production"
+}
 \`\`\``,
       },
       {
@@ -536,25 +917,23 @@ A report copies the template's text when it is created; later changes to the tem
     id: 'api', title: 'API', roles: CREATORS,
     subs: [
       {
-        id: 'api-visao', title: 'Overview and endpoints',
-        md: `The API lets other systems **read** vulnerabilities and reports, **download** exports, **record RVS IDs** and **create** vulnerabilities. It is separate from the API the portal itself uses: an API key works **only** on \`/api/v1/*\`.
+        id: 'api-visao', title: 'Overview',
+        md: `The API lets other systems **read** vulnerabilities and reports, **download** evidence and exports, **record RVS IDs** and **create** vulnerabilities. It is separate from the API the portal itself uses: an API key works **only** on \`/api/v1/*\`.
 
-Each endpoint needs a **scope** on the key:
+Endpoints (each has a subsection below, with parameters, response, errors and an example):
 
-- \`GET /api/v1/vulnerabilities\`: list, with filters and paging. Scope \`vulns:read\`.
-- \`GET /api/v1/vulnerabilities/{ref}\`: one complete vulnerability. \`vulns:read\`.
-- \`GET /api/v1/vulnerabilities/{ref}/attachments\`: its evidence. \`vulns:read\`.
-- \`GET /api/v1/attachments/{id}/content\`: downloads an evidence file. \`vulns:read\` (a vulnerability's) or \`reports:read\` (a report's).
-- \`GET /api/v1/vulnerabilities/{ref}/export?format=pdf|docx\`: the same file as the *Export* button. \`exports\`.
-- \`GET /api/v1/rvs-queue\`: dispatched ones waiting for an RVS ID. \`rvs:write\` or \`vulns:read\`.
-- \`POST /api/v1/vulnerabilities/{ref}/rvs\`: records the RVS ID. \`rvs:write\`.
-- \`POST /api/v1/vulnerabilities\`: creates a vulnerability. \`vulns:write\`.
-- \`GET /api/v1/reports\`: list of reports. \`reports:read\`.
-- \`GET /api/v1/reports/{ref}\`: one report with sections, vulnerabilities and evidence. \`reports:read\`.
-- \`GET /api/v1/reports/{ref}/export?format=pdf|xlsx|docx\`: report files. \`exports\`.
-- \`GET /api/health\`: checks the portal is up. No key.
-
-\`{ref}\` takes the UUID or the record's number (\`VULN-0012\`, \`OP-0003\`), case-insensitive.`,
+- \`GET /api/v1/vulnerabilities\`: list vulnerabilities. \`vulns:read\`
+- \`GET /api/v1/vulnerabilities/{ref}\`: read a vulnerability. \`vulns:read\`
+- \`GET /api/v1/vulnerabilities/{ref}/attachments\`: its evidence. \`vulns:read\`
+- \`GET /api/v1/attachments/{id}/content\`: download evidence. \`vulns:read\` or \`reports:read\`
+- \`GET /api/v1/vulnerabilities/{ref}/export\`: export (PDF, Word). \`exports\`
+- \`GET /api/v1/rvs-queue\`: RVS queue. \`rvs:write\` or \`vulns:read\`
+- \`POST /api/v1/vulnerabilities/{ref}/rvs\`: record the RVS ID. \`rvs:write\`
+- \`POST /api/v1/vulnerabilities\`: create a vulnerability. \`vulns:write\`
+- \`GET /api/v1/reports\`: list reports. \`reports:read\`
+- \`GET /api/v1/reports/{ref}\`: read a report. \`reports:read\`
+- \`GET /api/v1/reports/{ref}/export\`: export (PDF, Excel, Word). \`exports\`
+- \`GET /api/health\`: health check. No key.`,
       },
       {
         id: 'api-chaves', title: 'Keys and scopes',
@@ -585,8 +964,10 @@ Content-Type: application/json
 \`\`\``,
       },
       {
-        id: 'api-leitura', title: 'Reading, paging and syncing',
-        md: `Lists (\`/vulnerabilities\` and \`/reports\`) come in **last-change** order and in pages:
+        id: 'api-convencoes', title: 'Conventions: references, paging and syncing',
+        md: `\`{ref}\` takes the UUID or the record number (\`VULN-0012\`, \`OP-0003\`), case-insensitive. Responses and bodies are UTF-8 JSON.
+
+Lists (\`/vulnerabilities\` and \`/reports\`) come in **last-change** order and in pages:
 
 \`\`\`
 {"items": [ ... ], "next_cursor": "MjAyNi0xMC0wOF..."}
@@ -602,25 +983,285 @@ Content-Type: application/json
 
 - Lists carry a **summary**; fetch \`/{ref}\` for the full content.
 - Dates and times are in **UTC**.
-- **Internal notes** never leave through the API, as in the exports.`,
+- **Internal notes** never leave through the API, as in the exports.
+
+Sync example (Python):
+
+\`\`\`
+import os, requests
+
+API = "https://<portal>/api/v1"
+H = {"X-API-Key": os.environ["PORTAL_KEY"]}
+
+def changed_since(since):
+    params = {"updated_since": since, "limit": 200}
+    while True:
+        page = requests.get(f"{API}/vulnerabilities", headers=H, params=params, timeout=30)
+        page.raise_for_status()
+        page = page.json()
+        yield from page["items"]
+        if not page["next_cursor"]:
+            break
+        params["cursor"] = page["next_cursor"]
+
+for v in changed_since("2026-10-25T00:00:00Z"):
+    print(v["internal_id"], v["status"], v["updated_at"])
+\`\`\``,
       },
       {
-        id: 'api-rvs', title: 'RVS queue and RVS IDs',
-        md: `A ticketing system can fetch the **dispatched** vulnerabilities waiting for an RVS ID and send the ID back once its ticket is open:
+        id: 'api-ep-vulns', title: 'List vulnerabilities',
+        md: `**\`GET /api/v1/vulnerabilities\`** · scope \`vulns:read\`
+
+Lists (non-deleted) vulnerabilities in last-change order, in pages.
+
+**Parameters** (query)
+
+- \`status\`: one or more statuses; repeat the parameter for several (\`status=dispatched&status=acknowledged\`).
+- \`source\`: the source contains the text (case-insensitive).
+- \`report\`: report UUID or number; \`none\` for those outside any report.
+- \`cvss_min\`: CVSS greater or equal (0 to 10).
+- \`updated_since\`: only those created or changed from that moment on (ISO 8601).
+- \`limit\`: 1 to 200 (default 50); \`cursor\`: the previous page's \`next_cursor\`.
+
+**Response \`200\`**: \`{"items": [...], "next_cursor": "…" | null}\`. Each item has:
+
+- \`id\` (UUID) and \`internal_id\` (\`VULN-xxxx\`, null while it is a draft).
+- \`status\`: \`draft\`, \`saved_local\`, \`dispatching\`, \`dispatched\`, \`acknowledged\`, \`waiting_fix\`, \`pending_retest\` or \`fixed\`.
+- \`identifier\`, \`cwe\`, \`cvss_score\` (number or null), \`source\`, \`rvs_id\` (null until the RVS ID is recorded).
+- \`report\`: \`{id, internal_id, name, status}\` of the report it belongs to, or null.
+- \`created_at\`, \`updated_at\` (UTC).
+
+**Errors**: \`422\` for an invalid status, date or cursor; \`404\` if the \`report\` does not exist.
+
+**Example**
 
 \`\`\`
-GET /api/v1/rvs-queue
-POST /api/v1/vulnerabilities/VULN-0012/rvs   {"rvs_id": "RVS-2026-001"}
+curl -sS "https://<portal>/api/v1/vulnerabilities?status=acknowledged&limit=1" \\
+  -H "X-API-Key: $PORTAL_KEY"
 \`\`\`
 
-The response is the full vulnerability, now **Acknowledged**. Rules:
+\`\`\`
+{
+  "items": [
+    {
+      "id": "92157428-3168-4c4e-9031-569928030ee9",
+      "internal_id": "VULN-0003",
+      "status": "acknowledged",
+      "identifier": "Cross-Site Scripting (armazenado) - bi",
+      "cwe": "CWE-79",
+      "cvss_score": 10,
+      "source": "nuclei",
+      "rvs_id": "RVS-2026-1005",
+      "report": null,
+      "created_at": "2026-10-08T12:59:30.258918",
+      "updated_at": "2026-10-08T12:59:30.315866"
+    }
+  ],
+  "next_cursor": "MjAyNi0xMC0wOFQxMjo1OTozMC4zMTU4NjZ8OTIxNTc0Mjgt…"
+}
+\`\`\``,
+      },
+      {
+        id: 'api-ep-vuln', title: 'Read a vulnerability',
+        md: `**\`GET /api/v1/vulnerabilities/{ref}\`** · scope \`vulns:read\`
 
-- Only **Dispatched** vulnerabilities take an RVS ID; others get \`409\`.
-- The ID can't be changed afterwards (\`409\` on a second try).`,
+One complete vulnerability.
+
+**Parameters**: \`ref\` (path): UUID or number (\`VULN-0003\`).
+
+**Response \`200\`**: the summary fields (see *List vulnerabilities*) plus:
+
+- \`description\`, \`finding_detail\`, \`mitigation\`: Markdown text.
+- \`references\` (list of URLs), \`cvss_vector\`.
+- \`operators\`: operator usernames.
+- \`metadata\`: free data sent by the tool that created it.
+- \`saved_local_at\`, \`dispatched_at\`, \`acknowledged_at\`, \`waiting_fix_at\`, \`pending_retest_at\`, \`fixed_at\`: when it reached each status (UTC), or null.
+
+Internal notes and the *Shared with* list are not sent.
+
+**Errors**: \`404\` \`{"detail": "Vulnerability not found"}\`.
+
+**Example**
+
+\`\`\`
+curl -sS https://<portal>/api/v1/vulnerabilities/VULN-0003 -H "X-API-Key: $PORTAL_KEY"
+\`\`\`
+
+\`\`\`
+{
+  "id": "92157428-3168-4c4e-9031-569928030ee9",
+  "internal_id": "VULN-0003",
+  "status": "acknowledged",
+  "identifier": "Cross-Site Scripting (armazenado) - bi",
+  "cwe": "CWE-79",
+  "cvss_score": 10,
+  "source": "nuclei",
+  "rvs_id": "RVS-2026-1005",
+  "report": null,
+  "created_at": "2026-10-08T12:59:30.258918",
+  "updated_at": "2026-10-08T12:59:30.315866",
+  "description": "Conteúdo persistido e renderizado sem escape.",
+  "finding_detail": "Identificado em bi. Reprodução: requisição ao endpoint /bi/v2/recurso/…",
+  "mitigation": "Sanitizar na entrada e escapar na saída.",
+  "references": [],
+  "cvss_vector": "AV:N/AC:L/PR:N/UI:N/S:C/C:H/I:H/A:N",
+  "operators": [
+    "benjamin",
+    "michelle"
+  ],
+  "metadata": {},
+  "saved_local_at": "2026-10-08T12:59:30.282810",
+  "dispatched_at": "2026-10-08T12:59:30.301332",
+  "acknowledged_at": "2026-10-08T12:59:30.319272",
+  "waiting_fix_at": null,
+  "pending_retest_at": null,
+  "fixed_at": null
+}
+\`\`\``,
+      },
+      {
+        id: 'api-ep-vuln-atts', title: 'A vulnerability\'s evidence',
+        md: `**\`GET /api/v1/vulnerabilities/{ref}/attachments\`** · scope \`vulns:read\`
+
+The files attached to the vulnerability, oldest first. Use the \`id\` to download each one.
+
+**Parameters**: \`ref\` (path).
+
+**Response \`200\`**: list of \`{id, filename, display_name, mime_type, size_bytes, created_at}\`.
+
+**Errors**: \`404\`.
+
+**Example**
+
+\`\`\`
+curl -sS https://<portal>/api/v1/vulnerabilities/VULN-0012/attachments -H "X-API-Key: $PORTAL_KEY"
+\`\`\`
+
+\`\`\`
+[
+  {
+    "id": "3f1c2a9e-5b7d-4e61-9a0c-2d8e4b6f1a73",
+    "filename": "login-burp.png",
+    "display_name": "Requisição de login",
+    "mime_type": "image/png",
+    "size_bytes": 48213,
+    "created_at": "2026-10-20T14:02:11.502114"
+  }
+]
+\`\`\``,
+      },
+      {
+        id: 'api-ep-att', title: 'Download evidence',
+        md: `**\`GET /api/v1/attachments/{id}/content\`** · scope \`vulns:read\` or \`reports:read\`
+
+The file's content, with its \`Content-Type\` and \`Content-Disposition: attachment\`. A vulnerability's evidence needs \`vulns:read\`; a report's, \`reports:read\`. Each download is recorded in the audit log.
+
+**Parameters**: \`id\` (path): the evidence's \`id\`.
+
+**Response \`200\`**: the file (binary).
+
+**Errors**: \`404\` if the file does not exist or the key lacks its owner's scope.
+
+**Example**
+
+\`\`\`
+curl -sS -o login-burp.png https://<portal>/api/v1/attachments/3f1c2a9e-5b7d-4e61-9a0c-2d8e4b6f1a73/content \\
+  -H "X-API-Key: $PORTAL_KEY"
+\`\`\``,
+      },
+      {
+        id: 'api-ep-vuln-export', title: 'Export a vulnerability',
+        md: `**\`GET /api/v1/vulnerabilities/{ref}/export\`** · scope \`exports\`
+
+The same file as the *Export* button, with the evidence images. Recorded in the audit log.
+
+**Parameters**: \`ref\` (path); \`format\` (query): \`pdf\` (default) or \`docx\`.
+
+**Response \`200\`**: the file, with \`Content-Disposition: attachment; filename*=UTF-8''VULN-0002.docx\`.
+
+**Errors**: \`404\`; \`422\` for another format.
+
+**Example**
+
+\`\`\`
+curl -sS -o VULN-0002.pdf "https://<portal>/api/v1/vulnerabilities/VULN-0002/export?format=pdf" \\
+  -H "X-API-Key: $PORTAL_KEY"
+\`\`\``,
+      },
+      {
+        id: 'api-ep-rvsq', title: 'RVS queue',
+        md: `**\`GET /api/v1/rvs-queue\`** · scope \`rvs:write\` or \`vulns:read\`
+
+**Dispatched** vulnerabilities that have no RVS ID yet, longest-waiting first. Not paginated.
+
+**Parameters**: None.
+
+**Response \`200\`**: list of summaries (same fields as *List vulnerabilities*).
+
+**Example**
+
+\`\`\`
+curl -sS https://<portal>/api/v1/rvs-queue -H "X-API-Key: $PORTAL_KEY"
+\`\`\`
+
+\`\`\`
+[
+  {
+    "id": "6598c3c4-c1eb-43d3-8412-3c36d1682462",
+    "internal_id": "VULN-0001",
+    "status": "dispatched",
+    "identifier": "Deserialização insegura - erp",
+    "cwe": "CWE-502",
+    "cvss_score": 3.3,
+    "source": "nessus",
+    "rvs_id": null,
+    "report": null,
+    "created_at": "2026-10-08T12:59:30.068791",
+    "updated_at": "2026-10-08T12:59:30.108013"
+  }
+]
+\`\`\``,
+      },
+      {
+        id: 'api-ep-rvs', title: 'Record the RVS ID',
+        md: `**\`POST /api/v1/vulnerabilities/{ref}/rvs\`** · scope \`rvs:write\`
+
+Records the RVS ID of a dispatched vulnerability, which becomes **Acknowledged**. The ID cannot be changed afterwards. Recorded in the audit log.
+
+**Parameters**: \`ref\` (path).
+
+**Body** (JSON): \`{"rvs_id": "RVS-2026-001"}\`: text, 1 to 200 characters.
+
+**Response \`200\`**: the full vulnerability (as in *Read a vulnerability*), with \`status: "acknowledged"\` and the \`rvs_id\`.
+
+**Errors**
+
+- \`409\` if it is not dispatched: \`{"detail": "RVS ID can only be set on a dispatched vuln (current: acknowledged)"}\`
+- \`409\` if the ID is already set: \`{"detail": "RVS ID is already set"}\`
+- \`404\`; \`422\` for an empty \`rvs_id\`.
+
+**Example**
+
+\`\`\`
+curl -sS -X POST https://<portal>/api/v1/vulnerabilities/VULN-0001/rvs \\
+  -H "X-API-Key: $PORTAL_KEY" -H "Content-Type: application/json" \\
+  -d '{"rvs_id": "RVS-2026-001"}'
+\`\`\`
+
+\`\`\`
+{
+  "id": "6598c3c4-c1eb-43d3-8412-3c36d1682462",
+  "internal_id": "VULN-0001",
+  "status": "acknowledged",
+  "rvs_id": "RVS-2026-001",
+  "acknowledged_at": "2026-10-25T16:30:02.118204",
+  "…": "other fields as in Read a vulnerability"
+}
+\`\`\``,
       },
       {
         id: 'api-criar', title: 'Create a vulnerability',
-        md: `\`POST /api/v1/vulnerabilities\`, scope \`vulns:write\`.
+        md: `**\`POST /api/v1/vulnerabilities\`** · scope \`vulns:write\`
 
 JSON body of up to **1 MB**. Every field is optional, under the rules below:
 
@@ -646,63 +1287,184 @@ Rules:
 {"id": "72643b23-af52-42d9-a139-c1aea6f70a15", "internal_id": null, "status": "draft"}
 \`\`\`
 
-\`id\` identifies the vulnerability (\`/vulnerabilities/<id>\` in the portal). \`internal_id\` is the \`VULN-xxxx\` number, present only when the status is \`saved_local\`.`,
-      },
-      {
-        id: 'api-exemplos', title: 'Examples',
-        md: `Read a vulnerability by its number:
+\`id\` identifies the vulnerability (\`/vulnerabilities/<id>\` in the portal). \`internal_id\` is the \`VULN-xxxx\` number, present only when the status is \`saved_local\`.
 
-\`\`\`
-curl -sS https://<portal>/api/v1/vulnerabilities/VULN-0002 -H "X-API-Key: $PORTAL_KEY"
-# {"id": "08ff5461-…", "internal_id": "VULN-0002", "status": "fixed",
-#  "identifier": "SSRF - app-mobile", "cwe": "CWE-918", "rvs_id": "RVS-2026-1004",
-#  "operators": ["jonathan"], "fixed_at": "2026-10-08T12:59:30.244446", ...}
-\`\`\`
-
-Sync what changed (Python):
-
-\`\`\`
-import os, requests
-
-API = "https://<portal>/api/v1"
-H = {"X-API-Key": os.environ["PORTAL_KEY"]}
-
-def changed_since(since):
-    params = {"updated_since": since, "limit": 200}
-    while True:
-        page = requests.get(f"{API}/vulnerabilities", headers=H, params=params, timeout=30).json()
-        yield from page["items"]
-        if not page["next_cursor"]:
-            break
-        params["cursor"] = page["next_cursor"]
-
-for v in changed_since("2026-10-25T00:00:00Z"):
-    print(v["internal_id"], v["status"], v["updated_at"])
-\`\`\`
-
-Record an RVS ID:
-
-\`\`\`
-curl -sS -X POST https://<portal>/api/v1/vulnerabilities/VULN-0012/rvs \\
-  -H "X-API-Key: $PORTAL_KEY" -H "Content-Type: application/json" \\
-  -d '{"rvs_id": "RVS-2026-001"}'
-\`\`\`
-
-Download a report's PDF:
-
-\`\`\`
-curl -sS -o OP-0001.pdf "https://<portal>/api/v1/reports/OP-0001/export?format=pdf" \\
-  -H "X-API-Key: $PORTAL_KEY"
-\`\`\`
-
-Create a draft from a scanner (the unknown \`host\` field goes to the metadata):
+**Example**
 
 \`\`\`
 curl -sS -X POST https://<portal>/api/v1/vulnerabilities \\
   -H "X-API-Key: $PORTAL_KEY" -H "Content-Type: application/json" \\
   -d '{"identifier": "Exposed .git directory", "source": "nuclei", "cwe": "527",
        "cvss_score": 5.3, "operators": ["jonathan"], "host": "app.example.com"}'
-# 201 {"id":"…","internal_id":null,"status":"draft"}
+\`\`\`
+
+\`\`\`
+201
+{
+  "id": "72643b23-af52-42d9-a139-c1aea6f70a15",
+  "internal_id": null,
+  "status": "draft"
+}
+\`\`\``,
+      },
+      {
+        id: 'api-ep-reports', title: 'List reports',
+        md: `**\`GET /api/v1/reports\`** · scope \`reports:read\`
+
+Lists (non-deleted) reports in last-change order, in pages.
+
+**Parameters** (query)
+
+- \`status\`: \`draft\`, \`dispatching\` or \`dispatched\`; repeat for several.
+- \`client\`: the client name contains the text.
+- \`updated_since\`, \`limit\`, \`cursor\`: as in *List vulnerabilities*.
+
+**Response \`200\`**: \`{"items": [...], "next_cursor": …}\`. Each item has \`id\`, \`internal_id\` (\`OP-xxxx\`), \`name\`, \`client_name\`, \`status\`, \`start_date\`, \`end_date\` (dates \`AAAA-MM-DD\`), \`dispatched_at\`, \`vulnerability_count\`, \`created_at\`, \`updated_at\`.
+
+**Example**
+
+\`\`\`
+curl -sS "https://<portal>/api/v1/reports?status=dispatched&limit=1" -H "X-API-Key: $PORTAL_KEY"
+\`\`\`
+
+\`\`\`
+{
+  "items": [
+    {
+      "id": "056c3eee-6d69-47c2-876a-f099dcbc45f9",
+      "internal_id": "OP-0001",
+      "name": "Pentest Aplicação Web - Portal do Cliente",
+      "client_name": "Banco Aurora S.A.",
+      "status": "dispatched",
+      "start_date": "2026-08-03",
+      "end_date": "2026-08-21",
+      "dispatched_at": "2026-10-08T12:59:35.258463",
+      "vulnerability_count": 3,
+      "created_at": "2026-10-08T12:59:35.029437",
+      "updated_at": "2026-10-08T12:59:35.204803"
+    }
+  ],
+  "next_cursor": "MjAyNi0xMC0wOFQxMjo1OTozNS4yMDQ4MDN8MDU2YzNlZWUt…"
+}
+\`\`\``,
+      },
+      {
+        id: 'api-ep-report', title: 'Read a report',
+        md: `**\`GET /api/v1/reports/{ref}\`** · scope \`reports:read\`
+
+One complete report.
+
+**Parameters**: \`ref\` (path): UUID or number (\`OP-0001\`).
+
+**Response \`200\`**: the summary fields plus:
+
+- \`test_type\`, \`test_model\`, \`environment\`, \`demand_origin\`, \`scope\`.
+- \`executive_summary_md\`, \`introduction_md\`: Markdown.
+- \`sections\`: Additional Sections in order, \`{position, title, content_markdown}\`.
+- \`operators\`: usernames.
+- \`vulnerabilities\`: summaries of the report's vulnerabilities.
+- \`attachments\`: the report's evidence, as in *A vulnerability's evidence*.
+
+Internal notes are not sent.
+
+**Errors**: \`404\` \`{"detail": "Report not found"}\`.
+
+**Example**
+
+\`\`\`
+curl -sS https://<portal>/api/v1/reports/OP-0001 -H "X-API-Key: $PORTAL_KEY"
+\`\`\`
+
+\`\`\`
+{
+  "id": "056c3eee-6d69-47c2-876a-f099dcbc45f9",
+  "internal_id": "OP-0001",
+  "name": "Pentest Aplicação Web - Portal do Cliente",
+  "client_name": "Banco Aurora S.A.",
+  "status": "dispatched",
+  "start_date": "2026-08-03",
+  "end_date": "2026-08-21",
+  "dispatched_at": "2026-10-08T12:59:35.258463",
+  "vulnerability_count": 3,
+  "created_at": "2026-10-08T12:59:35.029437",
+  "updated_at": "2026-10-08T12:59:35.204803",
+  "test_type": "Pentest",
+  "test_model": "Gray box",
+  "environment": "Homologação",
+  "demand_origin": "Contratação anual",
+  "scope": "banco-aurora-s.a..example",
+  "executive_summary_md": "Foram identificadas vulnerabilidades que exigem **atenção prioritária**…",
+  "introduction_md": "Resultados do trabalho realizado para **Banco Aurora S.A.**.",
+  "sections": [
+    {
+      "position": 1,
+      "title": "Metodologia",
+      "content_markdown": "Testes manuais e automatizados, seguindo OWASP e PTES."
+    }
+  ],
+  "operators": [
+    "jonathan"
+  ],
+  "vulnerabilities": [
+    {
+      "id": "e4a61965-ab90-41f6-b0d3-d05db0816f74",
+      "internal_id": "VULN-0074",
+      "status": "dispatched",
+      "identifier": "Falta de rate limiting - intranet",
+      "cwe": "CWE-770",
+      "cvss_score": 8.1,
+      "source": "manual",
+      "rvs_id": null,
+      "report": {
+        "id": "056c3eee-6d69-47c2-876a-f099dcbc45f9",
+        "internal_id": "OP-0001",
+        "name": "Pentest Aplicação Web - Portal do Cliente",
+        "status": "dispatched"
+      },
+      "created_at": "2026-10-08T12:59:35.119620",
+      "updated_at": "2026-10-08T12:59:35.204803"
+    }
+  ],
+  "attachments": []
+}
+\`\`\``,
+      },
+      {
+        id: 'api-ep-report-export', title: 'Export a report',
+        md: `**\`GET /api/v1/reports/{ref}/export\`** · scope \`exports\`
+
+The same files as the *Export* button: the report as PDF or Word, or its vulnerabilities as an Excel sheet. Recorded in the audit log.
+
+**Parameters**: \`ref\` (path); \`format\` (query): \`pdf\` (default), \`xlsx\` or \`docx\`.
+
+**Response \`200\`**: the file, with \`Content-Disposition\` (e.g. \`OP-0001_20261025.pdf\`, \`OP-0001_vulnerabilidades_20261025.xlsx\`).
+
+**Errors**: \`404\`; \`422\` for another format.
+
+**Example**
+
+\`\`\`
+curl -sS -o OP-0001.xlsx "https://<portal>/api/v1/reports/OP-0001/export?format=xlsx" \\
+  -H "X-API-Key: $PORTAL_KEY"
+\`\`\``,
+      },
+      {
+        id: 'api-ep-health', title: 'Health check',
+        md: `**\`GET /api/health\`** · no key
+
+Answers \`200\` while the portal is up. Useful for monitoring.
+
+**Example**
+
+\`\`\`
+curl -sS https://<portal>/api/health
+\`\`\`
+
+\`\`\`
+{
+  "status": "ok",
+  "environment": "production"
+}
 \`\`\``,
       },
       {
