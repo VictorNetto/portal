@@ -80,6 +80,10 @@ function goProfile() {
   profileOpen.value = false
   router.push('/profile')
 }
+function goDocs() {
+  profileOpen.value = false
+  router.push('/docs')
+}
 
 // Asked once here, so the page's own leave guard doesn't ask again after logout.
 async function signOut() {
@@ -138,6 +142,7 @@ async function signOut() {
           {{ l.label }}
         </button>
         <div class="sep"></div>
+        <button class="menuItem" @click="goDocs">{{ t('docs.menu') }}</button>
         <button class="menuItem" @click="goProfile">{{ t('profile.menu') }}</button>
         <div class="sep"></div>
         <button class="menuItem" @click="signOut">{{ t('signOut') }}</button>

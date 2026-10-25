@@ -239,6 +239,7 @@ const messages = {
       pending_retest: 'Reteste pendente',
       fixed: 'Corrigida',
     },
+    docs: { menu: 'Documentação', title: 'Documentação', subtitle: 'Como usar o portal.', contents: 'Conteúdo' },
     dialog: { title: 'Confirmação', ok: 'Confirmar', cancel: 'Cancelar', delete: 'Excluir', revoke: 'Revogar', leave: 'Sair sem salvar', discard: 'Descartar' },
     session: {
       idleTitle: 'Você ainda está aí?',
@@ -688,6 +689,7 @@ const messages = {
       pending_retest: 'Pending retest',
       fixed: 'Fixed',
     },
+    docs: { menu: 'Documentation', title: 'Documentation', subtitle: 'How to use the portal.', contents: 'Contents' },
     dialog: { title: 'Confirmation', ok: 'Confirm', cancel: 'Cancel', delete: 'Delete', revoke: 'Revoke', leave: 'Leave without saving', discard: 'Discard' },
     session: {
       idleTitle: 'Are you still there?',

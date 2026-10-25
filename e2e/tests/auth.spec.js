@@ -87,7 +87,7 @@ test.describe('authentication', () => {
     await loginUI(page, user.username, user.password)
 
     await page.click('.profileBtn')
-    await expect(page.locator('.profileMenu .menuItem')).toHaveText(['Português (BR)', 'English', 'Perfil', 'Sair'])
+    await expect(page.locator('.profileMenu .menuItem')).toHaveText(['Português (BR)', 'English', 'Documentação', 'Perfil', 'Sair'])
 
     // language switches the UI, survives a reload, and the menu closes by itself
     await page.click('.menuItem:has-text("English")')
