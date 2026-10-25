@@ -116,7 +116,7 @@ test.describe('administration', () => {
     await expect(row).toContainText(plaintext.slice(0, 8))                      // only the prefix is kept
     await expect(row.locator('.pill')).toHaveText('Ativa')
     await expect(row.locator('.scopeTag')).toHaveText(['vulns:write'])
-    const ingest = (key) => fetch(`${process.env.E2E_BASE_URL || 'http://nginx:80'}/api/ingest/vulnerabilities`, {
+    const ingest = (key) => fetch(`${process.env.E2E_BASE_URL || 'http://nginx:80'}/api/v1/vulnerabilities`, {
       method: 'POST', headers: { 'X-API-Key': key, 'Content-Type': 'application/json' },
       body: JSON.stringify({ identifier: `e2e-ingest-${tag()}` }),
     })

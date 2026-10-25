@@ -216,6 +216,8 @@ role. An admin picks the scopes and an optional expiry per key.
   UI changes. Writes and exports are audited with the key as the actor.
 - Migration: existing keys whose role could create vulnerabilities got `vulns:write`; the others
   had no ability and got no scope.
+- The first machine endpoint, `POST /ingest/vulnerabilities`, was removed: `POST /v1/vulnerabilities`
+  does the same, and nothing outside used the old path yet.
 - **Out for now:** dispatch through the API (it emails people; stays a human decision), deletes and
   admin actions. **Later:** de-duplication (`external_id`), updates/lifecycle, batch, evidence
   upload, webhooks.

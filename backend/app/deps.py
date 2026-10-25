@@ -90,7 +90,7 @@ def get_api_key(
 ) -> ApiKey:
     """Authenticate a machine caller by `X-API-Key` (SPEC §10.1, D7).
 
-    Used only by the ingest endpoints. One generic 401 for every failure (missing,
+    Used only by the integration API (/v1). One generic 401 for every failure (missing,
     unknown, revoked, expired) so the response doesn't reveal which keys exist.
     """
     unauthorized = HTTPException(

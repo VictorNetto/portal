@@ -1,10 +1,10 @@
-"""Machine ingest API (X-API-Key)."""
+"""Creating vulnerabilities through the integration API (POST /v1/vulnerabilities)."""
 
 import httpx
 import pytest
 from conftest import BASE_URL, tag
 
-URL = f"{BASE_URL}/ingest/vulnerabilities"
+URL = f"{BASE_URL}/v1/vulnerabilities"
 
 
 def make_key(admin, scopes=("vulns:write",), **extra):
@@ -37,6 +37,11 @@ def test_authentication_failures_are_indistinguishable(admin, key):
                  post(revoked, {"identifier": "x"}), post(expired, {"identifier": "x"})]
     assert all(r.status_code == 401 for r in responses)
     assert len({r.text for r in responses}) == 1            # same message: no hint about which keys exist
+
+
+def test_the_old_ingest_path_is_gone(key):
+    r = httpx.post(f"{BASE_URL}/ingest/vulnerabilities", json={"identifier": "x"}, headers={"X-API-Key": key["plaintext"]})
+    assert r.status_code == 404
 
 
 def test_keys_do_not_work_on_the_ui_endpoints(key):

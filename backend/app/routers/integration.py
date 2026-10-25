@@ -1,5 +1,8 @@
 """Integration API for other systems: /v1, authenticated by API key scopes (D13).
 
+The only place API keys work: they cannot reach the UI endpoints, user
+management or the audit log, whatever scopes they carry.
+
 Keys read every record their scope allows (per-user restrictions are for people,
 not systems). Records are addressed by UUID or by their number (VULN-0001,
 OP-0001). Lists are keyset-paginated in `updated_at` order, which also makes
@@ -26,7 +29,6 @@ from app.models.enums import AuditAction, ReportStatus, VulnStatus
 from app.models.report import Report
 from app.models.user import ApiKey
 from app.models.vulnerability import Vulnerability
-from app.routers.ingest import _limit_body
 from app.schemas.ingest import IngestResult, IngestVuln
 from app.schemas.integration import (
     ExtAttachment,
@@ -48,6 +50,13 @@ from app.storage import get_storage
 router = APIRouter(prefix="/v1", tags=["integration"])
 
 MAX_PAGE = 200
+MAX_BODY_BYTES = 1024 * 1024  # 1 MB per create request
+
+
+def _limit_body(request: Request) -> None:
+    length = request.headers.get("content-length")
+    if length and length.isdigit() and int(length) > MAX_BODY_BYTES:
+        raise HTTPException(status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, "Payload exceeds 1 MB")
 
 
 # --- helpers -----------------------------------------------------------------
@@ -165,7 +174,7 @@ def create_vulnerability(
     key: ApiKey = Depends(require_scope(scopes.VULNS_WRITE)),
     session: Session = Depends(get_session),
 ) -> IngestResult:
-    """Create a vulnerability (same as POST /ingest/vulnerabilities)."""
+    """Create a vulnerability, as a draft or already saved (SPEC §11)."""
     vuln = ingest_svc.create(session, payload, key, request)
     return IngestResult(id=vuln.id, internal_id=vuln.internal_id, status=vuln.status.value)
 

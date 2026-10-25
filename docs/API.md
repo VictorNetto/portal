@@ -22,7 +22,7 @@ X-API-Key: <key>
 | `reports:read` | read reports and their evidence |
 | `exports` | download PDF / Word / Excel |
 
-- Keys work **only** on `/v1/*` and `/ingest/*` (public paths `/api/v1/*`, `/api/ingest/*`). They
+- Keys work **only** on `/v1/*` (public path `/api/v1/*`). They
   cannot reach the UI endpoints, users, keys or the audit log (`401`).
 - Missing / unknown / revoked / expired key: the same `401`. Missing scope: `403`
   (`"This API key lacks the scope 'rvs:write'"`).
@@ -45,7 +45,7 @@ schemas so integrations don't follow UI changes).
 | `GET /v1/vulnerabilities/{ref}/export?format=pdf\|docx` | `exports` | same file as the UI export |
 | `GET /v1/rvs-queue` | `rvs:write` or `vulns:read` | dispatched, no RVS ID yet, oldest first |
 | `POST /v1/vulnerabilities/{ref}/rvs` `{"rvs_id"}` | `rvs:write` | dispatched → acknowledged; 409 otherwise or when already set |
-| `POST /v1/vulnerabilities` | `vulns:write` | create (same as `POST /ingest/vulnerabilities`, below) |
+| `POST /v1/vulnerabilities` | `vulns:write` | create (below) |
 | `GET /v1/reports` | `reports:read` | summaries; filters `status`, `client`, `updated_since`; paging |
 | `GET /v1/reports/{ref}` | `reports:read` | full report with sections, vulnerability summaries, evidence list |
 | `GET /v1/reports/{ref}/export?format=pdf\|xlsx\|docx` | `exports` | same files as the UI export |
@@ -61,7 +61,7 @@ system in sync. Times are UTC. `updated_at` is maintained by the DB on every row
 
 ## Create a vulnerability
 
-`POST /v1/vulnerabilities` (or `POST /ingest/vulnerabilities`) — JSON, max 1 MB.
+`POST /v1/vulnerabilities` — JSON, max 1 MB.
 
 | Field | Type | Notes |
 |---|---|---|

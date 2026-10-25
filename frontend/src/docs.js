@@ -148,7 +148,7 @@ Um relatório copia o texto do template no momento da criação; mudanças poste
     subs: [
       {
         id: 'api-visao', title: 'Visão geral e endpoints',
-        md: `A API permite que outros sistemas **leiam** vulnerabilidades e relatórios, **baixem** exportações, **registrem IDs de RVS** e **criem** vulnerabilidades. Ela é separada da API usada pelo próprio portal: uma chave de API **só** funciona em \`/api/v1/*\` (e no antigo \`/api/ingest/*\`).
+        md: `A API permite que outros sistemas **leiam** vulnerabilidades e relatórios, **baixem** exportações, **registrem IDs de RVS** e **criem** vulnerabilidades. Ela é separada da API usada pelo próprio portal: uma chave de API **só** funciona em \`/api/v1/*\`.
 
 Cada endpoint exige um **escopo** na chave:
 
@@ -182,7 +182,7 @@ Escopos:
 Dê a cada sistema **só o que ele usa**: um sistema de chamados que apenas registra RVS precisa só de \`rvs:write\`.
 
 - Uma chave lê **todos** os registros que seu escopo permite; as restrições por usuário (Editor e Leitor restritos) valem para pessoas, não para sistemas.
-- Fora de \`/api/v1/*\` e \`/api/ingest/*\`, nenhuma chave funciona (\`401\`), qualquer que seja o escopo.
+- Fora de \`/api/v1/*\`, nenhuma chave funciona (\`401\`), qualquer que seja o escopo.
 - Chave ausente, desconhecida, revogada ou expirada recebe sempre o mesmo \`401\`. Chave sem o escopo do endpoint recebe \`403\`.
 - Criações, registros de RVS, exportações e downloads de evidência ficam nos **Logs de Auditoria** com o autor \`api:<prefixo da chave>\`. Vulnerabilidades criadas pela API pertencem ao administrador que emitiu a chave.`,
       },
@@ -231,7 +231,7 @@ A resposta é a vulnerabilidade completa, agora **Reconhecida**. Regras:
       },
       {
         id: 'api-criar', title: 'Criar uma vulnerabilidade',
-        md: `\`POST /api/v1/vulnerabilities\`, escopo \`vulns:write\`. O antigo \`POST /api/ingest/vulnerabilities\` faz o mesmo e continua funcionando.
+        md: `\`POST /api/v1/vulnerabilities\`, escopo \`vulns:write\`.
 
 Corpo JSON de até **1 MB**. Todos os campos são opcionais, respeitando as regras abaixo:
 
@@ -537,7 +537,7 @@ A report copies the template's text when it is created; later changes to the tem
     subs: [
       {
         id: 'api-visao', title: 'Overview and endpoints',
-        md: `The API lets other systems **read** vulnerabilities and reports, **download** exports, **record RVS IDs** and **create** vulnerabilities. It is separate from the API the portal itself uses: an API key works **only** on \`/api/v1/*\` (and the older \`/api/ingest/*\`).
+        md: `The API lets other systems **read** vulnerabilities and reports, **download** exports, **record RVS IDs** and **create** vulnerabilities. It is separate from the API the portal itself uses: an API key works **only** on \`/api/v1/*\`.
 
 Each endpoint needs a **scope** on the key:
 
@@ -571,7 +571,7 @@ Scopes:
 Give each system **only what it uses**: a ticketing system that only records RVS IDs needs just \`rvs:write\`.
 
 - A key reads **every** record its scope allows; per-user restrictions (Restricted editor and reader) apply to people, not systems.
-- Outside \`/api/v1/*\` and \`/api/ingest/*\`, no key works (\`401\`), whatever its scopes.
+- Outside \`/api/v1/*\`, no key works (\`401\`), whatever its scopes.
 - A missing, unknown, revoked or expired key always gets the same \`401\`. A key without the endpoint's scope gets \`403\`.
 - Creations, RVS records, exports and evidence downloads are in the **Audit Logs** with the actor \`api:<key prefix>\`. Vulnerabilities created through the API belong to the administrator who issued the key.`,
       },
@@ -620,7 +620,7 @@ The response is the full vulnerability, now **Acknowledged**. Rules:
       },
       {
         id: 'api-criar', title: 'Create a vulnerability',
-        md: `\`POST /api/v1/vulnerabilities\`, scope \`vulns:write\`. The older \`POST /api/ingest/vulnerabilities\` does the same and keeps working.
+        md: `\`POST /api/v1/vulnerabilities\`, scope \`vulns:write\`.
 
 JSON body of up to **1 MB**. Every field is optional, under the rules below:
 

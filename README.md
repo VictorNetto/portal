@@ -61,7 +61,7 @@ docker compose exec api python -m pytest tests -q
 
 Lint with `pip install ruff && cd backend && ruff check app tests` (configuration in `backend/pyproject.toml`).
 
-It covers authentication and the forced password change, the vulnerability lifecycle and corrections, attachments (validation and access rules), the report lock, sections, dispatch (including the failure → retry path), exports, and the ingest API. By default it logs in as `admin` / `admin` (dev only); override with `TEST_ADMIN_USER` / `TEST_ADMIN_PASSWORD`.
+It covers authentication and the forced password change, the vulnerability lifecycle and corrections, attachments (validation and access rules), the report lock, sections, dispatch (including the failure → retry path), exports, and the integration API. By default it logs in as `admin` / `admin` (dev only); override with `TEST_ADMIN_USER` / `TEST_ADMIN_PASSWORD`.
 
 ## Production
 
