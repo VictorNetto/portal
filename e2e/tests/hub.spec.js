@@ -70,7 +70,7 @@ test.describe('operations hub', () => {
     await expect(drawer).toBeVisible()
     await expect(drawer.locator('.detailsId')).toHaveText(v.identifier)           // the title is the identifier
     await expect(drawer.locator('.statusPill')).toHaveText('Em correção')
-    await expect(drawer.locator('.metaLine .k')).toHaveText(['CVSS', 'Vetor CVSS', 'Fonte', 'RVS'])
+    await expect(drawer.locator('.metaLine .k')).toHaveText(['ID interno', 'CVSS', 'Vetor CVSS', 'Fonte', 'RVS'])
     await expect(drawer.locator('.metaLine')).toContainText(v.rvs_id)
     await expect(drawer.locator('.step.reached')).toHaveCount(4)                   // created, ready, sent, fixing
     await expect(drawer.locator('.step.current .label')).toHaveText('Em correção')
@@ -153,18 +153,18 @@ test.describe('operations hub', () => {
     await filterHub(page, `e2e-rv-${u}`)
     expect(await rowCount(page)).toBe(2)
     const row = page.locator(`.vtable tbody tr:has-text("${inside.identifier}")`)
-    await expect(row.locator('td:nth-child(3)')).toHaveText(r.internal_id)
+    await expect(row.locator('td:nth-child(3)')).toHaveText(r.name)
     await expect(page.locator(`.vtable tbody tr:has-text("-alone") td:nth-child(3)`)).toHaveText('—')
 
     // filter by report, or by "not in a report"
-    await filterHub(page, `e2e-rv-${u} report:${r.internal_id}`)
+    await filterHub(page, `e2e-rv-${u} report:${r.name}`)
     expect(await rowCount(page)).toBe(1)
     await filterHub(page, `e2e-rv-${u} report:none`)
     expect(await rowCount(page)).toBe(1)
     await expect(page.locator('.vtable tbody')).toContainText('-alone')
 
     // a draft report's vuln is deleted from its report, not from the list
-    await filterHub(page, `e2e-rv-${u} report:${r.internal_id}`)
+    await filterHub(page, `e2e-rv-${u} report:${r.name}`)
     await row.locator('td:nth-child(10) button').click()
     await expect(page.locator('.rowMenuInline button')).toHaveText(['Visualizar', 'Detalhar', 'Exportar'])
     await page.locator('.hubTop').click({ position: { x: 2, y: 2 } })            // close the menu

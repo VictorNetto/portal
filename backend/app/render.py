@@ -335,6 +335,10 @@ def _kv_table(rows: list[tuple[str, str]], st: dict) -> Table:
     return t
 
 
+def _report_label(report) -> str:
+    return " — ".join(x for x in (report.internal_id, report.name) if x)
+
+
 def _fmt_date(d) -> str:
     return d.strftime("%d/%m/%Y") if d else "—"
 
@@ -391,7 +395,7 @@ def report_pdf(report, vulns: list, load_image: ImageLoader) -> bytes:
     sections, then every vulnerability by CVSS descending (SPEC §7)."""
     st = _styles()
     buf = io.BytesIO()
-    doc = _Doc(buf, footer=f"{report.internal_id or ''} — {report.name}")
+    doc = _Doc(buf, footer=_report_label(report))
     story: list[Any] = []
 
     # 1. Cover (auto-rendered from report fields)
@@ -403,7 +407,7 @@ def report_pdf(report, vulns: list, load_image: ImageLoader) -> bytes:
     story.append(Spacer(1, 18))
     ops = ", ".join(sorted(o.username for o in report.operators)) or "—"
     story.append(_kv_table([
-        ("Relatório", report.internal_id or "—"),
+        ("ID interno", report.internal_id or "—"),
         ("Período", f"{_fmt_date(report.start_date)} – {_fmt_date(report.end_date)}"),
         ("Operadores", ops),
         ("Gerado em", datetime.now().strftime("%d/%m/%Y %H:%M")),
@@ -497,7 +501,7 @@ def vulnerabilities_xlsx(report, vulns: list) -> bytes:
 
     info = wb.create_sheet("Relatório") if report is not None else None
     for k, val in () if info is None else (
-        ("Relatório", report.internal_id or ""), ("Nome", report.name),
+        ("ID interno", report.internal_id or ""), ("Identificador", report.name),
         ("Cliente", report.client_name or ""),
         ("Início", _fmt_date(report.start_date)), ("Fim", _fmt_date(report.end_date)),
         ("Operadores", ", ".join(sorted(o.username for o in report.operators))),
@@ -690,7 +694,7 @@ def vulnerability_docx(v, load_image: ImageLoader) -> bytes:
 def report_docx(report, vulns: list, load_image: ImageLoader) -> bytes:
     from docx.shared import Pt
 
-    doc = _docx_base(f"{report.internal_id or ''} — {report.name}")
+    doc = _docx_base(_report_label(report))
     extras = sorted(report.sections, key=lambda x: x.position)
 
     # Cover
@@ -705,7 +709,7 @@ def report_docx(report, vulns: list, load_image: ImageLoader) -> bytes:
         sub.add_run(_xml(report.client_name)).font.size = Pt(14)
     doc.add_paragraph()
     _docx_kv(doc, [
-        ("Relatório", report.internal_id or "—"),
+        ("ID interno", report.internal_id or "—"),
         ("Período", f"{_fmt_date(report.start_date)} – {_fmt_date(report.end_date)}"),
         ("Operadores", ", ".join(sorted(o.username for o in report.operators)) or "—"),
         ("Gerado em", datetime.now().strftime("%d/%m/%Y %H:%M")),

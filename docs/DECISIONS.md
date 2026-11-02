@@ -250,3 +250,20 @@ Old to new: `saved_local` → `ready`, `dispatched` → `sent`, `acknowledged` a
 - Internal names stay: the `dispatcher` module, `report_dispatch.py` and `DISPATCH_*` settings are the
   delivery channel, not a status.
 - Past audit entries keep the words used at the time.
+
+## D15 — Records are shown by their identifier ✅
+
+**Decision:** the identifier leads everywhere; the number is a labelled secondary value.
+
+| Name on screen | Field | Set by | When |
+|---|---|---|---|
+| Identificador | `identifier` (vuln), `name` (report) | the author | on creation; editable while content is open |
+| ID interno | `internal_id` (`VULN-xxxx`, `OP-xxxx`) | the portal | vuln: Concluir, or Enviar for a report's vuln; report: Enviar |
+| RVS | `rvs_id` | the Blue Team | after sending; vulnerabilities only |
+
+The UUID `id` is the database key; it stays out of the screens and appears in URLs and the API.
+
+- Reports now get `OP-xxxx` on send, like a vuln that stops being a draft, so a draft has none.
+  Existing drafts lost theirs; a retry keeps the number of the first try. Draft exports are named
+  after the report.
+- The API field stays `name` for reports.

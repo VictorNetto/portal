@@ -3,8 +3,8 @@
 Sending runs in two phases so a delivery failure can never masquerade as a
 completed send:
 
-  Phase 1 (one DB transaction): report frozen (`sending`), VULN-xxxx ids
-          assigned, lock cleared. Committed before anything is sent.
+  Phase 1 (one DB transaction): report frozen (`sending`), OP-xxxx and VULN-xxxx
+          ids assigned, lock cleared. Committed before anything is sent.
   Phase 2 (re-locked, outside phase 1): render PDF + Excel, gather non-image
           attachments, call the dispatcher. On success the report and its vulns
           become `sent`; on failure they stay drafts, the report stays frozen
@@ -74,6 +74,11 @@ def _image_loader(attachments: list[Attachment]):
     return load
 
 
+def _file_stem(report: Report) -> str:
+    """A draft has no internal ID yet: its files are named after the report."""
+    return report.internal_id or _safe_name(report.name)
+
+
 def _safe_name(name: str) -> str:
     return re.sub(r"[^A-Za-z0-9._ -]+", "_", name).strip() or "arquivo"
 
@@ -141,6 +146,7 @@ def send(
         for v in vulns:  # already CVSS-descending, so VULN numbers follow severity
             v.internal_id = _next_vuln_internal_id(session)
             v.version += 1
+        report.internal_id = report_svc._next_report_internal_id(session)
         report.sending = True
         report.send_error = None
         report.lock_user_id = None
@@ -238,7 +244,7 @@ def export_report_obj(
         )
         session.commit()
         return (docx_bytes, DOCX_MIME,
-                f"{report.internal_id}_{datetime.now().strftime('%Y%m%d')}.docx")
+                f"{_file_stem(report)}_{datetime.now().strftime('%Y%m%d')}.docx")
     pdf, xlsx, _files = build_package(session, report, vulns)
     audit.record(
         session, action=AuditAction.export, **audit.by(actor),
@@ -247,11 +253,11 @@ def export_report_obj(
     session.commit()
     stamp = datetime.now().strftime("%Y%m%d")
     if fmt == "pdf":
-        return pdf, "application/pdf", f"{report.internal_id}_{stamp}.pdf"
+        return pdf, "application/pdf", f"{_file_stem(report)}_{stamp}.pdf"
     return (
         xlsx,
         "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        f"{report.internal_id}_vulnerabilidades_{stamp}.xlsx",
+        f"{_file_stem(report)}_vulnerabilidades_{stamp}.xlsx",
     )
 
 
@@ -324,7 +330,7 @@ def export_reports_batch(
         for r in reports:
             vulns = report_svc._vulns_of(session, r)
             pdf, _xlsx, _files = build_package(session, r, vulns)
-            z.writestr(_unique(f"{_safe_name(r.internal_id or r.name)}.pdf", used), pdf)
+            z.writestr(_unique(f"{_file_stem(r)}.pdf", used), pdf)
     audit.record(
         session, action=AuditAction.export, user_id=user.id, entity_type="report",
         detail={"format": "pdf", "count": len(reports), "batch": True}, request=request,

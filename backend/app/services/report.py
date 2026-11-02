@@ -165,7 +165,6 @@ def create(session: Session, body: ReportCreate, user: User, request: Request) -
         start_date=body.start_date,
         end_date=body.end_date,
         status=ReportStatus.draft,
-        internal_id=_next_report_internal_id(session),  # assigned on first save
         executive_summary_md=DEFAULT_EXECUTIVE_SUMMARY,
         created_by=user.id,
         # The creator starts out holding the lock, so they can keep writing.

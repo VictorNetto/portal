@@ -301,7 +301,7 @@ const exportOptions = [
 
 async function exportAs(format) {
   error.value = ''
-  try { await downloadAuthed(`/reports/${id.value}/export?format=${format}`, `${report.value.internal_id}.${format}`) }
+  try { await downloadAuthed(`/reports/${id.value}/export?format=${format}`, `${report.value.internal_id || 'relatorio'}.${format}`) }
   catch (e) { error.value = e instanceof ApiError ? e.detail : t('errors.load') }
 }
 
@@ -431,7 +431,7 @@ async function saveTemplate() {
         <span>›</span>
         <a @click="router.push('/hub?entity=reports')">{{ t('hub.tabReports') }}</a>
         <span>›</span>
-        <strong>{{ isNew ? t('rpt.newTitle') : (report?.internal_id || '…') }}</strong>
+        <strong>{{ isNew ? t('rpt.newTitle') : (report?.name || '…') }}</strong>
       </nav>
       <template v-if="isNew">
         <div class="pageTop">
@@ -448,7 +448,7 @@ async function saveTemplate() {
             <p v-if="report" class="subline">
               <span class="pill" :class="reportPillClass(report)">{{ reportStatusLabel(report) }}</span>
               <span v-if="reportProgress(report)">{{ reportProgress(report) }}</span>
-              <span class="mono">{{ report.internal_id }}</span>
+              <span v-if="report.internal_id">{{ t('cols.internalId') }} <span class="mono">{{ report.internal_id }}</span></span>
               <span>{{ t('cols.updatedAt') }} {{ fmtDateTime(report.updated_at) }}</span>
             </p>
           </div>

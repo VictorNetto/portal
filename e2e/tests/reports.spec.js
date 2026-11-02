@@ -48,7 +48,7 @@ test.describe('reports', () => {
 
     // the creator is editing straight away, with the default executive summary in place
     await expect(page.locator('.banner.mine')).toBeVisible()
-    await expect(page.locator('.subline .mono')).toHaveText(/OP-\d+/)
+    await expect(page.locator('.subline .mono')).toHaveCount(0)                  // a draft has no internal ID
     await expect(page.locator('.mdEditor').first().locator('textarea')).toHaveValue(/Objetivo/)
 
     await page.fill('textarea[maxlength="5000"]', 'Aplicações web e API')
@@ -157,6 +157,7 @@ test.describe('reports', () => {
     // send
     await page.click('.pageActions button:has-text("Enviar")')
     await expect(page.locator('.subline .pill')).toHaveText('Enviado')
+    await expect(page.locator('.subline')).toContainText(/ID interno OP-\d+/)
     await expect(page.locator('.grid4 input, .grid4 textarea, .extraHead')).toHaveCount(0)
     await expect(page.locator('.mdEditor')).toHaveCount(1)                       // only the internal notes stay editable
     await expect(page.locator('.drop')).toHaveCount(0)
@@ -166,7 +167,7 @@ test.describe('reports', () => {
     await page.click('.vt tbody tr:first-child')
     await expect(page).toHaveURL(/\/vulnerabilities\/[0-9a-f-]{36}$/)
     await expect(page.locator('.timeline')).toBeVisible()
-    await expect(page.locator('.titleBlock h1')).toHaveText(/VULN-\d+/)
+    await expect(page.locator('.titleBlock p')).toContainText(/ID interno VULN-\d+/)
     void rv
   })
 

@@ -469,22 +469,24 @@ watch(() => route.fullPath, () => {
         <template v-if="inReport">
           <a @click="router.push('/hub?entity=reports')">{{ t('hub.tabReports') }}</a>
           <span>›</span>
-          <a @click="leave">{{ reportCtx?.internal_id || '…' }}</a>
+          <a @click="leave">{{ reportCtx?.name || '…' }}</a>
           <span>›</span>
         </template>
         <template v-else>
           <a @click="router.push('/hub')">{{ t('vform.breadcrumbSection') }}</a>
           <span>›</span>
         </template>
-        <strong>{{ isNew ? t('vform.createTitle') : (vuln?.internal_id || vuln?.identifier || t('vuln.draft')) }}</strong>
+        <strong>{{ isNew ? t('vform.createTitle') : (vuln?.identifier || t('vuln.draft')) }}</strong>
       </nav>
 
       <div class="pageTop">
         <div class="titleBlock">
-          <h1 :class="{ mono: !isNew }">
-            {{ isNew ? t('vform.createTitle') : (vuln?.internal_id || vuln?.identifier || t('vuln.draft')) }}
-          </h1>
-          <p v-if="vuln">{{ t('status.' + vuln.status) }} · v{{ vuln.version }}</p>
+          <h1>{{ isNew ? t('vform.createTitle') : (vuln?.identifier || t('vuln.draft')) }}</h1>
+          <p v-if="vuln">
+            {{ t('status.' + vuln.status) }}
+            <template v-if="vuln.internal_id"> · {{ t('cols.internalId') }} <span class="mono">{{ vuln.internal_id }}</span></template>
+            · v{{ vuln.version }}
+          </p>
           <p v-else-if="isNew">{{ t('vform.createHint') }}</p>
         </div>
         <div class="pageActions">
@@ -507,8 +509,8 @@ watch(() => route.fullPath, () => {
 
       <p v-if="inReport && reportCtx && reportCtx.status === 'draft' && (lockMine || lockOther)" class="banner"
          :class="lockMine ? 'mine' : 'other'">
-        <template v-if="lockMine">{{ t('vrep.editing', { report: reportCtx.internal_id, time: fmtTime(rLock.expires_at) }) }}</template>
-        <template v-else>{{ t('vrep.lockedBy', { user: rLock.holder_username, report: reportCtx.internal_id }) }}</template>
+        <template v-if="lockMine">{{ t('vrep.editing', { report: reportCtx.name, time: fmtTime(rLock.expires_at) }) }}</template>
+        <template v-else>{{ t('vrep.lockedBy', { user: rLock.holder_username, report: reportCtx.name }) }}</template>
       </p>
 
       <p v-if="notice" class="ok msg">{{ notice }}</p>

@@ -399,7 +399,7 @@ onMounted(load)
                    :checked="selected.has(v.id)" @change="toggleRow(v.id)" /></td>
               <td class="val idcell" @click="openPreview(v)">{{ v.identifier || '—' }}</td>
               <td class="repCell" :title="v.report?.name" @click="v.report ? goReport(v.report.id) : openPreview(v)">
-                <span v-if="v.report" class="repLink mono">{{ v.report.internal_id }}</span>
+                <span v-if="v.report" class="repLink">{{ v.report.name }}</span>
                 <span v-else class="muted">—</span>
               </td>
               <td @click="openPreview(v)">
@@ -455,7 +455,7 @@ onMounted(load)
               <td @click.stop><input type="checkbox" class="check"
                    :checked="selected.has(r.id)" @change="toggleRow(r.id)" /></td>
               <td class="val" @click="openPreview(r)">
-                <span class="idcell">{{ r.internal_id }}</span> <span class="rname">{{ r.name }}</span>
+                <span class="idcell">{{ r.name }}</span>
               </td>
               <td @click="openPreview(r)">
                 <span class="pill" :class="reportPillClass(r)">{{ reportStatusLabel(r) }}</span>
@@ -509,6 +509,8 @@ onMounted(load)
           </div>
         </div>
         <h2 class="metaLine">
+          <span v-if="preview.internal_id" class="m"><span class="k">{{ t('cols.internalId') }}</span>
+            <span class="mono v">{{ preview.internal_id }}</span></span>
           <span class="m"><span class="k">{{ t('cols.cvss') }}</span>
             <span v-if="preview.cvss_score != null" class="cvss" :class="sevClass(preview.cvss_score)">{{ preview.cvss_score }}</span>
             <span v-else>—</span></span>
@@ -517,7 +519,7 @@ onMounted(load)
           <span class="m"><span class="k">{{ t('cols.source') }}</span>
             <span class="v">{{ preview.source || '—' }}</span></span>
           <span v-if="preview.report" class="m"><span class="k">{{ t('cols.report') }}</span>
-            <span class="v repLink" @click="goReport(preview.report.id)">{{ preview.report.internal_id }} {{ preview.report.name }}</span></span>
+            <span class="v repLink" @click="goReport(preview.report.id)">{{ preview.report.name }}</span></span>
           <span class="m"><span class="k">{{ t('hub.rvsShort') }}</span>
             <span class="mono v">{{ preview.rvs_id || '—' }}</span></span>
         </h2>
@@ -546,7 +548,7 @@ onMounted(load)
           </div>
         </div>
         <h2 class="metaLine">
-          <span class="m"><span class="k">ID</span><span class="mono v">{{ preview.internal_id }}</span></span>
+          <span v-if="preview.internal_id" class="m"><span class="k">{{ t('cols.internalId') }}</span><span class="mono v">{{ preview.internal_id }}</span></span>
           <span class="m"><span class="k">{{ t('rcols.client') }}</span><span class="v">{{ preview.client_name || '—' }}</span></span>
           <span class="m"><span class="k">{{ t('rcols.period') }}</span><span class="v">{{ period(preview) }}</span></span>
           <span class="m"><span class="k">{{ t('rcols.vulns') }}</span><span class="v">{{ preview.vuln_count }}</span></span>
@@ -620,7 +622,6 @@ table { table-layout: fixed; }
   .rtable th:nth-child(5), .rtable td:nth-child(5) { width: auto; }
   .rtable th:nth-child(6), .rtable td:nth-child(6) { width: calc(160px + (100vw - 1920px) * 0.3); }
 }
-.rname { color: var(--text); }
 .repCell { color: var(--muted); }
 .repLink { color: var(--report-ink); cursor: pointer; }
 .repLink:hover { text-decoration: underline; }

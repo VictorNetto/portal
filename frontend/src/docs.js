@@ -41,6 +41,14 @@ const pt = [
 As vulnerabilidades de um relatório seguem o acesso do relatório.`,
       },
       {
+        id: 'identificadores', title: 'Identificadores',
+        md: `Cada registro tem até três identificações na tela:
+
+- **Identificador:** o nome da vulnerabilidade ou do relatório, escrito por quem o cria. É como o registro aparece nas listas e títulos. Pode ser alterado enquanto o conteúdo estiver aberto para edição.
+- **ID interno:** o número gerado pelo portal (\`VULN-0012\`, \`OP-0003\`). Vulnerabilidades o recebem ao *Concluir*; relatórios e suas vulnerabilidades, ao *Enviar*. Antes disso, o registro não tem ID interno. Depois de atribuído, não muda.
+- **RVS:** o ID definido pelo Blue Team, registrado depois do envio. Existe só em vulnerabilidades, não em relatórios, e não muda depois de registrado.`,
+      },
+      {
         id: 'operacoes', title: 'Operações e filtros',
         md: `A página **Operações** lista vulnerabilidades e relatórios. Clique em uma linha para ver o resumo; abra o registro para os detalhes. Marque várias linhas para ações em lote (exportar, enviar, excluir). Itens que não podem receber a ação são ignorados e informados.
 
@@ -84,7 +92,7 @@ Vários termos são combinados com **E**. O filtro fica no endereço da página,
       },
       {
         id: 'vuln-ciclo', title: 'Ciclo de vida',
-        md: `1. **Rascunho:** em edição. *Salvar rascunho* guarda sem validar tudo. *Concluir* exige os campos obrigatórios e atribui o número \`VULN-xxxx\`.
+        md: `1. **Rascunho:** em edição. *Salvar rascunho* guarda sem validar tudo. *Concluir* exige os campos obrigatórios e atribui o ID interno \`VULN-xxxx\`.
 2. **Pronta:** completa, ainda não enviada. *Enviar* entrega ao time responsável.
 3. **Enviada:** entregue e aguardando o ID de RVS. O conteúdo passa a ficar fechado para edição. *Registrar RVS* (na *Fila RVS*) inicia a correção.
 4. **Em correção:** o time responsável está corrigindo. *Solicitar reteste* pede a verificação do Red Team.
@@ -122,7 +130,7 @@ Vários termos são combinados com **E**. O filtro fica no endereço da página,
       },
       {
         id: 'rel-envio', title: 'Envio, progresso e exclusão',
-        md: `O relatório tem dois status: **Rascunho** e **Enviado**. **Enviar** entrega o relatório com suas vulnerabilidades, que recebem seus números, ficam **Enviadas** e seguem o fluxo normal.
+        md: `O relatório tem dois status: **Rascunho** e **Enviado**. **Enviar** dá ao relatório seu ID interno (\`OP-xxxx\`) e o entrega com suas vulnerabilidades, que recebem seus IDs internos, ficam **Enviadas** e seguem o fluxo normal.
 
 Se a entrega falhar, o relatório continua em **Rascunho**, bloqueado para edição, com o aviso *Falha no envio* e o botão **Tentar novamente**.
 
@@ -202,7 +210,7 @@ Content-Type: application/json
       },
       {
         id: 'api-convencoes', title: 'Convenções: referências, paginação e sincronização',
-        md: `\`{ref}\` aceita o UUID ou o número do registro (\`VULN-0012\`, \`OP-0003\`), sem diferenciar maiúsculas. Respostas e corpos são JSON em UTF-8.
+        md: `\`{ref}\` aceita o UUID ou o ID interno (\`VULN-0012\`, \`OP-0003\`), sem diferenciar maiúsculas. Respostas e corpos são JSON em UTF-8.
 
 As listas (\`/vulnerabilities\` e \`/reports\`) vêm em ordem de **última alteração** e em páginas:
 
@@ -515,7 +523,7 @@ Corpo JSON de até **1 MB**. Todos os campos são opcionais, respeitando as regr
 Regras:
 
 - Pelo menos um entre \`identifier\`, \`description\` e \`finding_detail\` deve ser preenchido.
-- \`"ready"\` exige \`identifier\`, \`description\`, \`finding_detail\` e \`mitigation\` (os mesmos campos do botão *Concluir*) e já atribui o número \`VULN-xxxx\`.
+- \`"ready"\` exige \`identifier\`, \`description\`, \`finding_detail\` e \`mitigation\` (os mesmos campos do botão *Concluir*) e já atribui o ID interno \`VULN-xxxx\`.
 
 Resposta \`201\`:
 
@@ -523,7 +531,7 @@ Resposta \`201\`:
 {"id": "72643b23-af52-42d9-a139-c1aea6f70a15", "internal_id": null, "status": "draft"}
 \`\`\`
 
-\`id\` identifica a vulnerabilidade (\`/vulnerabilities/<id>\` no portal). \`internal_id\` é o número \`VULN-xxxx\`, presente apenas quando o status é \`ready\`.
+\`id\` identifica a vulnerabilidade (\`/vulnerabilities/<id>\` no portal). \`internal_id\` é o ID interno \`VULN-xxxx\`, presente apenas quando o status é \`ready\`.
 
 **Exemplo**
 
@@ -555,7 +563,7 @@ Lista relatórios (não excluídos) em ordem de última alteração, em páginas
 - \`client\`: o nome do cliente contém o texto.
 - \`updated_since\`, \`limit\`, \`cursor\`: como em *Listar vulnerabilidades*.
 
-**Resposta \`200\`**: \`{"items": [...], "next_cursor": …}\`. Cada item tem \`id\`, \`internal_id\` (\`OP-xxxx\`), \`name\`, \`client_name\`, \`status\`, \`start_date\`, \`end_date\` (datas \`AAAA-MM-DD\`), \`sent_at\`, \`vulnerability_count\`, \`fixed_count\`, \`created_at\`, \`updated_at\`.
+**Resposta \`200\`**: \`{"items": [...], "next_cursor": …}\`. Cada item tem \`id\`, \`internal_id\` (\`OP-xxxx\`, nulo até o envio), \`name\`, \`client_name\`, \`status\`, \`start_date\`, \`end_date\` (datas \`AAAA-MM-DD\`), \`sent_at\`, \`vulnerability_count\`, \`fixed_count\`, \`created_at\`, \`updated_at\`.
 
 **Exemplo**
 
@@ -819,6 +827,14 @@ const en = [
 A report's vulnerabilities follow the report's access.`,
       },
       {
+        id: 'identificadores', title: 'Identifiers',
+        md: `Each record has up to three identifications on screen:
+
+- **Identifier:** the name of the vulnerability or report, written by whoever creates it. It is how the record shows in lists and titles. It can change while the content is open for editing.
+- **Internal ID:** the number the portal generates (\`VULN-0012\`, \`OP-0003\`). Vulnerabilities get it on *Complete*; reports and their vulnerabilities, on *Send*. Until then the record has no internal ID. Once assigned, it never changes.
+- **RVS:** the ID set by the Blue Team, recorded after sending. It exists only on vulnerabilities, not on reports, and doesn't change once recorded.`,
+      },
+      {
         id: 'operacoes', title: 'Operations and filters',
         md: `The **Operations** page lists vulnerabilities and reports. Click a row for a summary; open the record for its details. Tick several rows for batch actions (export, send, delete). Items the action doesn't apply to are skipped and reported.
 
@@ -862,7 +878,7 @@ Several terms combine with **AND**. The filter is kept in the page address, so y
       },
       {
         id: 'vuln-ciclo', title: 'Lifecycle',
-        md: `1. **Draft:** being written. *Save draft* keeps it without full validation. *Complete* needs the required fields and assigns the \`VULN-xxxx\` number.
+        md: `1. **Draft:** being written. *Save draft* keeps it without full validation. *Complete* needs the required fields and assigns the \`VULN-xxxx\` internal ID.
 2. **Ready:** complete, not sent yet. *Send* delivers it to the responsible team.
 3. **Sent:** delivered, waiting for the RVS ID. Its content is now closed for editing. *Record RVS* (in the *RVS Queue*) starts the fix.
 4. **Fixing:** the responsible team is fixing it. *Request retest* asks the Red Team to verify.
@@ -900,7 +916,7 @@ Several terms combine with **AND**. The filter is kept in the page address, so y
       },
       {
         id: 'rel-envio', title: 'Sending, progress and deletion',
-        md: `A report has two statuses: **Draft** and **Sent**. **Send** delivers the report with its vulnerabilities, which get their numbers, become **Sent** and follow the normal flow.
+        md: `A report has two statuses: **Draft** and **Sent**. **Send** gives the report its internal ID (\`OP-xxxx\`) and delivers it with its vulnerabilities, which get their internal IDs, become **Sent** and follow the normal flow.
 
 If delivery fails, the report stays a **Draft**, locked for editing, with a *Sending failed* warning and a **Try again** button.
 
@@ -980,7 +996,7 @@ Content-Type: application/json
       },
       {
         id: 'api-convencoes', title: 'Conventions: references, paging and syncing',
-        md: `\`{ref}\` takes the UUID or the record number (\`VULN-0012\`, \`OP-0003\`), case-insensitive. Responses and bodies are UTF-8 JSON.
+        md: `\`{ref}\` takes the UUID or the internal ID (\`VULN-0012\`, \`OP-0003\`), case-insensitive. Responses and bodies are UTF-8 JSON.
 
 Lists (\`/vulnerabilities\` and \`/reports\`) come in **last-change** order and in pages:
 
@@ -1293,7 +1309,7 @@ JSON body of up to **1 MB**. Every field is optional, under the rules below:
 Rules:
 
 - At least one of \`identifier\`, \`description\` and \`finding_detail\` must be filled in.
-- \`"ready"\` needs \`identifier\`, \`description\`, \`finding_detail\` and \`mitigation\` (the same fields as the *Complete* button) and assigns the \`VULN-xxxx\` number at once.
+- \`"ready"\` needs \`identifier\`, \`description\`, \`finding_detail\` and \`mitigation\` (the same fields as the *Complete* button) and assigns the \`VULN-xxxx\` internal ID at once.
 
 \`201\` response:
 
@@ -1301,7 +1317,7 @@ Rules:
 {"id": "72643b23-af52-42d9-a139-c1aea6f70a15", "internal_id": null, "status": "draft"}
 \`\`\`
 
-\`id\` identifies the vulnerability (\`/vulnerabilities/<id>\` in the portal). \`internal_id\` is the \`VULN-xxxx\` number, present only when the status is \`ready\`.
+\`id\` identifies the vulnerability (\`/vulnerabilities/<id>\` in the portal). \`internal_id\` is the \`VULN-xxxx\` internal ID, present only when the status is \`ready\`.
 
 **Example**
 
@@ -1333,7 +1349,7 @@ Lists (non-deleted) reports in last-change order, in pages.
 - \`client\`: the client name contains the text.
 - \`updated_since\`, \`limit\`, \`cursor\`: as in *List vulnerabilities*.
 
-**Response \`200\`**: \`{"items": [...], "next_cursor": …}\`. Each item has \`id\`, \`internal_id\` (\`OP-xxxx\`), \`name\`, \`client_name\`, \`status\`, \`start_date\`, \`end_date\` (dates \`AAAA-MM-DD\`), \`sent_at\`, \`vulnerability_count\`, \`fixed_count\`, \`created_at\`, \`updated_at\`.
+**Response \`200\`**: \`{"items": [...], "next_cursor": …}\`. Each item has \`id\`, \`internal_id\` (\`OP-xxxx\`, null until sent), \`name\`, \`client_name\`, \`status\`, \`start_date\`, \`end_date\` (dates \`AAAA-MM-DD\`), \`sent_at\`, \`vulnerability_count\`, \`fixed_count\`, \`created_at\`, \`updated_at\`.
 
 **Example**
 

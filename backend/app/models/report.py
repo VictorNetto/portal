@@ -63,6 +63,8 @@ class Report(UUIDPK, Timestamps, Base):
     __tablename__ = "reports"
 
     # OP-0007; assigned from report_seq on first save.
+    # OP-0042; assigned when the report is sent (phase 1), as a vuln gets its number
+    # when it stops being a draft. NULL while it is a draft.
     internal_id: Mapped[str | None] = mapped_column(Text, unique=True, nullable=True)
     name: Mapped[str] = mapped_column(Text, nullable=False)
     client_name: Mapped[str | None] = mapped_column(Text, nullable=True)

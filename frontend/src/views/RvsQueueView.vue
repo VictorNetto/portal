@@ -57,7 +57,7 @@ onMounted(() => {
       <table>
         <thead>
           <tr>
-            <th>ID</th>
+            <th>{{ t('cols.internalId') }}</th>
             <th>{{ t('cols.identifier') }}</th>
             <th>{{ t('cols.cvss') }}</th>
             <th>{{ t('rvs.sentAt') }}</th>

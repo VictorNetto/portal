@@ -163,7 +163,7 @@ def test_read_and_export_a_report(full, writer):
     assert writer.post(f"/reports/{rep['id']}/sections", {"title": "Metodologia", "content_markdown": "OWASP"}).status_code == 201
     rv = report_vuln(writer, rep["id"])
 
-    got = call(full, "GET", f"/reports/{rep['internal_id']}").json()
+    got = call(full, "GET", f"/reports/{rep['id']}").json()
     assert got["id"] == rep["id"] and got["status"] == "draft" and got["vulnerability_count"] == 1
     assert [s["title"] for s in got["sections"]] == ["Metodologia"]
     assert [x["id"] for x in got["vulnerabilities"]] == [rv["id"]]

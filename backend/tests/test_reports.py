@@ -9,7 +9,7 @@ from app.db import SessionLocal
 
 def test_creating_a_report_gives_an_id_a_template_and_the_lock(writer):
     r = new_report(writer, client_name="ACME", start_date="2026-10-01", end_date="2026-10-05")
-    assert r["status"] == "draft" and r["internal_id"].startswith("OP-")
+    assert r["status"] == "draft" and r["internal_id"] is None        # numbered when sent
     assert "Objetivo" in r["executive_summary_md"]
     assert r["lock"]["mine"] and r["lock"]["holder_username"] == writer.user["username"]
 

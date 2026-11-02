@@ -43,6 +43,7 @@ def test_dispatch_releases_the_vulns_in_severity_order(writer, reader):
     r = writer.post(f"/reports/{rid}/send")
     assert r.status_code == 200
     rep = r.json()
+    assert rep["internal_id"].startswith("OP-")                                # numbered on send
     assert rep["status"] == "sent" and rep["sent_at"] and rep["lock"] is None and rep["send_error"] is None
     vulns = {v["id"]: v for v in rep["vulnerabilities"]}
     assert all(v["status"] == "sent" and v["internal_id"].startswith("VULN-") and v["sent_at"] for v in vulns.values())
@@ -134,6 +135,8 @@ def test_failed_delivery_leaves_a_frozen_draft_and_retry_does_not_reissue_ids():
             assert all(v.status == VulnStatus.draft and v.internal_id for v in vulns)
             assert rep.sent_at is None and all(v.sent_at is None for v in vulns)
             ids = sorted(v.internal_id for v in vulns)
+            number = rep.internal_id
+            assert number.startswith("OP-")
 
             flaky.fail = False                                  # the operator retries the same call
             out = report_dispatch.send(s, rid, admin, None)
@@ -142,6 +145,7 @@ def test_failed_delivery_leaves_a_frozen_draft_and_retry_does_not_reissue_ids():
             vulns = list(s.scalars(select(Vulnerability).where(Vulnerability.report_id == rid)))
             assert all(v.status == VulnStatus.sent for v in vulns)
             assert sorted(v.internal_id for v in vulns) == ids       # not re-issued
+            assert s.get(Report, rid).internal_id == number
             assert flaky.sent == 1                                   # delivered exactly once
             names = [n for n, _ in flaky.last.attachments]
             assert any(n.endswith(".pdf") for n in names) and any(n.endswith(".xlsx") for n in names)
