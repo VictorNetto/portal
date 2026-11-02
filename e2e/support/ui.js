@@ -75,8 +75,12 @@ export function collectPageErrors(page) {
 
 /** Go somewhere from the left rail; entries inside a group (e.g. Relatórios)
  *  are reached through its flyout, as a user would. */
+const ADMIN_PAGES = ['Logs de Auditoria', 'Usuários', 'Chaves de API']
+
 export async function navTo(page, label) {
   const top = page.locator(`.sidebar .navItem[aria-label="${label}"]`)
+  const admin = page.locator('.sidebar .navItem[aria-label="Administração"]')
+  if (ADMIN_PAGES.includes(label) && await admin.count()) await admin.click()
   if (await top.count()) return top.click()
   const group = page.locator(`.sidebar .navGroup:has(.navSub[aria-label="${label}"])`)
   await group.locator('.navItem').hover()

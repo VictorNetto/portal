@@ -17,7 +17,8 @@ const forced = computed(() => !!auth.user?.must_change_password)
 
 // Nav items. `to` navigates; `soon` marks not-yet-built destinations (stubbed);
 // `adminOnly` / `roles` hide the item from users without access; `children`
-// makes a group (a flyout on the collapsed rail, indented entries when expanded).
+// makes a group (a flyout on the collapsed rail, indented entries when expanded);
+// `bottom` pins it to the foot of the rail.
 // Icons are thin outline paths (24x24 grid) — the nav rail is the only place
 // icons are used.
 const allNavItems = [
@@ -28,13 +29,20 @@ const allNavItems = [
     children: [{ label: 'nav.createReport', to: '/reports/new' }, { label: 'nav.templates', to: '/templates' }],
   },
   { icon: 'M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01', label: 'nav.rvsQueue', to: '/rvs-queue' },
-  { icon: 'M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z', label: 'nav.audit', to: '/audit-logs', roles: ['admin', 'auditor'] },
-  { icon: 'M16 20v-1.5a3.5 3.5 0 0 0-3.5-3.5h-5A3.5 3.5 0 0 0 4 18.5V20M10 11a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7zM20 20v-1.5a3.5 3.5 0 0 0-2.5-3.35M15 4.2a3.5 3.5 0 0 1 0 6.6', label: 'nav.users', to: '/users', adminOnly: true },
-  { icon: 'M21 2l-2 2m-7.6 7.6a5.5 5.5 0 1 1-7.8 7.8 5.5 5.5 0 0 1 7.8-7.8zm0 0L15.5 7.5m0 0 3 3L22 7l-3-3m-3.5 3.5L19 4', label: 'nav.apiKeys', to: '/api-keys', adminOnly: true },
-  { icon: 'M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0M14 4v4M8 10v4M16 16v4', label: 'nav.settings', soon: true },
+  { icon: 'M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z', label: 'nav.audit', to: '/audit-logs', roles: ['auditor'] },
+  { icon: 'M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0M14 4v4M8 10v4M16 16v4', label: 'nav.admin', to: '/audit-logs', adminOnly: true, bottom: true },
 ]
+// The admin area: while an admin is on one of these pages the rail shows only them.
+const adminItems = [
+  { icon: 'M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z', label: 'nav.audit', to: '/audit-logs' },
+  { icon: 'M16 20v-1.5a3.5 3.5 0 0 0-3.5-3.5h-5A3.5 3.5 0 0 0 4 18.5V20M10 11a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7zM20 20v-1.5a3.5 3.5 0 0 0-2.5-3.35M15 4.2a3.5 3.5 0 0 1 0 6.6', label: 'nav.users', to: '/users' },
+  { icon: 'M21 2l-2 2m-7.6 7.6a5.5 5.5 0 1 1-7.8 7.8 5.5 5.5 0 0 1 7.8-7.8zm0 0L15.5 7.5m0 0 3 3L22 7l-3-3m-3.5 3.5L19 4', label: 'nav.apiKeys', to: '/api-keys' },
+  { icon: 'M19 12H5M11 6l-6 6 6 6', label: 'nav.exitAdmin', to: '/hub', bottom: true },
+]
+const inAdmin = computed(() =>
+  auth.user?.role === 'admin' && adminItems.some((i) => i.to !== '/hub' && i.to === route.path))
 const navItems = computed(() =>
-  allNavItems.filter((i) => {
+  inAdmin.value ? adminItems : allNavItems.filter((i) => {
     const role = auth.user?.role
     if (i.adminOnly && role !== 'admin') return false
     if (i.roles && !i.roles.includes(role)) return false
@@ -101,7 +109,7 @@ async function signOut() {
     <button class="hamb" @click="expanded = !expanded" aria-label="Menu">
       <svg viewBox="0 0 24 24" class="ico"><path d="M4 7h16M4 12h16M4 17h16" /></svg>
     </button>
-    <div v-for="item in navItems" :key="item.label" :class="{ navGroup: item.children, open: openGroup === item.label }">
+    <div v-for="item in navItems" :key="item.label" :class="{ navGroup: item.children, navBottom: item.bottom, open: openGroup === item.label }">
       <button
         class="navItem"
         :class="{ active: isActive(item), soon: item.soon }"
@@ -197,6 +205,7 @@ async function signOut() {
 /* Groups. Collapsed: the entries fly out beside the icon (padding bridges the
    gap so the pointer can travel to them). Expanded: they sit indented below. */
 .navGroup { position: relative; }
+.navBottom { margin-top: auto; }
 .subList { display: none; }
 .sidebar:not(.expanded) .navGroup:hover .subList,
 .sidebar:not(.expanded) .navGroup.open .subList {

@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test'
 import { adminToken, api, cleanup, createUser, newReport, newVuln, tag } from '../support/api.js'
-import { filterHub, loginUI, rowCount } from '../support/ui.js'
+import { filterHub, loginUI, navTo, rowCount } from '../support/ui.js'
 
 let admin
 let rw // write_restricted
@@ -86,7 +86,7 @@ test.describe('restricted roles', () => {
 
   test('admins can give the restricted roles from the users screen', async ({ page }) => {
     await loginUI(page, 'admin', 'admin')
-    await page.locator('.sidebar .navItem[aria-label="Usuários"]').click()
+    await navTo(page, 'Usuários')
     await expect(page.locator('.pageTop .btn.primary')).toBeVisible()
     await page.click('.pageTop .btn.primary')
     const options = await page.locator('.formRow select option').allTextContents()

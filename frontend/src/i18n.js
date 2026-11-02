@@ -15,7 +15,8 @@ const messages = {
       audit: 'Logs de Auditoria',
       users: 'Usuários',
       apiKeys: 'Chaves de API',
-      settings: 'Configurações',
+      admin: 'Administração',
+      exitAdmin: 'Sair da administração',
     },
     hub: {
       exportPdfZip: 'Exportar PDF (ZIP)',
@@ -497,7 +498,8 @@ const messages = {
       audit: 'Audit Logs',
       users: 'Users',
       apiKeys: 'API Keys',
-      settings: 'Settings',
+      admin: 'Administration',
+      exitAdmin: 'Exit administration',
     },
     hub: {
       exportPdfZip: 'Export PDF (ZIP)',

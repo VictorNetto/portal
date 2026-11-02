@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test'
 import { adminToken, api, createUser, login, newVuln, tag } from '../support/api.js'
-import { autoDialogs, loginUI } from '../support/ui.js'
+import { autoDialogs, loginUI, navTo } from '../support/ui.js'
 
 let admin
 
@@ -12,7 +12,7 @@ test.describe('administration', () => {
   test('users: create one (forced password change), change role, reset, deactivate', async ({ page }) => {
     autoDialogs(page, { promptValue: 'Reset-By-Admin-1' })
     await loginUI(page, 'admin', 'admin')
-    await nav(page, 'Usuários').click()
+    await navTo(page, 'Usuários')
     await expect(page.locator('table').first()).toBeVisible()
 
     const username = `e2e-new-${tag()}`
@@ -44,7 +44,7 @@ test.describe('administration', () => {
     const a = await createUser(admin, 'read_restricted')
     const b = await createUser(admin, 'write_restricted')
     await loginUI(page, 'admin', 'admin')
-    await nav(page, 'Usuários').click()
+    await navTo(page, 'Usuários')
 
     await page.fill('.search', 'e2e-readrestricted')
     await expect(page.locator(`tbody tr:has-text("${a.username}")`)).toHaveCount(1)
@@ -82,9 +82,32 @@ test.describe('administration', () => {
     for (const v of [shared, operated, hidden]) await api(`/vulnerabilities/${v.id}`, { token: admin, method: 'DELETE' })
   })
 
+  test('Administração swaps the rail for the admin pages, and back', async ({ page }) => {
+    await loginUI(page, 'admin', 'admin')
+    const labels = () => page.locator('.sidebar .navItem').evaluateAll((els) => els.map((e) => e.getAttribute('aria-label')))
+    expect(await labels()).not.toContain('Usuários')
+    await nav(page, 'Administração').click()
+    await expect(page).toHaveURL(/\/audit-logs$/)
+    await expect.poll(labels).toEqual(['Logs de Auditoria', 'Usuários', 'Chaves de API', 'Sair da administração'])
+    await nav(page, 'Usuários').click()
+    await expect(nav(page, 'Usuários')).toHaveClass(/active/)
+    await page.reload()                                                 // the page decides the rail
+    await expect.poll(labels).toContain('Sair da administração')
+    await nav(page, 'Sair da administração').click()
+    await expect(page).toHaveURL(/\/hub/)
+    await expect(nav(page, 'Administração')).toHaveCount(1)
+  })
+
+  test('an auditor reaches the audit logs directly and has no Administração', async ({ page }) => {
+    const auditor = await createUser(await adminToken(), 'auditor')
+    await loginUI(page, auditor.username, auditor.password)
+    await expect(nav(page, 'Logs de Auditoria')).toHaveCount(1)
+    await expect(nav(page, 'Administração')).toHaveCount(0)
+  })
+
   test('an admin cannot deactivate themselves: the button is not offered', async ({ page }) => {
     await loginUI(page, 'admin', 'admin')
-    await nav(page, 'Usuários').click()
+    await navTo(page, 'Usuários')
     await page.click('tbody tr:has(td.uname:text-is("admin"))')
     await expect(page.locator('.detail .dName')).toHaveText('admin')
     await expect(page.locator('.detail .btn:has-text("Desativar")')).toHaveCount(0)
@@ -94,7 +117,7 @@ test.describe('administration', () => {
   test('API keys: the plaintext is shown once, then only the prefix; revoking works', async ({ page }) => {
     autoDialogs(page)
     await loginUI(page, 'admin', 'admin')
-    await nav(page, 'Chaves de API').click()
+    await navTo(page, 'Chaves de API')
 
     const label = `e2e-key-${tag()}`
     await page.click('.pageTop .btn.primary')
@@ -130,7 +153,7 @@ test.describe('administration', () => {
     const user = await createUser(admin, 'write_all')
     await login(user.username, user.password)
     await loginUI(page, 'admin', 'admin')
-    await nav(page, 'Logs de Auditoria').click()
+    await navTo(page, 'Logs de Auditoria')
     await expect(page.locator('tbody tr').first()).toBeVisible()
 
     await page.selectOption('.pageTop select', 'login')
