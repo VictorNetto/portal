@@ -60,7 +60,7 @@ class SmtpTransport:
     """Sends the package as one email (plain-text body + every file attached).
 
     Never raises: any failure comes back as ok=False with a short reason, so the
-    caller can keep the record in `dispatching` and let the operator retry (D2).
+    caller can keep the record frozen and let the operator retry (D2).
     Credentials are never included in the returned detail.
     """
 

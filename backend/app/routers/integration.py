@@ -135,9 +135,8 @@ def _vuln_full(v: Vulnerability) -> ExtVuln:
         description=v.description, finding_detail=v.finding_detail, mitigation=v.mitigation,
         references=v.references or [], cvss_vector=v.cvss_vector,
         operators=sorted(u.username for u in v.operators), metadata=v.extra_metadata or {},
-        saved_local_at=v.saved_local_at, dispatched_at=v.dispatched_at,
-        acknowledged_at=v.acknowledged_at, waiting_fix_at=v.waiting_fix_at,
-        pending_retest_at=v.pending_retest_at, fixed_at=v.fixed_at,
+        ready_at=v.ready_at, sent_at=v.sent_at, fixing_at=v.fixing_at,
+        retesting_at=v.retesting_at, fixed_at=v.fixed_at,
     )
 
 
@@ -146,16 +145,13 @@ def _attachment(a: Attachment) -> ExtAttachment:
                          mime_type=a.mime_type, size_bytes=a.size_bytes, created_at=a.created_at)
 
 
-def _vuln_count(session: Session, report: Report) -> int:
-    return session.scalar(select(func.count()).select_from(Vulnerability).where(
-        Vulnerability.report_id == report.id, Vulnerability.deleted_at.is_(None))) or 0
-
-
 def _report_summary(session: Session, r: Report) -> ExtReportSummary:
+    vulns = report_svc._vulns_of(session, r)
     return ExtReportSummary(
         id=r.id, internal_id=r.internal_id, name=r.name, client_name=r.client_name,
         status=r.status.value, start_date=r.start_date, end_date=r.end_date,
-        dispatched_at=r.dispatched_at, vulnerability_count=_vuln_count(session, r),
+        sent_at=r.sent_at, vulnerability_count=len(vulns),
+        fixed_count=sum(v.status == VulnStatus.fixed for v in vulns),
         created_at=r.created_at, updated_at=r.updated_at,
     )
 
@@ -247,7 +243,7 @@ def set_rvs(
     key: ApiKey = Depends(require_scope(scopes.RVS_WRITE)),
     session: Session = Depends(get_session),
 ):
-    """Record the RVS ID of a dispatched vulnerability: it becomes acknowledged."""
+    """Record the RVS ID of a sent vulnerability: it moves to fixing."""
     return _vuln_full(vuln_svc.apply_rvs(session, _vuln(session, ref), body.rvs_id, key, request))
 
 
@@ -256,11 +252,11 @@ def rvs_queue(
     _: ApiKey = Depends(require_scope(scopes.RVS_WRITE, scopes.VULNS_READ)),
     session: Session = Depends(get_session),
 ):
-    """Dispatched vulnerabilities still waiting for an RVS ID, oldest first."""
+    """Sent vulnerabilities still waiting for an RVS ID, oldest first."""
     rows = session.scalars(select(Vulnerability).where(
-        Vulnerability.deleted_at.is_(None), Vulnerability.status == VulnStatus.dispatched,
+        Vulnerability.deleted_at.is_(None), Vulnerability.status == VulnStatus.sent,
         Vulnerability.rvs_id.is_(None),
-    ).order_by(Vulnerability.dispatched_at))
+    ).order_by(Vulnerability.sent_at))
     return [_vuln_summary(v) for v in rows]
 
 

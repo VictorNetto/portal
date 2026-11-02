@@ -1,5 +1,9 @@
 # Red Team Operations Platform — MVP Specification
 
+> **Status names:** this document predates **D14** (`docs/DECISIONS.md`). Read `saved_local` as `ready`,
+> `dispatched` as `sent`, `acknowledged`/`waiting_fix` as `fixing`, `pending_retest` as `retesting`;
+> `dispatching` is no longer a status (now the `reports.sending` flag).
+
 ## Overview
 
 A self-hosted web platform for red team operators to manage, document, and report security vulnerabilities and assessment operations. Targets ~20 concurrent operators, deployed as a modular monolith.

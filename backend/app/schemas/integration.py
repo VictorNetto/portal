@@ -39,11 +39,10 @@ class ExtVuln(ExtVulnSummary):
     cvss_vector: str | None
     operators: list[str]           # usernames
     metadata: dict
-    saved_local_at: datetime | None
-    dispatched_at: datetime | None
-    acknowledged_at: datetime | None
-    waiting_fix_at: datetime | None
-    pending_retest_at: datetime | None
+    ready_at: datetime | None
+    sent_at: datetime | None
+    fixing_at: datetime | None
+    retesting_at: datetime | None
     fixed_at: datetime | None
 
 
@@ -70,8 +69,9 @@ class ExtReportSummary(BaseModel):
     status: str
     start_date: date | None
     end_date: date | None
-    dispatched_at: datetime | None
+    sent_at: datetime | None
     vulnerability_count: int
+    fixed_count: int               # how many of them are fixed: the report's progress
     created_at: datetime
     updated_at: datetime
 

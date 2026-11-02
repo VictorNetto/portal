@@ -92,17 +92,17 @@ def delete_report(
     svc.delete(session, report_id, user, request)
 
 
-# --- dispatch & export ---
+# --- send & export ---
 
-@router.post("/{report_id}/dispatch", response_model=ReportOut)
-def dispatch_report(
+@router.post("/{report_id}/send", response_model=ReportOut)
+def send_report(
     report_id: uuid.UUID,
     request: Request,
     user: User = Depends(_writer),
     session: Session = Depends(get_session),
 ):
-    """Two-phase dispatch (D2). Calling it again retries a failed delivery."""
-    return report_dispatch.dispatch(session, report_id, user, request)
+    """Two-phase send (D2). Calling it again retries a failed delivery."""
+    return report_dispatch.send(session, report_id, user, request)
 
 
 @router.get("/{report_id}/export")

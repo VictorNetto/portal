@@ -60,7 +60,7 @@ onMounted(() => {
             <th>ID</th>
             <th>{{ t('cols.identifier') }}</th>
             <th>{{ t('cols.cvss') }}</th>
-            <th>{{ t('rvs.dispatchedAt') }}</th>
+            <th>{{ t('rvs.sentAt') }}</th>
             <th style="width:320px">{{ t('rvs.rvsId') }}</th>
           </tr>
         </thead>
@@ -72,7 +72,7 @@ onMounted(() => {
               <span v-if="v.cvss_score != null" class="cvss" :class="sevClass(v.cvss_score)">{{ v.cvss_score }}</span>
               <span v-else>—</span>
             </td>
-            <td class="muted">{{ fmtDateTime(v.dispatched_at) }}</td>
+            <td class="muted">{{ fmtDateTime(v.sent_at) }}</td>
             <td>
               <form class="rvsForm" @submit.prevent="submit(v)">
                 <input v-model="rvsInputs[v.id]" :placeholder="t('rvs.placeholder')" />

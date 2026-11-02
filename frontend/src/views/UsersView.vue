@@ -239,7 +239,7 @@ onMounted(async () => {
                       <span class="aName">{{ item.title || '—' }}</span>
                       <span class="rel">{{ item.relations.map((r) => t('users.rel.' + r)).join(' · ') }}</span>
                     </td>
-                    <td class="aStatus"><span class="pill" :class="'s-' + item.status">{{ t('status.' + item.status) }}</span></td>
+                    <td class="aStatus"><span class="pill" :class="'s-' + item.status">{{ t((accessTab === 'vulns' ? 'status.' : 'rstatus.') + item.status) }}</span></td>
                   </tr>
                 </tbody>
               </table>

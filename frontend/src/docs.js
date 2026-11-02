@@ -42,7 +42,7 @@ As vulnerabilidades de um relatório seguem o acesso do relatório.`,
       },
       {
         id: 'operacoes', title: 'Operações e filtros',
-        md: `A página **Operações** lista vulnerabilidades e relatórios. Clique em uma linha para ver o resumo; abra o registro para os detalhes. Marque várias linhas para ações em lote (exportar, disparar, excluir). Itens que não podem receber a ação são ignorados e informados.
+        md: `A página **Operações** lista vulnerabilidades e relatórios. Clique em uma linha para ver o resumo; abra o registro para os detalhes. Marque várias linhas para ações em lote (exportar, enviar, excluir). Itens que não podem receber a ação são ignorados e informados.
 
 Use a caixa **Filtrar**. Digite \`/\` para ver as chaves disponíveis:
 
@@ -71,7 +71,7 @@ Vários termos são combinados com **E**. O filtro fica no endereço da página,
       },
       {
         id: 'auditoria', title: 'Logs de auditoria', roles: ['auditor'],
-        md: `Os **Logs de Auditoria** registram logins, criações, alterações, mudanças de status, disparos, exportações, leituras de anexos e liberações de reserva, com quem fez, quando e de qual IP. Filtre pelo tipo de ação.`,
+        md: `Os **Logs de Auditoria** registram logins, criações, alterações, mudanças de status, envios, exportações, leituras de anexos e liberações de reserva, com quem fez, quando e de qual IP. Filtre pelo tipo de ação.`,
       },
     ],
   },
@@ -80,19 +80,20 @@ Vários termos são combinados com **E**. O filtro fica no endereço da página,
     subs: [
       {
         id: 'vuln-criar', title: 'Criar uma vulnerabilidade',
-        md: `Menu ➝ *Criar Vulnerabilidade*. Identificador, Descrição, Detalhes do Achado e Mitigação são obrigatórios para enviar. Você é o operador padrão; use **+** para adicionar outros operadores ou pessoas em *Compartilhado com*. Clique em um nome para removê-lo.`,
+        md: `Menu ➝ *Criar Vulnerabilidade*. Identificador, Descrição, Detalhes do Achado e Mitigação são obrigatórios para concluir. Você é o operador padrão; use **+** para adicionar outros operadores ou pessoas em *Compartilhado com*. Clique em um nome para removê-lo.`,
       },
       {
         id: 'vuln-ciclo', title: 'Ciclo de vida',
-        md: `1. **Rascunho:** em edição. *Salvar rascunho* guarda sem validar tudo.
-2. **Salva:** completa e pronta (*Enviar*).
-3. **Disparada:** entregue (*Disparar*). O conteúdo passa a ficar fechado para edição.
-4. **Reconhecida:** quando o ID do RVS é registrado na *Fila RVS*.
-5. **Aguardando correção ➝ Reteste pendente ➝ Corrigida:** acompanhamento da correção. Um reteste reprovado volta para *Aguardando correção*.`,
+        md: `1. **Rascunho:** em edição. *Salvar rascunho* guarda sem validar tudo. *Concluir* exige os campos obrigatórios e atribui o número \`VULN-xxxx\`.
+2. **Pronta:** completa, ainda não enviada. *Enviar* entrega ao time responsável.
+3. **Enviada:** entregue e aguardando o ID de RVS. O conteúdo passa a ficar fechado para edição. *Registrar RVS* (na *Fila RVS*) inicia a correção.
+4. **Em correção:** o time responsável está corrigindo. *Solicitar reteste* pede a verificação do Red Team.
+5. **Em reteste:** o Red Team verifica a correção. *Aprovar reteste* conclui; *Reprovar reteste* volta para *Em correção*.
+6. **Corrigida:** correção confirmada; fim do fluxo.`,
       },
       {
-        id: 'vuln-apos', title: 'Depois do disparo',
-        md: `Depois do disparo, apenas operadores e notas internas continuam editáveis. Se um status foi alterado por engano, um administrador pode usar **Corrigir status**, que fica registrado na auditoria.`,
+        id: 'vuln-apos', title: 'Depois do envio',
+        md: `Depois do envio, apenas operadores e notas internas continuam editáveis. Se um status foi alterado por engano, um administrador pode usar **Ajustar status**, que fica registrado na auditoria.`,
       },
       {
         id: 'vuln-conflitos', title: 'Edições simultâneas',
@@ -100,7 +101,7 @@ Vários termos são combinados com **E**. O filtro fica no endereço da página,
       },
       {
         id: 'rvs', title: 'Fila RVS',
-        md: `A **Fila RVS** lista as vulnerabilidades disparadas que ainda não têm ID de RVS. Informe o ID (ex.: \`RVS-2026-001\`) para marcar a vulnerabilidade como **Reconhecida**. O ID não pode ser alterado depois.`,
+        md: `A **Fila RVS** lista as vulnerabilidades enviadas que ainda não têm ID de RVS. Informe o ID (ex.: \`RVS-2026-001\`) e use **Registrar RVS**: a vulnerabilidade passa para **Em correção**. O ID não pode ser alterado depois.`,
       },
     ],
   },
@@ -120,8 +121,14 @@ Vários termos são combinados com **E**. O filtro fica no endereço da página,
         md: `Informações Gerais, Dados do Relatório, Sumário Executivo, Introdução, Seções Adicionais (com títulos próprios, reordenáveis), as vulnerabilidades do relatório, evidências e notas internas. Fora da edição, a página mostra o conteúdo como ele aparece no relatório.`,
       },
       {
-        id: 'rel-disparo', title: 'Disparo e exclusão',
-        md: `Entrega o relatório com suas vulnerabilidades. Se a entrega falhar, o relatório indica a falha e pode ser disparado de novo. Só relatórios em **Rascunho** podem ser excluídos.`,
+        id: 'rel-envio', title: 'Envio, progresso e exclusão',
+        md: `O relatório tem dois status: **Rascunho** e **Enviado**. **Enviar** entrega o relatório com suas vulnerabilidades, que recebem seus números, ficam **Enviadas** e seguem o fluxo normal.
+
+Se a entrega falhar, o relatório continua em **Rascunho**, bloqueado para edição, com o aviso *Falha no envio* e o botão **Tentar novamente**.
+
+Depois do envio, o portal mostra o progresso, por exemplo *2 de 5 corrigidas*. Quando todas estiverem corrigidas, o relatório aparece como **Concluído**; isso é calculado, ninguém precisa marcar.
+
+Só relatórios em **Rascunho** podem ser excluídos.`,
       },
       {
         id: 'templates', title: 'Templates', roles: CREATORS,
@@ -207,7 +214,7 @@ As listas (\`/vulnerabilities\` e \`/reports\`) vêm em ordem de **última alter
 - \`cursor\`: passe o \`next_cursor\` recebido para obter a próxima página. \`null\` indica o fim.
 - \`updated_since\`: só o que foi criado ou alterado a partir desse momento (ISO 8601, ex. \`2026-10-25T14:00:00Z\`).
 
-Filtros de \`/vulnerabilities\`: \`status\` (repita para vários: \`status=dispatched&status=acknowledged\`), \`source\` (contém), \`report\` (UUID, número ou \`none\` para as que não estão em relatório) e \`cvss_min\`. Filtros de \`/reports\`: \`status\` e \`client\` (contém).
+Filtros de \`/vulnerabilities\`: \`status\` (repita para vários: \`status=sent&status=fixing\`), \`source\` (contém), \`report\` (UUID, número ou \`none\` para as que não estão em relatório) e \`cvss_min\`. Filtros de \`/reports\`: \`status\` e \`client\` (contém).
 
 **Para sincronizar** outro sistema: guarde o \`updated_at\` do último item processado e, na próxima execução, peça \`updated_since\` com esse valor, seguindo \`next_cursor\` até o fim. Um item alterado de novo volta a aparecer.
 
@@ -246,7 +253,7 @@ Lista vulnerabilidades (não excluídas) em ordem de última alteração, em pá
 
 **Parâmetros** (query)
 
-- \`status\`: um ou mais status; repita o parâmetro para vários (\`status=dispatched&status=acknowledged\`).
+- \`status\`: um ou mais status; repita o parâmetro para vários (\`status=sent&status=fixing\`).
 - \`source\`: a fonte contém o texto (sem diferenciar maiúsculas).
 - \`report\`: UUID ou número do relatório; \`none\` para as que não estão em relatório.
 - \`cvss_min\`: CVSS maior ou igual (0 a 10).
@@ -256,7 +263,7 @@ Lista vulnerabilidades (não excluídas) em ordem de última alteração, em pá
 **Resposta \`200\`**: \`{"items": [...], "next_cursor": "…" | null}\`. Cada item tem:
 
 - \`id\` (UUID) e \`internal_id\` (\`VULN-xxxx\`, nulo enquanto for rascunho).
-- \`status\`: \`draft\`, \`saved_local\`, \`dispatching\`, \`dispatched\`, \`acknowledged\`, \`waiting_fix\`, \`pending_retest\` ou \`fixed\`.
+- \`status\`: \`draft\`, \`ready\`, \`sent\`, \`fixing\`, \`retesting\` ou \`fixed\`.
 - \`identifier\`, \`cwe\`, \`cvss_score\` (número ou nulo), \`source\`, \`rvs_id\` (nulo até o registro de RVS).
 - \`report\`: \`{id, internal_id, name, status}\` do relatório a que pertence, ou nulo.
 - \`created_at\`, \`updated_at\` (UTC).
@@ -266,7 +273,7 @@ Lista vulnerabilidades (não excluídas) em ordem de última alteração, em pá
 **Exemplo**
 
 \`\`\`
-curl -sS "https://<portal>/api/v1/vulnerabilities?status=acknowledged&limit=1" \\
+curl -sS "https://<portal>/api/v1/vulnerabilities?status=fixing&limit=1" \\
   -H "X-API-Key: $PORTAL_KEY"
 \`\`\`
 
@@ -276,7 +283,7 @@ curl -sS "https://<portal>/api/v1/vulnerabilities?status=acknowledged&limit=1" \
     {
       "id": "92157428-3168-4c4e-9031-569928030ee9",
       "internal_id": "VULN-0003",
-      "status": "acknowledged",
+      "status": "fixing",
       "identifier": "Cross-Site Scripting (armazenado) - bi",
       "cwe": "CWE-79",
       "cvss_score": 10,
@@ -305,7 +312,7 @@ Uma vulnerabilidade completa.
 - \`references\` (lista de URLs), \`cvss_vector\`.
 - \`operators\`: logins dos operadores.
 - \`metadata\`: dados livres enviados pela ferramenta que a criou.
-- \`saved_local_at\`, \`dispatched_at\`, \`acknowledged_at\`, \`waiting_fix_at\`, \`pending_retest_at\`, \`fixed_at\`: quando entrou em cada status (UTC), ou nulo.
+- \`ready_at\`, \`sent_at\`, \`fixing_at\`, \`retesting_at\`, \`fixed_at\`: quando entrou em cada status (UTC), ou nulo.
 
 Notas internas e a lista *Compartilhado com* não são enviadas.
 
@@ -321,7 +328,7 @@ curl -sS https://<portal>/api/v1/vulnerabilities/VULN-0003 -H "X-API-Key: $PORTA
 {
   "id": "92157428-3168-4c4e-9031-569928030ee9",
   "internal_id": "VULN-0003",
-  "status": "acknowledged",
+  "status": "fixing",
   "identifier": "Cross-Site Scripting (armazenado) - bi",
   "cwe": "CWE-79",
   "cvss_score": 10,
@@ -340,11 +347,10 @@ curl -sS https://<portal>/api/v1/vulnerabilities/VULN-0003 -H "X-API-Key: $PORTA
     "michelle"
   ],
   "metadata": {},
-  "saved_local_at": "2026-10-08T12:59:30.282810",
-  "dispatched_at": "2026-10-08T12:59:30.301332",
-  "acknowledged_at": "2026-10-08T12:59:30.319272",
-  "waiting_fix_at": null,
-  "pending_retest_at": null,
+  "ready_at": "2026-10-08T12:59:30.282810",
+  "sent_at": "2026-10-08T12:59:30.301332",
+  "fixing_at": "2026-10-08T12:59:30.319272",
+  "retesting_at": null,
   "fixed_at": null
 }
 \`\`\``,
@@ -422,7 +428,7 @@ curl -sS -o VULN-0002.pdf "https://<portal>/api/v1/vulnerabilities/VULN-0002/exp
         id: 'api-ep-rvsq', title: 'Fila RVS',
         md: `**\`GET /api/v1/rvs-queue\`** · escopo \`rvs:write\` ou \`vulns:read\`
 
-Vulnerabilidades **disparadas** que ainda não têm ID de RVS, da disparada há mais tempo para a mais recente. Sem paginação.
+Vulnerabilidades **enviadas** que ainda não têm ID de RVS, da enviada há mais tempo para a mais recente. Sem paginação.
 
 **Parâmetros**: Nenhum.
 
@@ -439,7 +445,7 @@ curl -sS https://<portal>/api/v1/rvs-queue -H "X-API-Key: $PORTAL_KEY"
   {
     "id": "6598c3c4-c1eb-43d3-8412-3c36d1682462",
     "internal_id": "VULN-0001",
-    "status": "dispatched",
+    "status": "sent",
     "identifier": "Deserialização insegura - erp",
     "cwe": "CWE-502",
     "cvss_score": 3.3,
@@ -456,17 +462,17 @@ curl -sS https://<portal>/api/v1/rvs-queue -H "X-API-Key: $PORTAL_KEY"
         id: 'api-ep-rvs', title: 'Registrar o ID de RVS',
         md: `**\`POST /api/v1/vulnerabilities/{ref}/rvs\`** · escopo \`rvs:write\`
 
-Registra o ID de RVS de uma vulnerabilidade disparada, que passa a **Reconhecida**. O ID não pode ser alterado depois. Fica registrado na auditoria.
+Registra o ID de RVS de uma vulnerabilidade enviada, que passa para **Em correção**. O ID não pode ser alterado depois. Fica registrado na auditoria.
 
 **Parâmetros**: \`ref\` (caminho).
 
 **Corpo** (JSON): \`{"rvs_id": "RVS-2026-001"}\`: texto de 1 a 200 caracteres.
 
-**Resposta \`200\`**: a vulnerabilidade completa (como em *Ler uma vulnerabilidade*), com \`status: "acknowledged"\` e o \`rvs_id\`.
+**Resposta \`200\`**: a vulnerabilidade completa (como em *Ler uma vulnerabilidade*), com \`status: "fixing"\` e o \`rvs_id\`.
 
 **Erros**
 
-- \`409\` se não estiver disparada: \`{"detail": "RVS ID can only be set on a dispatched vuln (current: acknowledged)"}\`
+- \`409\` se não estiver enviada: \`{"detail": "RVS ID can only be set on a sent vuln (current: fixing)"}\`
 - \`409\` se o ID já foi registrado: \`{"detail": "RVS ID is already set"}\`
 - \`404\`; \`422\` para \`rvs_id\` vazio.
 
@@ -482,9 +488,9 @@ curl -sS -X POST https://<portal>/api/v1/vulnerabilities/VULN-0001/rvs \\
 {
   "id": "6598c3c4-c1eb-43d3-8412-3c36d1682462",
   "internal_id": "VULN-0001",
-  "status": "acknowledged",
+  "status": "fixing",
   "rvs_id": "RVS-2026-001",
-  "acknowledged_at": "2026-10-25T16:30:02.118204",
+  "fixing_at": "2026-10-25T16:30:02.118204",
   "…": "demais campos de Ler uma vulnerabilidade"
 }
 \`\`\``,
@@ -503,13 +509,13 @@ Corpo JSON de até **1 MB**. Todos os campos são opcionais, respeitando as regr
 - \`source\` (texto, até 200): a ferramenta de origem, ex. \`nuclei\`, \`burp\`. Aparece em *Fontes* e no filtro \`source:\`.
 - \`internal_notes\` (Markdown): notas internas.
 - \`operators\` (lista de até 20 **logins**): usuários **ativos** com papel Administrador, Editor (todos) ou Editor restrito.
-- \`status\`: \`"draft"\` (padrão) ou \`"saved_local"\`. A API nunca cria vulnerabilidades disparadas.
+- \`status\`: \`"draft"\` (padrão) ou \`"ready"\`. A API nunca cria vulnerabilidades enviadas.
 - \`metadata\` (objeto): dados livres da ferramenta, guardados como vieram. **Campos desconhecidos** no corpo também vão para os metadados. Limite: 64 KB no total.
 
 Regras:
 
 - Pelo menos um entre \`identifier\`, \`description\` e \`finding_detail\` deve ser preenchido.
-- \`"saved_local"\` exige \`identifier\`, \`description\`, \`finding_detail\` e \`mitigation\` (os mesmos campos do botão *Enviar*) e já atribui o número \`VULN-xxxx\`.
+- \`"ready"\` exige \`identifier\`, \`description\`, \`finding_detail\` e \`mitigation\` (os mesmos campos do botão *Concluir*) e já atribui o número \`VULN-xxxx\`.
 
 Resposta \`201\`:
 
@@ -517,7 +523,7 @@ Resposta \`201\`:
 {"id": "72643b23-af52-42d9-a139-c1aea6f70a15", "internal_id": null, "status": "draft"}
 \`\`\`
 
-\`id\` identifica a vulnerabilidade (\`/vulnerabilities/<id>\` no portal). \`internal_id\` é o número \`VULN-xxxx\`, presente apenas quando o status é \`saved_local\`.
+\`id\` identifica a vulnerabilidade (\`/vulnerabilities/<id>\` no portal). \`internal_id\` é o número \`VULN-xxxx\`, presente apenas quando o status é \`ready\`.
 
 **Exemplo**
 
@@ -545,16 +551,16 @@ Lista relatórios (não excluídos) em ordem de última alteração, em páginas
 
 **Parâmetros** (query)
 
-- \`status\`: \`draft\`, \`dispatching\` ou \`dispatched\`; repita para vários.
+- \`status\`: \`draft\` ou \`sent\`; repita para vários.
 - \`client\`: o nome do cliente contém o texto.
 - \`updated_since\`, \`limit\`, \`cursor\`: como em *Listar vulnerabilidades*.
 
-**Resposta \`200\`**: \`{"items": [...], "next_cursor": …}\`. Cada item tem \`id\`, \`internal_id\` (\`OP-xxxx\`), \`name\`, \`client_name\`, \`status\`, \`start_date\`, \`end_date\` (datas \`AAAA-MM-DD\`), \`dispatched_at\`, \`vulnerability_count\`, \`created_at\`, \`updated_at\`.
+**Resposta \`200\`**: \`{"items": [...], "next_cursor": …}\`. Cada item tem \`id\`, \`internal_id\` (\`OP-xxxx\`), \`name\`, \`client_name\`, \`status\`, \`start_date\`, \`end_date\` (datas \`AAAA-MM-DD\`), \`sent_at\`, \`vulnerability_count\`, \`fixed_count\`, \`created_at\`, \`updated_at\`.
 
 **Exemplo**
 
 \`\`\`
-curl -sS "https://<portal>/api/v1/reports?status=dispatched&limit=1" -H "X-API-Key: $PORTAL_KEY"
+curl -sS "https://<portal>/api/v1/reports?status=sent&limit=1" -H "X-API-Key: $PORTAL_KEY"
 \`\`\`
 
 \`\`\`
@@ -565,11 +571,12 @@ curl -sS "https://<portal>/api/v1/reports?status=dispatched&limit=1" -H "X-API-K
       "internal_id": "OP-0001",
       "name": "Pentest Aplicação Web - Portal do Cliente",
       "client_name": "Banco Aurora S.A.",
-      "status": "dispatched",
+      "status": "sent",
       "start_date": "2026-08-03",
       "end_date": "2026-08-21",
-      "dispatched_at": "2026-10-08T12:59:35.258463",
+      "sent_at": "2026-10-08T12:59:35.258463",
       "vulnerability_count": 3,
+      "fixed_count": 0,
       "created_at": "2026-10-08T12:59:35.029437",
       "updated_at": "2026-10-08T12:59:35.204803"
     }
@@ -611,11 +618,12 @@ curl -sS https://<portal>/api/v1/reports/OP-0001 -H "X-API-Key: $PORTAL_KEY"
   "internal_id": "OP-0001",
   "name": "Pentest Aplicação Web - Portal do Cliente",
   "client_name": "Banco Aurora S.A.",
-  "status": "dispatched",
+  "status": "sent",
   "start_date": "2026-08-03",
   "end_date": "2026-08-21",
-  "dispatched_at": "2026-10-08T12:59:35.258463",
+  "sent_at": "2026-10-08T12:59:35.258463",
   "vulnerability_count": 3,
+  "fixed_count": 0,
   "created_at": "2026-10-08T12:59:35.029437",
   "updated_at": "2026-10-08T12:59:35.204803",
   "test_type": "Pentest",
@@ -639,7 +647,7 @@ curl -sS https://<portal>/api/v1/reports/OP-0001 -H "X-API-Key: $PORTAL_KEY"
     {
       "id": "e4a61965-ab90-41f6-b0d3-d05db0816f74",
       "internal_id": "VULN-0074",
-      "status": "dispatched",
+      "status": "sent",
       "identifier": "Falta de rate limiting - intranet",
       "cwe": "CWE-770",
       "cvss_score": 8.1,
@@ -649,7 +657,7 @@ curl -sS https://<portal>/api/v1/reports/OP-0001 -H "X-API-Key: $PORTAL_KEY"
         "id": "056c3eee-6d69-47c2-876a-f099dcbc45f9",
         "internal_id": "OP-0001",
         "name": "Pentest Aplicação Web - Portal do Cliente",
-        "status": "dispatched"
+        "status": "sent"
       },
       "created_at": "2026-10-08T12:59:35.119620",
       "updated_at": "2026-10-08T12:59:35.204803"
@@ -704,12 +712,12 @@ curl -sS https://<portal>/api/health
 - \`401\`: chave ausente, inválida, revogada ou expirada. \`{"detail": "Invalid or missing API key"}\`
 - \`403\`: a chave não tem o escopo do endpoint. \`{"detail": "This API key lacks the scope 'rvs:write'"}\`
 - \`404\`: o registro não existe (ou foi excluído).
-- \`409\`: a ação não cabe no status atual, ex. RVS em vulnerabilidade não disparada ou já registrado.
+- \`409\`: a ação não cabe no status atual, ex. RVS em vulnerabilidade não enviada ou já registrado.
 - \`413\`: corpo acima de 1 MB.
 - \`422\`: dados ou parâmetros inválidos (inclusive \`cursor\` inválido). Exemplos:
 
 \`\`\`
-{"detail": "Required for status 'saved_local': description, finding_detail, mitigation"}
+{"detail": "Required for status 'ready': description, finding_detail, mitigation"}
 {"detail": "unknown operator(s): nobody; operator(s) not active writers: isabella"}
 {"detail": [{"loc": ["body", "cvss_score"], "msg": "Input should be less than or equal to 10", ...}]}
 \`\`\``,
@@ -770,7 +778,7 @@ Para liberar antes, use **Liberar bloqueio** na página do relatório. As altera
       },
       {
         id: 'adm-auditoria', title: 'Logs de auditoria',
-        md: `Menu ➝ *Logs de Auditoria*. Registra logins, criações, alterações, mudanças de status, disparos, exportações, leituras de anexos e liberações de reserva, com quem fez (usuário ou \`api:<prefixo>\` para chaves), quando e de qual IP. Filtre pelo tipo de ação.`,
+        md: `Menu ➝ *Logs de Auditoria*. Registra logins, criações, alterações, mudanças de status, envios, exportações, leituras de anexos e liberações de reserva, com quem fez (usuário ou \`api:<prefixo>\` para chaves), quando e de qual IP. Filtre pelo tipo de ação.`,
       },
     ],
   },
@@ -812,7 +820,7 @@ A report's vulnerabilities follow the report's access.`,
       },
       {
         id: 'operacoes', title: 'Operations and filters',
-        md: `The **Operations** page lists vulnerabilities and reports. Click a row for a summary; open the record for its details. Tick several rows for batch actions (export, dispatch, delete). Items the action doesn't apply to are skipped and reported.
+        md: `The **Operations** page lists vulnerabilities and reports. Click a row for a summary; open the record for its details. Tick several rows for batch actions (export, send, delete). Items the action doesn't apply to are skipped and reported.
 
 Use the **Filter** box. Type \`/\` to see the keys:
 
@@ -841,7 +849,7 @@ Several terms combine with **AND**. The filter is kept in the page address, so y
       },
       {
         id: 'auditoria', title: 'Audit logs', roles: ['auditor'],
-        md: `The **Audit Logs** record sign-ins, creations, changes, status changes, dispatches, exports, attachment reads and reservation releases, with who did it, when and from which IP. Filter by type of action.`,
+        md: `The **Audit Logs** record sign-ins, creations, changes, status changes, sends, exports, attachment reads and reservation releases, with who did it, when and from which IP. Filter by type of action.`,
       },
     ],
   },
@@ -850,19 +858,20 @@ Several terms combine with **AND**. The filter is kept in the page address, so y
     subs: [
       {
         id: 'vuln-criar', title: 'Create a vulnerability',
-        md: `Menu ➝ *Create Vulnerability*. Identifier, Description, Finding Details and Mitigation are required to send it. You are the default operator; use **+** to add operators or people in *Shared with*. Click a name to remove it.`,
+        md: `Menu ➝ *Create Vulnerability*. Identifier, Description, Finding Details and Mitigation are required to complete it. You are the default operator; use **+** to add operators or people in *Shared with*. Click a name to remove it.`,
       },
       {
         id: 'vuln-ciclo', title: 'Lifecycle',
-        md: `1. **Draft:** being written. *Save draft* keeps it without full validation.
-2. **Saved:** complete and ready (*Send*).
-3. **Dispatched:** delivered (*Dispatch*). Its content is now closed for editing.
-4. **Acknowledged:** once the RVS ID is recorded in the *RVS Queue*.
-5. **Waiting fix ➝ Retest pending ➝ Fixed:** follow-up of the fix. A failed retest goes back to *Waiting fix*.`,
+        md: `1. **Draft:** being written. *Save draft* keeps it without full validation. *Complete* needs the required fields and assigns the \`VULN-xxxx\` number.
+2. **Ready:** complete, not sent yet. *Send* delivers it to the responsible team.
+3. **Sent:** delivered, waiting for the RVS ID. Its content is now closed for editing. *Record RVS* (in the *RVS Queue*) starts the fix.
+4. **Fixing:** the responsible team is fixing it. *Request retest* asks the Red Team to verify.
+5. **Retesting:** the Red Team checks the fix. *Pass retest* finishes it; *Fail retest* goes back to *Fixing*.
+6. **Fixed:** fix confirmed; end of the flow.`,
       },
       {
-        id: 'vuln-apos', title: 'After dispatch',
-        md: `After dispatch only operators and internal notes stay editable. If a status was changed by mistake, an administrator can use **Correct status**, which is recorded in the audit log.`,
+        id: 'vuln-apos', title: 'After sending',
+        md: `After sending, only operators and internal notes stay editable. If a status was changed by mistake, an administrator can use **Adjust status**, which is recorded in the audit log.`,
       },
       {
         id: 'vuln-conflitos', title: 'Simultaneous edits',
@@ -870,7 +879,7 @@ Several terms combine with **AND**. The filter is kept in the page address, so y
       },
       {
         id: 'rvs', title: 'RVS Queue',
-        md: `The **RVS Queue** lists dispatched vulnerabilities that have no RVS ID yet. Enter the ID (e.g. \`RVS-2026-001\`) to mark the vulnerability **Acknowledged**. The ID can't be changed afterwards.`,
+        md: `The **RVS Queue** lists sent vulnerabilities that have no RVS ID yet. Enter the ID (e.g. \`RVS-2026-001\`) and use **Record RVS**: the vulnerability moves to **Fixing**. The ID can't be changed afterwards.`,
       },
     ],
   },
@@ -890,8 +899,14 @@ Several terms combine with **AND**. The filter is kept in the page address, so y
         md: `General Information, Report Data, Executive Summary, Introduction, Additional Sections (with their own titles, reorderable), the report's vulnerabilities, evidence and internal notes. Outside editing, the page shows the content as it reads in the report.`,
       },
       {
-        id: 'rel-disparo', title: 'Dispatch and deletion',
-        md: `Delivers the report with its vulnerabilities. If delivery fails, the report says so and can be dispatched again. Only **Draft** reports can be deleted.`,
+        id: 'rel-envio', title: 'Sending, progress and deletion',
+        md: `A report has two statuses: **Draft** and **Sent**. **Send** delivers the report with its vulnerabilities, which get their numbers, become **Sent** and follow the normal flow.
+
+If delivery fails, the report stays a **Draft**, locked for editing, with a *Sending failed* warning and a **Try again** button.
+
+After sending, the portal shows the progress, for example *2 of 5 fixed*. When all are fixed, the report shows as **Completed**; this is worked out for you, nobody marks it.
+
+Only **Draft** reports can be deleted.`,
       },
       {
         id: 'templates', title: 'Templates', roles: CREATORS,
@@ -977,7 +992,7 @@ Lists (\`/vulnerabilities\` and \`/reports\`) come in **last-change** order and 
 - \`cursor\`: pass the \`next_cursor\` you got to fetch the next page. \`null\` means the end.
 - \`updated_since\`: only what was created or changed from that moment on (ISO 8601, e.g. \`2026-10-25T14:00:00Z\`).
 
-\`/vulnerabilities\` filters: \`status\` (repeat for several: \`status=dispatched&status=acknowledged\`), \`source\` (contains), \`report\` (UUID, number, or \`none\` for those outside any report) and \`cvss_min\`. \`/reports\` filters: \`status\` and \`client\` (contains).
+\`/vulnerabilities\` filters: \`status\` (repeat for several: \`status=sent&status=fixing\`), \`source\` (contains), \`report\` (UUID, number, or \`none\` for those outside any report) and \`cvss_min\`. \`/reports\` filters: \`status\` and \`client\` (contains).
 
 **To sync** another system: keep the \`updated_at\` of the last item you processed and, on the next run, ask for \`updated_since\` with that value, following \`next_cursor\` to the end. An item changed again shows up again.
 
@@ -1016,7 +1031,7 @@ Lists (non-deleted) vulnerabilities in last-change order, in pages.
 
 **Parameters** (query)
 
-- \`status\`: one or more statuses; repeat the parameter for several (\`status=dispatched&status=acknowledged\`).
+- \`status\`: one or more statuses; repeat the parameter for several (\`status=sent&status=fixing\`).
 - \`source\`: the source contains the text (case-insensitive).
 - \`report\`: report UUID or number; \`none\` for those outside any report.
 - \`cvss_min\`: CVSS greater or equal (0 to 10).
@@ -1026,7 +1041,7 @@ Lists (non-deleted) vulnerabilities in last-change order, in pages.
 **Response \`200\`**: \`{"items": [...], "next_cursor": "…" | null}\`. Each item has:
 
 - \`id\` (UUID) and \`internal_id\` (\`VULN-xxxx\`, null while it is a draft).
-- \`status\`: \`draft\`, \`saved_local\`, \`dispatching\`, \`dispatched\`, \`acknowledged\`, \`waiting_fix\`, \`pending_retest\` or \`fixed\`.
+- \`status\`: \`draft\`, \`ready\`, \`sent\`, \`fixing\`, \`retesting\` or \`fixed\`.
 - \`identifier\`, \`cwe\`, \`cvss_score\` (number or null), \`source\`, \`rvs_id\` (null until the RVS ID is recorded).
 - \`report\`: \`{id, internal_id, name, status}\` of the report it belongs to, or null.
 - \`created_at\`, \`updated_at\` (UTC).
@@ -1036,7 +1051,7 @@ Lists (non-deleted) vulnerabilities in last-change order, in pages.
 **Example**
 
 \`\`\`
-curl -sS "https://<portal>/api/v1/vulnerabilities?status=acknowledged&limit=1" \\
+curl -sS "https://<portal>/api/v1/vulnerabilities?status=fixing&limit=1" \\
   -H "X-API-Key: $PORTAL_KEY"
 \`\`\`
 
@@ -1046,7 +1061,7 @@ curl -sS "https://<portal>/api/v1/vulnerabilities?status=acknowledged&limit=1" \
     {
       "id": "92157428-3168-4c4e-9031-569928030ee9",
       "internal_id": "VULN-0003",
-      "status": "acknowledged",
+      "status": "fixing",
       "identifier": "Cross-Site Scripting (armazenado) - bi",
       "cwe": "CWE-79",
       "cvss_score": 10,
@@ -1075,7 +1090,7 @@ One complete vulnerability.
 - \`references\` (list of URLs), \`cvss_vector\`.
 - \`operators\`: operator usernames.
 - \`metadata\`: free data sent by the tool that created it.
-- \`saved_local_at\`, \`dispatched_at\`, \`acknowledged_at\`, \`waiting_fix_at\`, \`pending_retest_at\`, \`fixed_at\`: when it reached each status (UTC), or null.
+- \`ready_at\`, \`sent_at\`, \`fixing_at\`, \`retesting_at\`, \`fixed_at\`: when it reached each status (UTC), or null.
 
 Internal notes and the *Shared with* list are not sent.
 
@@ -1091,7 +1106,7 @@ curl -sS https://<portal>/api/v1/vulnerabilities/VULN-0003 -H "X-API-Key: $PORTA
 {
   "id": "92157428-3168-4c4e-9031-569928030ee9",
   "internal_id": "VULN-0003",
-  "status": "acknowledged",
+  "status": "fixing",
   "identifier": "Cross-Site Scripting (armazenado) - bi",
   "cwe": "CWE-79",
   "cvss_score": 10,
@@ -1110,11 +1125,10 @@ curl -sS https://<portal>/api/v1/vulnerabilities/VULN-0003 -H "X-API-Key: $PORTA
     "michelle"
   ],
   "metadata": {},
-  "saved_local_at": "2026-10-08T12:59:30.282810",
-  "dispatched_at": "2026-10-08T12:59:30.301332",
-  "acknowledged_at": "2026-10-08T12:59:30.319272",
-  "waiting_fix_at": null,
-  "pending_retest_at": null,
+  "ready_at": "2026-10-08T12:59:30.282810",
+  "sent_at": "2026-10-08T12:59:30.301332",
+  "fixing_at": "2026-10-08T12:59:30.319272",
+  "retesting_at": null,
   "fixed_at": null
 }
 \`\`\``,
@@ -1192,7 +1206,7 @@ curl -sS -o VULN-0002.pdf "https://<portal>/api/v1/vulnerabilities/VULN-0002/exp
         id: 'api-ep-rvsq', title: 'RVS queue',
         md: `**\`GET /api/v1/rvs-queue\`** · scope \`rvs:write\` or \`vulns:read\`
 
-**Dispatched** vulnerabilities that have no RVS ID yet, longest-waiting first. Not paginated.
+**Sent** vulnerabilities that have no RVS ID yet, longest-waiting first. Not paginated.
 
 **Parameters**: None.
 
@@ -1209,7 +1223,7 @@ curl -sS https://<portal>/api/v1/rvs-queue -H "X-API-Key: $PORTAL_KEY"
   {
     "id": "6598c3c4-c1eb-43d3-8412-3c36d1682462",
     "internal_id": "VULN-0001",
-    "status": "dispatched",
+    "status": "sent",
     "identifier": "Deserialização insegura - erp",
     "cwe": "CWE-502",
     "cvss_score": 3.3,
@@ -1226,17 +1240,17 @@ curl -sS https://<portal>/api/v1/rvs-queue -H "X-API-Key: $PORTAL_KEY"
         id: 'api-ep-rvs', title: 'Record the RVS ID',
         md: `**\`POST /api/v1/vulnerabilities/{ref}/rvs\`** · scope \`rvs:write\`
 
-Records the RVS ID of a dispatched vulnerability, which becomes **Acknowledged**. The ID cannot be changed afterwards. Recorded in the audit log.
+Records the RVS ID of a sent vulnerability, which moves to **Fixing**. The ID cannot be changed afterwards. Recorded in the audit log.
 
 **Parameters**: \`ref\` (path).
 
 **Body** (JSON): \`{"rvs_id": "RVS-2026-001"}\`: text, 1 to 200 characters.
 
-**Response \`200\`**: the full vulnerability (as in *Read a vulnerability*), with \`status: "acknowledged"\` and the \`rvs_id\`.
+**Response \`200\`**: the full vulnerability (as in *Read a vulnerability*), with \`status: "fixing"\` and the \`rvs_id\`.
 
 **Errors**
 
-- \`409\` if it is not dispatched: \`{"detail": "RVS ID can only be set on a dispatched vuln (current: acknowledged)"}\`
+- \`409\` if it is not sent: \`{"detail": "RVS ID can only be set on a sent vuln (current: fixing)"}\`
 - \`409\` if the ID is already set: \`{"detail": "RVS ID is already set"}\`
 - \`404\`; \`422\` for an empty \`rvs_id\`.
 
@@ -1252,9 +1266,9 @@ curl -sS -X POST https://<portal>/api/v1/vulnerabilities/VULN-0001/rvs \\
 {
   "id": "6598c3c4-c1eb-43d3-8412-3c36d1682462",
   "internal_id": "VULN-0001",
-  "status": "acknowledged",
+  "status": "fixing",
   "rvs_id": "RVS-2026-001",
-  "acknowledged_at": "2026-10-25T16:30:02.118204",
+  "fixing_at": "2026-10-25T16:30:02.118204",
   "…": "other fields as in Read a vulnerability"
 }
 \`\`\``,
@@ -1273,13 +1287,13 @@ JSON body of up to **1 MB**. Every field is optional, under the rules below:
 - \`source\` (text, up to 200): the tool it came from, e.g. \`nuclei\`, \`burp\`. Shown in *Sources* and the \`source:\` filter.
 - \`internal_notes\` (Markdown): internal notes.
 - \`operators\` (list of up to 20 **usernames**): **active** users with role Administrator, Editor (all) or Restricted editor.
-- \`status\`: \`"draft"\` (default) or \`"saved_local"\`. The API never creates dispatched vulnerabilities.
+- \`status\`: \`"draft"\` (default) or \`"ready"\`. The API never creates sent vulnerabilities.
 - \`metadata\` (object): free data from the tool, stored as sent. **Unknown fields** in the body go to the metadata too. Limit: 64 KB in total.
 
 Rules:
 
 - At least one of \`identifier\`, \`description\` and \`finding_detail\` must be filled in.
-- \`"saved_local"\` needs \`identifier\`, \`description\`, \`finding_detail\` and \`mitigation\` (the same fields as the *Send* button) and assigns the \`VULN-xxxx\` number at once.
+- \`"ready"\` needs \`identifier\`, \`description\`, \`finding_detail\` and \`mitigation\` (the same fields as the *Complete* button) and assigns the \`VULN-xxxx\` number at once.
 
 \`201\` response:
 
@@ -1287,7 +1301,7 @@ Rules:
 {"id": "72643b23-af52-42d9-a139-c1aea6f70a15", "internal_id": null, "status": "draft"}
 \`\`\`
 
-\`id\` identifies the vulnerability (\`/vulnerabilities/<id>\` in the portal). \`internal_id\` is the \`VULN-xxxx\` number, present only when the status is \`saved_local\`.
+\`id\` identifies the vulnerability (\`/vulnerabilities/<id>\` in the portal). \`internal_id\` is the \`VULN-xxxx\` number, present only when the status is \`ready\`.
 
 **Example**
 
@@ -1315,16 +1329,16 @@ Lists (non-deleted) reports in last-change order, in pages.
 
 **Parameters** (query)
 
-- \`status\`: \`draft\`, \`dispatching\` or \`dispatched\`; repeat for several.
+- \`status\`: \`draft\` or \`sent\`; repeat for several.
 - \`client\`: the client name contains the text.
 - \`updated_since\`, \`limit\`, \`cursor\`: as in *List vulnerabilities*.
 
-**Response \`200\`**: \`{"items": [...], "next_cursor": …}\`. Each item has \`id\`, \`internal_id\` (\`OP-xxxx\`), \`name\`, \`client_name\`, \`status\`, \`start_date\`, \`end_date\` (dates \`AAAA-MM-DD\`), \`dispatched_at\`, \`vulnerability_count\`, \`created_at\`, \`updated_at\`.
+**Response \`200\`**: \`{"items": [...], "next_cursor": …}\`. Each item has \`id\`, \`internal_id\` (\`OP-xxxx\`), \`name\`, \`client_name\`, \`status\`, \`start_date\`, \`end_date\` (dates \`AAAA-MM-DD\`), \`sent_at\`, \`vulnerability_count\`, \`fixed_count\`, \`created_at\`, \`updated_at\`.
 
 **Example**
 
 \`\`\`
-curl -sS "https://<portal>/api/v1/reports?status=dispatched&limit=1" -H "X-API-Key: $PORTAL_KEY"
+curl -sS "https://<portal>/api/v1/reports?status=sent&limit=1" -H "X-API-Key: $PORTAL_KEY"
 \`\`\`
 
 \`\`\`
@@ -1335,11 +1349,12 @@ curl -sS "https://<portal>/api/v1/reports?status=dispatched&limit=1" -H "X-API-K
       "internal_id": "OP-0001",
       "name": "Pentest Aplicação Web - Portal do Cliente",
       "client_name": "Banco Aurora S.A.",
-      "status": "dispatched",
+      "status": "sent",
       "start_date": "2026-08-03",
       "end_date": "2026-08-21",
-      "dispatched_at": "2026-10-08T12:59:35.258463",
+      "sent_at": "2026-10-08T12:59:35.258463",
       "vulnerability_count": 3,
+      "fixed_count": 0,
       "created_at": "2026-10-08T12:59:35.029437",
       "updated_at": "2026-10-08T12:59:35.204803"
     }
@@ -1381,11 +1396,12 @@ curl -sS https://<portal>/api/v1/reports/OP-0001 -H "X-API-Key: $PORTAL_KEY"
   "internal_id": "OP-0001",
   "name": "Pentest Aplicação Web - Portal do Cliente",
   "client_name": "Banco Aurora S.A.",
-  "status": "dispatched",
+  "status": "sent",
   "start_date": "2026-08-03",
   "end_date": "2026-08-21",
-  "dispatched_at": "2026-10-08T12:59:35.258463",
+  "sent_at": "2026-10-08T12:59:35.258463",
   "vulnerability_count": 3,
+  "fixed_count": 0,
   "created_at": "2026-10-08T12:59:35.029437",
   "updated_at": "2026-10-08T12:59:35.204803",
   "test_type": "Pentest",
@@ -1409,7 +1425,7 @@ curl -sS https://<portal>/api/v1/reports/OP-0001 -H "X-API-Key: $PORTAL_KEY"
     {
       "id": "e4a61965-ab90-41f6-b0d3-d05db0816f74",
       "internal_id": "VULN-0074",
-      "status": "dispatched",
+      "status": "sent",
       "identifier": "Falta de rate limiting - intranet",
       "cwe": "CWE-770",
       "cvss_score": 8.1,
@@ -1419,7 +1435,7 @@ curl -sS https://<portal>/api/v1/reports/OP-0001 -H "X-API-Key: $PORTAL_KEY"
         "id": "056c3eee-6d69-47c2-876a-f099dcbc45f9",
         "internal_id": "OP-0001",
         "name": "Pentest Aplicação Web - Portal do Cliente",
-        "status": "dispatched"
+        "status": "sent"
       },
       "created_at": "2026-10-08T12:59:35.119620",
       "updated_at": "2026-10-08T12:59:35.204803"
@@ -1474,12 +1490,12 @@ curl -sS https://<portal>/api/health
 - \`401\`: missing, invalid, revoked or expired key. \`{"detail": "Invalid or missing API key"}\`
 - \`403\`: the key lacks the endpoint's scope. \`{"detail": "This API key lacks the scope 'rvs:write'"}\`
 - \`404\`: the record doesn't exist (or was deleted).
-- \`409\`: the action doesn't fit the current status, e.g. an RVS ID on a vulnerability not dispatched, or already set.
+- \`409\`: the action doesn't fit the current status, e.g. an RVS ID on a vulnerability not sent, or already set.
 - \`413\`: body over 1 MB.
 - \`422\`: invalid data or parameters (an invalid \`cursor\` included). Examples:
 
 \`\`\`
-{"detail": "Required for status 'saved_local': description, finding_detail, mitigation"}
+{"detail": "Required for status 'ready': description, finding_detail, mitigation"}
 {"detail": "unknown operator(s): nobody; operator(s) not active writers: isabella"}
 {"detail": [{"loc": ["body", "cvss_score"], "msg": "Input should be less than or equal to 10", ...}]}
 \`\`\``,
@@ -1540,7 +1556,7 @@ To release it sooner, use **Release lock** on the report page. The holder's unsa
       },
       {
         id: 'adm-auditoria', title: 'Audit logs',
-        md: `Menu ➝ *Audit Logs*. Records sign-ins, creations, changes, status changes, dispatches, exports, attachment reads and reservation releases, with who did it (a user, or \`api:<prefix>\` for keys), when and from which IP. Filter by type of action.`,
+        md: `Menu ➝ *Audit Logs*. Records sign-ins, creations, changes, status changes, sends, exports, attachment reads and reservation releases, with who did it (a user, or \`api:<prefix>\` for keys), when and from which IP. Filter by type of action.`,
       },
     ],
   },

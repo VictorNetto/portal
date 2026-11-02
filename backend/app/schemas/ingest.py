@@ -1,8 +1,8 @@
 """Inbound (machine) vulnerability payload — SPEC §11.
 
 Required-ness depends on the requested initial status (see services/ingest.py):
-a `draft` only needs *something* meaningful, while `saved_local` needs the same
-fields the UI demands before "Enviar". Unknown top-level fields are accepted and
+a `draft` only needs *something* meaningful, while `ready` needs the same
+fields the UI demands before "Concluir". Unknown top-level fields are accepted and
 kept as extra metadata, so scanners can send their own data without us having
 to model it.
 """
@@ -34,7 +34,7 @@ class IngestVuln(BaseModel):
     internal_notes: str | None = Field(default=None, max_length=100_000)
 
     # The caller decides the initial status per request (no system default).
-    status: Literal["draft", "saved_local"] = "draft"
+    status: Literal["draft", "ready"] = "draft"
     # Usernames of the operators to assign.
     operators: list[str] = Field(default_factory=list, max_length=20)
     # Free-form data from the tool; merged with any unknown top-level fields.

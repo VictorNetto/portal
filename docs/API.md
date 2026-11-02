@@ -43,10 +43,10 @@ schemas so integrations don't follow UI changes).
 | `GET /v1/vulnerabilities/{ref}/attachments` | `vulns:read` | evidence metadata |
 | `GET /v1/attachments/{id}/content` | `vulns:read` / `reports:read` | evidence file; needs the scope of its owner (404 otherwise) |
 | `GET /v1/vulnerabilities/{ref}/export?format=pdf\|docx` | `exports` | same file as the UI export |
-| `GET /v1/rvs-queue` | `rvs:write` or `vulns:read` | dispatched, no RVS ID yet, oldest first |
-| `POST /v1/vulnerabilities/{ref}/rvs` `{"rvs_id"}` | `rvs:write` | dispatched → acknowledged; 409 otherwise or when already set |
+| `GET /v1/rvs-queue` | `rvs:write` or `vulns:read` | sent, no RVS ID yet, oldest first |
+| `POST /v1/vulnerabilities/{ref}/rvs` `{"rvs_id"}` | `rvs:write` | sent → fixing; 409 otherwise or when already set |
 | `POST /v1/vulnerabilities` | `vulns:write` | create (below) |
-| `GET /v1/reports` | `reports:read` | summaries; filters `status`, `client`, `updated_since`; paging |
+| `GET /v1/reports` | `reports:read` | summaries with `vulnerability_count` and `fixed_count`; filters `status`, `client`, `updated_since`; paging |
 | `GET /v1/reports/{ref}` | `reports:read` | full report with sections, vulnerability summaries, evidence list |
 | `GET /v1/reports/{ref}/export?format=pdf\|xlsx\|docx` | `exports` | same files as the UI export |
 | `GET /health` | none | liveness |
@@ -74,14 +74,14 @@ system in sync. Times are UTC. `updated_at` is maintained by the DB on every row
 | `source` | string ≤ 200 | e.g. `nuclei`, `burp` |
 | `internal_notes` | string | |
 | `operators` | string[] ≤ 20 | **usernames**; active `admin`, `write_all` or `write_restricted` accounts |
-| `status` | `"draft"` (default) \| `"saved_local"` | the caller decides per request |
+| `status` | `"draft"` (default) \| `"ready"` | the caller decides per request |
 | `metadata` | object | stored as-is; ≤ 64 KB together with unknown fields |
 | *(any other field)* | any | stored in metadata |
 
 - At least one of `identifier`, `description`, `finding_detail` must be non-blank.
-- `saved_local` also requires `identifier`, `description`, `finding_detail` and `mitigation` (as the
-  UI's *Enviar*) and assigns the `VULN-xxxx` number.
-- Never creates a `dispatched` (or later) vulnerability.
+- `ready` also requires `identifier`, `description`, `finding_detail` and `mitigation` (as the
+  UI's *Concluir*) and assigns the `VULN-xxxx` number.
+- Never creates a `sent` (or later) vulnerability.
 
 Response `201 {"id": "…", "internal_id": null, "status": "draft"}`.
 
@@ -92,7 +92,7 @@ Response `201 {"id": "…", "internal_id": null, "status": "draft"}`.
 | 401 | missing / invalid / revoked / expired key |
 | 403 | the key lacks the endpoint's scope |
 | 404 | record not found (or deleted) |
-| 409 | not allowed in the current status (e.g. RVS on a non-dispatched vuln, or already set) |
+| 409 | not allowed in the current status (e.g. RVS on a vuln not sent, or already set) |
 | 413 | body over 1 MB |
 | 422 | validation failed, including an invalid `cursor` (the `detail` says what) |
 

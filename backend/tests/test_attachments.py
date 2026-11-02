@@ -81,10 +81,10 @@ def test_content_requires_authentication(writer):
     assert httpx.get(f"{BASE_URL}/attachments/{att['id']}/content").status_code == 401
 
 
-def test_attachments_lock_once_the_vuln_is_dispatched(writer):
-    v = saved_vuln(writer)                                            # saved_local: still attachable
+def test_attachments_lock_once_the_vuln_is_sent_vuln(writer):
+    v = saved_vuln(writer)                                            # ready: still attachable
     att = upload(writer, path(v), "a.txt", b"hello").json()
-    writer.post(f"/vulnerabilities/{v['id']}/dispatch")
+    writer.post(f"/vulnerabilities/{v['id']}/send")
     assert upload(writer, path(v), "b.txt", b"x").status_code == 409
     assert writer.delete(f"/attachments/{att['id']}").status_code == 409
     assert writer.get(f"/attachments/{att['id']}/content").status_code == 200   # reading stays possible

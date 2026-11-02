@@ -18,20 +18,19 @@ class UserRole(str, enum.Enum):
 
 
 class VulnStatus(str, enum.Enum):
-    draft = "draft"
-    saved_local = "saved_local"
-    dispatching = "dispatching"  # transient (D2): render + send in progress
-    dispatched = "dispatched"
-    acknowledged = "acknowledged"
-    waiting_fix = "waiting_fix"
-    pending_retest = "pending_retest"
-    fixed = "fixed"
+    """D14. draft -complete-> ready -send-> sent -RVS ID-> fixing <-> retesting -> fixed"""
+    draft = "draft"          # Rascunho
+    ready = "ready"          # Pronta
+    sent = "sent"            # Enviada
+    fixing = "fixing"        # Em correção
+    retesting = "retesting"  # Em reteste
+    fixed = "fixed"          # Corrigida
 
 
 class ReportStatus(str, enum.Enum):
-    draft = "draft"
-    dispatching = "dispatching"  # transient (D2)
-    dispatched = "dispatched"
+    """D14. A send in progress or failed is `reports.sending`, not a status."""
+    draft = "draft"  # Rascunho
+    sent = "sent"    # Enviado
 
 
 class AuditAction(str, enum.Enum):
@@ -43,7 +42,7 @@ class AuditAction(str, enum.Enum):
     delete = "delete"
     status_change = "status_change"
     export = "export"
-    dispatch = "dispatch"
+    send = "send"
     api_key_create = "api_key_create"
     api_key_revoke = "api_key_revoke"
     permission_change = "permission_change"

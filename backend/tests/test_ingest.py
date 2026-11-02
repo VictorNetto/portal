@@ -85,17 +85,18 @@ def test_extra_fields_are_kept_as_metadata(key):
     assert meta == {"host": "a.example", "scan_id": "SC-9"}
 
 
-def test_saved_local_needs_the_ui_required_fields_and_gets_an_id(key):
-    full = {"identifier": f"pytest-{tag()}", "description": "d", "finding_detail": "f", "mitigation": "m", "status": "saved_local"}
+def test_ready_needs_the_ui_required_fields_and_gets_an_id(key):
+    full = {"identifier": f"pytest-{tag()}", "description": "d", "finding_detail": "f", "mitigation": "m", "status": "ready"}
     r = post(key, full)
-    assert r.status_code == 201 and r.json()["status"] == "saved_local" and r.json()["internal_id"].startswith("VULN-")
-    partial = post(key, {"identifier": f"pytest-{tag()}", "status": "saved_local"})
+    assert r.status_code == 201 and r.json()["status"] == "ready" and r.json()["internal_id"].startswith("VULN-")
+    partial = post(key, {"identifier": f"pytest-{tag()}", "status": "ready"})
     assert partial.status_code == 422 and "description" in partial.json()["detail"]
 
 
-def test_cannot_ingest_beyond_saved_local(key):
-    assert post(key, {"identifier": "pytest-x", "status": "dispatched"}).status_code == 422
-    assert post(key, {"identifier": "pytest-x", "status": "acknowledged"}).status_code == 422
+def test_cannot_ingest_beyond_ready(key):
+    assert post(key, {"identifier": "pytest-x", "status": "sent"}).status_code == 422
+    assert post(key, {"identifier": "pytest-x", "status": "fixing"}).status_code == 422
+    assert post(key, {"identifier": "pytest-x", "status": "saved_local"}).status_code == 422
 
 
 @pytest.mark.parametrize("payload", [

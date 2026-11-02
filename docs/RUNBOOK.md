@@ -41,7 +41,7 @@ alias dc='docker compose -f docker-compose.prod.yml --env-file .env.production'
    ```
 6. Open `https://<PORTAL_SERVER_NAME>`, log in as `admin` — you are forced to set a new password immediately.
 7. **Set up backups now** (section 4) and take a first one.
-8. Email: set `DISPATCH_TRANSPORT=smtp`, `DISPATCH_TO` and the `SMTP_*` values in `.env.production`, then `dc up -d api`. Until then dispatch only logs (`stub`) and nothing is sent. A dispatch that cannot deliver leaves the report in *dispatching* with the error shown; fix the settings and press **Tentar novamente**.
+8. Email: set `DISPATCH_TRANSPORT=smtp`, `DISPATCH_TO` and the `SMTP_*` values in `.env.production`, then `dc up -d api`. Until then sending only logs (`stub`) and nothing is delivered. A send that cannot deliver leaves the report in *Rascunho*, frozen, with *Falha no envio* and the error shown; fix the settings and press **Tentar novamente**.
 
 What is exposed: only nginx publishes ports (80 → redirect, 443). `db`, `api` and `web` are reachable only on the private Docker network.
 
@@ -116,6 +116,6 @@ Disaster recovery on a new machine: do sections 1.1–1.4 (code, `.env.productio
 | nginx will not start, *cannot load certificate* | `certs/fullchain.pem` / `privkey.pem` missing or not readable; mismatched pair |
 | `502 Bad Gateway` right after an update | api still starting or migrations pending: `dc logs api`, then `dc run --rm api alembic upgrade head` |
 | Uploads fail with `413` | file over 50 MB (app limit) or over 100 MB (proxy limit) |
-| Report stuck in **dispatching** | email delivery failed — the error is shown on the report; fix `SMTP_*` / `DISPATCH_TO`, then **Tentar novamente**. Nothing is re-issued: the VULN ids are already assigned |
+| Report frozen with **Falha no envio** | email delivery failed — the error is shown on the report; fix `SMTP_*` / `DISPATCH_TO`, then **Tentar novamente**. Nothing is re-issued: the VULN ids are already assigned |
 | Audit log shows the same IP for everyone | requests are not coming through the nginx container (bypassing the proxy) |
 | Someone left a report locked | the lock frees itself after 10 minutes of inactivity; an admin can also force-release it on the report page |

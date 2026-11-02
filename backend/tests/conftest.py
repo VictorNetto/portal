@@ -131,14 +131,14 @@ def new_vuln(c: Client, **fields) -> dict:
 
 def saved_vuln(c: Client, **fields) -> dict:
     v = new_vuln(c, **fields)
-    r = c.post(f"/vulnerabilities/{v['id']}/send")
+    r = c.post(f"/vulnerabilities/{v['id']}/complete")
     assert r.status_code == 200, r.text
     return r.json()
 
 
-def acknowledged_vuln(c: Client, **fields) -> dict:
+def fixing_vuln(c: Client, **fields) -> dict:
     v = saved_vuln(c, **fields)
-    assert c.post(f"/vulnerabilities/{v['id']}/dispatch").status_code == 200
+    assert c.post(f"/vulnerabilities/{v['id']}/send").status_code == 200
     r = c.post(f"/vulnerabilities/{v['id']}/rvs", {"rvs_id": f"RVS-pytest-{tag()}"})
     assert r.status_code == 200, r.text
     return r.json()

@@ -95,6 +95,16 @@ def update_vuln(
     return svc.update(session, vuln_id, body, user, request)
 
 
+@router.post("/{vuln_id}/complete", response_model=VulnOut)
+def complete_vuln(
+    vuln_id: uuid.UUID,
+    request: Request,
+    user: User = Depends(_writer),
+    session: Session = Depends(get_session),
+) -> VulnOut:
+    return svc.complete(session, vuln_id, user, request)
+
+
 @router.post("/{vuln_id}/send", response_model=VulnOut)
 def send_vuln(
     vuln_id: uuid.UUID,
@@ -103,16 +113,6 @@ def send_vuln(
     session: Session = Depends(get_session),
 ) -> VulnOut:
     return svc.send(session, vuln_id, user, request)
-
-
-@router.post("/{vuln_id}/dispatch", response_model=VulnOut)
-def dispatch_vuln(
-    vuln_id: uuid.UUID,
-    request: Request,
-    user: User = Depends(_writer),
-    session: Session = Depends(get_session),
-) -> VulnOut:
-    return svc.dispatch_vuln(session, vuln_id, user, request)
 
 
 @router.post("/{vuln_id}/rvs", response_model=VulnOut)

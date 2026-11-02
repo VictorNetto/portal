@@ -8,8 +8,8 @@ A self-hosted web platform for a professional red team to **manage, document, an
 
 | Area | Highlights |
 |---|---|
-| **Vulnerabilities** | Draft → sent → dispatched → acknowledged (RVS id) → waiting fix → retest loop → fixed; field locks per status; optimistic concurrency; admin status correction with audit; operators; timeline |
-| **Reports** | OP-xxxx ids, write lock (10 min idle, admin force-release), Markdown sections, free-form extra sections, vulnerabilities inside the report, evidence files, two-phase dispatch with retry |
+| **Vulnerabilities** | Draft → ready → sent → fixing (RVS id) ⇄ retesting → fixed (D14); field locks per status; optimistic concurrency; admin status adjustment with audit; operators; timeline |
+| **Reports** | OP-xxxx ids, write lock (10 min idle, admin force-release), Markdown sections, free-form extra sections, vulnerabilities inside the report, evidence files, two-phase send with retry, progress after sending |
 | **Editor** | Markdown editor with preview, line gutter, image paste/drop (stored as attachments), safe renderer |
 | **Attachments** | Pluggable storage (local volume or S3/MinIO), type/content validation, 50 MB cap, proxied + audited reads |
 | **Exports** | PDF, Excel and Word for reports; PDF/Word for a vulnerability; batch ZIP/Excel from the Hub. Internal notes are never exported |
@@ -61,7 +61,7 @@ docker compose exec api python -m pytest tests -q
 
 Lint with `pip install ruff && cd backend && ruff check app tests` (configuration in `backend/pyproject.toml`).
 
-It covers authentication and the forced password change, the vulnerability lifecycle and corrections, attachments (validation and access rules), the report lock, sections, dispatch (including the failure → retry path), exports, and the integration API. By default it logs in as `admin` / `admin` (dev only); override with `TEST_ADMIN_USER` / `TEST_ADMIN_PASSWORD`.
+It covers authentication and the forced password change, the vulnerability lifecycle and corrections, attachments (validation and access rules), the report lock, sections, sending (including the failure → retry path), exports, and the integration API. By default it logs in as `admin` / `admin` (dev only); override with `TEST_ADMIN_USER` / `TEST_ADMIN_PASSWORD`.
 
 ## Production
 
@@ -76,7 +76,7 @@ docker compose -f docker-compose.prod.yml --env-file .env.production up -d
 
 Step-by-step procedures (first deployment, updates, certificates, backups and restores, troubleshooting) are in **[docs/RUNBOOK.md](docs/RUNBOOK.md)**. The API refuses to start in production with the development `JWT_SECRET`.
 
-The UI has a browser suite too (`e2e/`, Playwright: 37 tests over login and the forced password change, the vulnerability form, the Hub, reports and their lock, dispatch and exports, the lifecycle and the admin pages). See [e2e/README.md](e2e/README.md) for the one-line command.
+The UI has a browser suite too (`e2e/`, Playwright: 37 tests over login and the forced password change, the vulnerability form, the Hub, reports and their lock, sending and exports, the lifecycle and the admin pages). See [e2e/README.md](e2e/README.md) for the one-line command.
 
 ## Repository layout
 
@@ -103,10 +103,10 @@ prototypes/       Original HTML prototypes of the screens
 
 ## Core concepts
 
-- **Vulnerability** — a finding; standalone (`report_id = NULL`) or owned by a report. Inside a draft report it has no life of its own and is edited under the report's lock; once the report is dispatched it joins the normal list.
-- **Report** — an operation: metadata, narrative sections, its vulnerabilities and an evidence bundle, dispatched as a unit.
-- **Dispatch** — two phases (decision D2): everything moves to `dispatching` in one transaction, then the package is rendered and delivered; a delivery failure leaves it in `dispatching` so it can be retried.
-- **RVS** — the blue team's own tracking id, entered after dispatch to move a vulnerability to `acknowledged`.
+- **Vulnerability** — a finding; standalone (`report_id = NULL`) or owned by a report. Inside a draft report it has no life of its own and is edited under the report's lock; once the report is sent it joins the normal list.
+- **Report** — an operation: metadata, narrative sections, its vulnerabilities and an evidence bundle, sent as a unit.
+- **Send** — two phases (decision D2): the report is frozen (`sending`) in one transaction, then the package is rendered and delivered; a delivery failure leaves it a frozen draft so it can be retried.
+- **RVS** — the blue team's own tracking id, entered after sending to move a vulnerability to `fixing`.
 - **Operator** — a platform user assigned to vulnerabilities/reports.
 
 ## Which file is "the" spec?
@@ -118,7 +118,7 @@ Earlier numbered duplicates are preserved under the respective `archive/` folder
 
 ## Known gaps
 
-- Several **permission constraints** (who may delete, dispatch or reassign what) are catalogued but not yet decided — the current rule is "any writer".
+- Several **permission constraints** (who may delete, send or reassign what) are catalogued but not yet decided — the current rule is "any writer".
 - Date-based filters in the Hub (`created:`, `updated:`…) are designed but waiting on a product decision.
 - `DISPATCH_TRANSPORT=smtp` is verified against a test SMTP server only; Azure Communication Services is not wired.
 - The production stack has been exercised on a throwaway server (self-signed certificate) but not yet on the real VM with the org certificate.

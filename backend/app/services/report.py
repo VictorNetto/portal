@@ -1,7 +1,7 @@
 """Report business rules (SPEC §3, §6, §7, §15.5–15.7; decisions D1, D4).
 
 Reports are edited under a write lock (see report_lock). A draft report owns its
-vulnerabilities; deleting the draft removes them too (D1). Once dispatched the
+vulnerabilities; deleting the draft removes them too (D1). Once sent the
 report is immutable except for its internal notes.
 """
 
@@ -102,6 +102,7 @@ def _lock_info(session: Session, report: Report, user: User) -> LockInfo | None:
 def _base(session: Session, report: Report, user: User, vulns: list[Vulnerability]) -> dict:
     scored = [float(v.cvss_score) for v in vulns if v.cvss_score is not None]
     return dict(
+        fixed_count=sum(v.status == VulnStatus.fixed for v in vulns),
         id=report.id, internal_id=report.internal_id, name=report.name,
         client_name=report.client_name, status=report.status,
         operators=[OperatorRef.model_validate(o) for o in report.operators],
@@ -109,7 +110,7 @@ def _base(session: Session, report: Report, user: User, vulns: list[Vulnerabilit
         created_by=report.created_by,
         vuln_count=len(vulns), max_cvss=max(scored) if scored else None,
         start_date=report.start_date, end_date=report.end_date,
-        lock=_lock_info(session, report, user), dispatched_at=report.dispatched_at,
+        lock=_lock_info(session, report, user), sent_at=report.sent_at,
         created_at=report.created_at, updated_at=report.updated_at,
     )
 
@@ -123,7 +124,7 @@ def to_out(session: Session, report: Report, user: User) -> ReportOut:
     sections = sorted(report.sections, key=lambda s: s.position)
     return ReportOut(
         **_base(session, report, user, vulns),
-        dispatch_error=report.dispatch_error,
+        sending=report.sending, send_error=report.send_error,
         executive_summary_md=report.executive_summary_md,
         introduction_md=report.introduction_md,
         test_type=report.test_type, demand_origin=report.demand_origin,
@@ -222,17 +223,17 @@ def update(
     if "name" in changes and not (changes["name"] or "").strip():
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "name cannot be empty")
 
-    if report.status == ReportStatus.dispatched:
+    if report.status == ReportStatus.sent:
         # Immutable, except internal notes and sharing (no lock needed: single field each).
         extra = requested - {"internal_notes", "viewers"}
         if extra:
             raise HTTPException(
                 status.HTTP_422_UNPROCESSABLE_ENTITY,
-                "A dispatched report only allows internal_notes and sharing: "
+                "A sent report only allows internal_notes and sharing: "
                 + ", ".join(sorted(extra)),
             )
     else:
-        report_lock.require_editable(report, user)  # 409 if dispatching / no lock
+        report_lock.require_editable(report, user)  # 409 if being sent / no lock
 
     start = changes.get("start_date", report.start_date)
     end = changes.get("end_date", report.end_date)
@@ -262,7 +263,7 @@ def delete(session: Session, report_id: uuid.UUID, user: User, request: Request)
     """D1: only a draft report can be deleted; its (draft) vulns go with it."""
     report = get_report(session, report_id, user, for_update=True)
     access.require_delete_report(user, report)
-    if report.status != ReportStatus.draft:
+    if report.status != ReportStatus.draft or report.sending:
         raise HTTPException(
             status.HTTP_409_CONFLICT, "Only draft reports can be deleted (D1)"
         )
@@ -288,10 +289,8 @@ def delete(session: Session, report_id: uuid.UUID, user: User, request: Request)
 
 def acquire_lock(session: Session, report_id: uuid.UUID, user: User) -> ReportOut:
     report = get_report(session, report_id, user, for_update=True, write=True)
-    if report.status != ReportStatus.draft:
-        raise HTTPException(
-            status.HTTP_409_CONFLICT, f"A {report.status.value} report is not editable"
-        )
+    if report.status != ReportStatus.draft or report.sending:
+        raise HTTPException(status.HTTP_409_CONFLICT, "This report is no longer editable")
     now = report_lock.utcnow()
     if report_lock.is_active(report, now) and report.lock_user_id != user.id:
         holder = session.get(User, report.lock_user_id)

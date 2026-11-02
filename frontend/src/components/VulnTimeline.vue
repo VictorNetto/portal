@@ -1,6 +1,6 @@
 <script setup>
-// Lifecycle timeline of a vulnerability: when it was created, sent, dispatched,
-// acknowledged (with its RVS id), and so on. Steps not yet reached stay dimmed.
+// Lifecycle timeline of a vulnerability: when it was created, completed, sent,
+// put in fixing (with its RVS id), and so on. Steps not yet reached stay dimmed.
 // Works with both the list row (Hub panel) and the full record (detail page).
 import { computed } from 'vue'
 import { t } from '../i18n'
@@ -16,11 +16,10 @@ const props = defineProps({
 // `status` is the vuln status that makes this step the "current" one.
 const STEPS = [
   { key: 'created', at: 'created_at', status: 'draft' },
-  { key: 'saved_local', at: 'saved_local_at', status: 'saved_local' },
-  { key: 'dispatched', at: 'dispatched_at', status: 'dispatched' },
-  { key: 'acknowledged', at: 'acknowledged_at', status: 'acknowledged' },
-  { key: 'waiting_fix', at: 'waiting_fix_at', status: 'waiting_fix' },
-  { key: 'pending_retest', at: 'pending_retest_at', status: 'pending_retest' },
+  { key: 'ready', at: 'ready_at', status: 'ready' },
+  { key: 'sent', at: 'sent_at', status: 'sent' },
+  { key: 'fixing', at: 'fixing_at', status: 'fixing' },
+  { key: 'retesting', at: 'retesting_at', status: 'retesting' },
   { key: 'fixed', at: 'fixed_at', status: 'fixed' },
 ]
 
@@ -49,7 +48,7 @@ const lineDone = (i) => steps.value[i + 1]?.reached
           {{ fmtDate(s.value) }}<span class="time">{{ fmtTime(s.value) }}</span>
         </div>
         <div v-else class="when none">—</div>
-        <div v-if="!compact && s.key === 'acknowledged' && vuln.rvs_id" class="rvs mono">{{ vuln.rvs_id }}</div>
+        <div v-if="!compact && s.key === 'fixing' && vuln.rvs_id" class="rvs mono">{{ vuln.rvs_id }}</div>
       </li>
     </ol>
     <div v-if="!compact && vuln.updated_at" class="updated">

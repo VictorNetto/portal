@@ -40,7 +40,7 @@ _TYPES: dict[str, tuple[str, bool]] = {
 
 # Attachments follow the vuln's content-field lock (SPEC §4): only editable
 # while the vuln is still a draft / saved locally.
-_ATTACHABLE = {VulnStatus.draft, VulnStatus.saved_local}
+_ATTACHABLE = {VulnStatus.draft, VulnStatus.ready}
 
 
 def _looks_like_text(head: bytes) -> bool:

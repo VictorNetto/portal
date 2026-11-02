@@ -1,14 +1,14 @@
-"""Report dispatch and export (SPEC §9, D2).
+"""Report send and export (SPEC §9, D2).
 
-Dispatch runs in two phases so a delivery failure can never masquerade as a
-completed dispatch:
+Sending runs in two phases so a delivery failure can never masquerade as a
+completed send:
 
-  Phase 1 (one DB transaction): report + linked vulns  draft -> dispatching,
-          VULN-xxxx ids assigned, lock cleared. Committed before anything is sent.
+  Phase 1 (one DB transaction): report frozen (`sending`), VULN-xxxx ids
+          assigned, lock cleared. Committed before anything is sent.
   Phase 2 (re-locked, outside phase 1): render PDF + Excel, gather non-image
-          attachments, call the dispatcher. On success everything becomes
-          `dispatched`; on failure it stays `dispatching` with the error recorded
-          and the operator retries the same endpoint.
+          attachments, call the dispatcher. On success the report and its vulns
+          become `sent`; on failure they stay drafts, the report stays frozen
+          with the error recorded, and the operator retries the same endpoint.
 """
 
 import io
@@ -118,15 +118,15 @@ def _body(report: Report, vulns: list[Vulnerability]) -> str:
 
 # --- dispatch --------------------------------------------------------------------------------
 
-def dispatch(
+def send(
     session: Session, report_id: uuid.UUID, user: User, request: Request
 ) -> ReportOut:
     report = report_svc.get_report(session, report_id, user, for_update=True, write=True)
 
-    if report.status == ReportStatus.dispatched:
-        raise HTTPException(status.HTTP_409_CONFLICT, "The report is already dispatched")
+    if report.status == ReportStatus.sent:
+        raise HTTPException(status.HTTP_409_CONFLICT, "The report is already sent")
 
-    if report.status == ReportStatus.draft:
+    if not report.sending:
         # --- preconditions: the caller holds the lock; every vuln has an identifier (D3)
         report_lock.require_editable(report, user)
         vulns = report_svc._vulns_of(session, report)
@@ -135,26 +135,19 @@ def dispatch(
             raise HTTPException(
                 status.HTTP_422_UNPROCESSABLE_ENTITY,
                 f"{len(missing)} vulnerability(ies) have no identifier — fill it in before "
-                "dispatching (D3)",
+                "sending (D3)",
             )
         # --- Phase 1: one atomic transaction
         for v in vulns:  # already CVSS-descending, so VULN numbers follow severity
-            v.status = VulnStatus.dispatching
             v.internal_id = _next_vuln_internal_id(session)
             v.version += 1
-            audit.record(
-                session, action=AuditAction.status_change, user_id=user.id,
-                entity_type="vulnerability", entity_id=v.id,
-                detail={"from": "draft", "to": "dispatching", "report_id": str(report.id)},
-                request=request,
-            )
-        report.status = ReportStatus.dispatching
-        report.dispatch_error = None
+        report.sending = True
+        report.send_error = None
         report.lock_user_id = None
         report.lock_acquired_at = None
         report.lock_last_activity_at = None
         audit.record(
-            session, action=AuditAction.dispatch, user_id=user.id,
+            session, action=AuditAction.send, user_id=user.id,
             entity_type="report", entity_id=report.id,
             detail={"phase": 1, "vulns": len(vulns)}, request=request,
         )
@@ -162,8 +155,8 @@ def dispatch(
 
     # --- Phase 2: render + deliver. Re-lock the row so two retries can't both send.
     report = report_svc.get_report(session, report_id, user, for_update=True, write=True)
-    if report.status == ReportStatus.dispatched:  # a concurrent retry finished first
-        raise HTTPException(status.HTTP_409_CONFLICT, "The report is already dispatched")
+    if report.status == ReportStatus.sent:  # a concurrent retry finished first
+        raise HTTPException(status.HTTP_409_CONFLICT, "The report is already sent")
     vulns = report_svc._vulns_of(session, report)
 
     try:
@@ -180,36 +173,36 @@ def dispatch(
         result = dispatcher.dispatch(DISPATCH_TARGET, payload)
         if not result.ok:
             raise RuntimeError(result.detail or "dispatcher reported a failure")
-    except Exception as exc:  # any failure keeps the report in `dispatching`
-        report.dispatch_error = str(exc)[:500]
+    except Exception as exc:  # any failure keeps the report frozen, ready for a retry
+        report.send_error = str(exc)[:500]
         audit.record(
-            session, action=AuditAction.dispatch, user_id=user.id,
+            session, action=AuditAction.send, user_id=user.id,
             entity_type="report", entity_id=report.id,
-            detail={"phase": 2, "ok": False, "error": report.dispatch_error}, request=request,
+            detail={"phase": 2, "ok": False, "error": report.send_error}, request=request,
         )
         session.commit()
         raise HTTPException(
             status.HTTP_502_BAD_GATEWAY,
-            "Delivery failed; the report stays in 'dispatching'. Retry the dispatch. "
-            f"({report.dispatch_error})",
+            f"Delivery failed; the report was not sent. Try again. ({report.send_error})",
         ) from exc
 
     now = report_lock.utcnow()
     for v in vulns:
-        v.status = VulnStatus.dispatched
-        v.dispatched_at = now
+        v.status = VulnStatus.sent
+        v.sent_at = now
         v.version += 1
         audit.record(
             session, action=AuditAction.status_change, user_id=user.id,
             entity_type="vulnerability", entity_id=v.id,
-            detail={"from": "dispatching", "to": "dispatched", "report_id": str(report.id)},
+            detail={"from": "draft", "to": "sent", "report_id": str(report.id)},
             request=request,
         )
-    report.status = ReportStatus.dispatched
-    report.dispatched_at = now
-    report.dispatch_error = None
+    report.status = ReportStatus.sent
+    report.sent_at = now
+    report.sending = False
+    report.send_error = None
     audit.record(
-        session, action=AuditAction.dispatch, user_id=user.id,
+        session, action=AuditAction.send, user_id=user.id,
         entity_type="report", entity_id=report.id,
         detail={"phase": 2, "ok": True, "transport": result.transport,
                 "attachments": len(payload.attachments)}, request=request,

@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs'
 import { expect, test } from '@playwright/test'
-import { acknowledgedVuln, adminToken, api, cleanup, createUser, newReport, newVuln, reportVuln, savedVuln, tag } from '../support/api.js'
+import { fixingVuln, adminToken, api, cleanup, createUser, newReport, newVuln, reportVuln, savedVuln, tag } from '../support/api.js'
 import { autoDialogs, filterHub, loginUI, rowCount } from '../support/ui.js'
 
 let admin
@@ -47,7 +47,7 @@ test.describe('operations hub', () => {
 
     await filterHub(page, `e2e-f-${unique}`)
     expect(await rowCount(page)).toBe(2)
-    await filterHub(page, `e2e-f-${unique} status:saved_local`)
+    await filterHub(page, `e2e-f-${unique} status:ready`)
     expect(await rowCount(page)).toBe(1)
     await filterHub(page, `e2e-f-${unique} cvss:7`)
     expect(await rowCount(page)).toBe(1)
@@ -61,7 +61,7 @@ test.describe('operations hub', () => {
   })
 
   test('the details drawer shows the vulnerability, its RVS id and its timeline', async ({ page }) => {
-    const v = await mk(acknowledgedVuln, admin, { identifier: `e2e-d-${tag()}`, cvss_score: 6.4, cvss_vector: 'AV:N/AC:L', source: 'zap' })
+    const v = await mk(fixingVuln, admin, { identifier: `e2e-d-${tag()}`, cvss_score: 6.4, cvss_vector: 'AV:N/AC:L', source: 'zap' })
     await loginUI(page, writer.username, writer.password)
     await filterHub(page, v.identifier)
     await page.click('.vtable tbody tr:first-child td:nth-child(2)')
@@ -69,11 +69,11 @@ test.describe('operations hub', () => {
     const drawer = page.locator('.details.open')
     await expect(drawer).toBeVisible()
     await expect(drawer.locator('.detailsId')).toHaveText(v.identifier)           // the title is the identifier
-    await expect(drawer.locator('.statusPill')).toHaveText('Reconhecida')
+    await expect(drawer.locator('.statusPill')).toHaveText('Em correção')
     await expect(drawer.locator('.metaLine .k')).toHaveText(['CVSS', 'Vetor CVSS', 'Fonte', 'RVS'])
     await expect(drawer.locator('.metaLine')).toContainText(v.rvs_id)
-    await expect(drawer.locator('.step.reached')).toHaveCount(4)                   // created, sent, dispatched, acknowledged
-    await expect(drawer.locator('.step.current .label')).toHaveText('Reconhecida')
+    await expect(drawer.locator('.step.reached')).toHaveCount(4)                   // created, ready, sent, fixing
+    await expect(drawer.locator('.step.current .label')).toHaveText('Em correção')
 
     // the list shrinks above the drawer: the last row stays reachable
     const rows = await page.locator('.vtable tbody tr').count()
@@ -97,7 +97,7 @@ test.describe('operations hub', () => {
     await expect(menu).toHaveCount(0)
   })
 
-  test('row and batch actions: export, dispatch (skipping what cannot be), delete', async ({ page }) => {
+  test('row and batch actions: export, send (skipping what cannot be), delete', async ({ page }) => {
     const unique = tag()
     const s1 = await mk(savedVuln, admin, { identifier: `e2e-b-${unique}-1` })
     const s2 = await mk(savedVuln, admin, { identifier: `e2e-b-${unique}-2` })
@@ -110,22 +110,22 @@ test.describe('operations hub', () => {
     await filterHub(page, `e2e-b-${unique}`)
     await page.locator('.tablePanel thead input.check').check()
     await page.click('.toolbar .batchWrap button')
-    await expect(page.locator('.batchWrap .rowMenuInline button')).toHaveText(['Exportar PDF (ZIP)', 'Exportar Excel', 'Disparar', 'Excluir'])
+    await expect(page.locator('.batchWrap .rowMenuInline button')).toHaveText(['Exportar PDF (ZIP)', 'Exportar Excel', 'Enviar', 'Excluir'])
     const [zip] = await Promise.all([page.waitForEvent('download'), page.click('.batchWrap button:has-text("Exportar PDF (ZIP)")')])
     const names = zipNames(readFileSync(await zip.path()))
     expect(names).toHaveLength(3)
     expect(names.every((n) => n.endsWith('.pdf'))).toBe(true)
 
-    // batch dispatch: 2 saved ones go, the draft is skipped (not failed)
+    // batch send: 2 ready ones go, the draft is skipped (not failed)
     await page.click('.toolbar .batchWrap button')
-    await page.click('.batchWrap button:has-text("Disparar")')
+    await page.click('.batchWrap button:has-text("Enviar")')
     await expect(page.locator('.ok.msg')).toContainText('2 concluído(s), 1 ignorado(s), 0 com falha')
-    await expect(page.locator(`.vtable tbody tr:has-text("${s1.identifier}") .pill`)).toHaveText('Disparada')
-    await expect(page.locator(`.vtable tbody tr:has-text("${s2.identifier}") .pill`)).toHaveText('Disparada')
+    await expect(page.locator(`.vtable tbody tr:has-text("${s1.identifier}") .pill`)).toHaveText('Enviada')
+    await expect(page.locator(`.vtable tbody tr:has-text("${s2.identifier}") .pill`)).toHaveText('Enviada')
     await expect(page.locator(`.vtable tbody tr:has-text("${d1.identifier}") .pill`)).toHaveText('Rascunho')
     await expect(page.locator('.toolbar .batchWrap')).toHaveCount(0)                // selection cleared
 
-    // row menu: a draft cannot be dispatched, a single export is the PDF itself
+    // row menu: a draft cannot be sent, a single export is the PDF itself
     await page.click(`.vtable tbody tr:has-text("${d1.identifier}") td:nth-child(10) button`)
     await expect(page.locator('.rowMenuInline button')).toHaveText(['Visualizar', 'Detalhar', 'Exportar', 'Excluir'])
     const [pdf] = await Promise.all([page.waitForEvent('download'), page.click('.rowMenuInline button:has-text("Exportar")')])

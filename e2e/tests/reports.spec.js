@@ -72,7 +72,7 @@ test.describe('reports', () => {
     // a vulnerability inside the report
     await page.click('button:has-text("Adicionar vulnerabilidade")')
     await expect(page).toHaveURL(/\/vulnerabilities\/new$/)
-    await expect(page.locator('.pageActions button:has-text("Enviar")')).toHaveCount(0)    // no life of its own
+    await expect(page.locator('.pageActions button:has-text("Concluir")')).toHaveCount(0)    // no life of its own
     await page.locator('.infoGrid input').first().fill('RV-1')
     await page.locator('input.cvss').click()
     await page.locator('input.cvss').fill('91')
@@ -125,7 +125,7 @@ test.describe('reports', () => {
     await expect(pa.locator('.banner.other')).toContainText(bob.username)
   })
 
-  test('dispatching a report locks it, releases its vulnerabilities and offers the exports', async ({ page }) => {
+  test('sending a report locks it, releases its vulnerabilities and offers the exports', async ({ page }) => {
     autoDialogs(page, { promptValue: 'Diagrama' })
     const r = await newReport(admin, { name: `e2e-disp-${tag()}`, client_name: 'Globex' })
     reports.push(r.id)
@@ -154,13 +154,13 @@ test.describe('reports', () => {
     expect((await exportAs('Excel')).subarray(0, 2).toString()).toBe('PK')
     expect((await exportAs('Word')).subarray(0, 2).toString()).toBe('PK')
 
-    // dispatch
-    await page.click('.pageActions button:has-text("Disparar")')
-    await expect(page.locator('.subline .pill')).toHaveText('Disparada')
+    // send
+    await page.click('.pageActions button:has-text("Enviar")')
+    await expect(page.locator('.subline .pill')).toHaveText('Enviado')
     await expect(page.locator('.grid4 input, .grid4 textarea, .extraHead')).toHaveCount(0)
     await expect(page.locator('.mdEditor')).toHaveCount(1)                       // only the internal notes stay editable
     await expect(page.locator('.drop')).toHaveCount(0)
-    await expect(page.locator('.vt .pill')).toHaveText('Disparada')
+    await expect(page.locator('.vt .pill')).toHaveText('Enviada')
 
     // the released vulnerability is now an ordinary record with its own timeline
     await page.click('.vt tbody tr:first-child')

@@ -26,26 +26,26 @@ def build_report(c, *, blank_identifier=False):
 
 def test_dispatch_needs_the_lock(writer, writer2):
     rid, *_ = build_report(writer)
-    assert writer2.post(f"/reports/{rid}/dispatch").status_code == 409
+    assert writer2.post(f"/reports/{rid}/send").status_code == 409
 
 
 def test_every_vuln_needs_an_identifier(writer):
     rid, *_rest, extra = build_report(writer, blank_identifier=True)
-    r = writer.post(f"/reports/{rid}/dispatch")
+    r = writer.post(f"/reports/{rid}/send")
     assert r.status_code == 422 and "identifier" in r.json()["detail"]
     assert writer.get(f"/reports/{rid}").json()["status"] == "draft"          # nothing changed
     writer.patch(f"/vulnerabilities/{extra['id']}", {"version": extra["version"], "identifier": f"pytest-{tag()}"})
-    assert writer.post(f"/reports/{rid}/dispatch").status_code == 200
+    assert writer.post(f"/reports/{rid}/send").status_code == 200
 
 
 def test_dispatch_releases_the_vulns_in_severity_order(writer, reader):
     rid, low, high, _ = build_report(writer)
-    r = writer.post(f"/reports/{rid}/dispatch")
+    r = writer.post(f"/reports/{rid}/send")
     assert r.status_code == 200
     rep = r.json()
-    assert rep["status"] == "dispatched" and rep["dispatched_at"] and rep["lock"] is None and rep["dispatch_error"] is None
+    assert rep["status"] == "sent" and rep["sent_at"] and rep["lock"] is None and rep["send_error"] is None
     vulns = {v["id"]: v for v in rep["vulnerabilities"]}
-    assert all(v["status"] == "dispatched" and v["internal_id"].startswith("VULN-") and v["dispatched_at"] for v in vulns.values())
+    assert all(v["status"] == "sent" and v["internal_id"].startswith("VULN-") and v["sent_at"] for v in vulns.values())
     n = lambda v: int(v["internal_id"].split("-")[1])
     assert n(vulns[high["id"]]) < n(vulns[low["id"]])                          # high severity first
 
@@ -54,13 +54,30 @@ def test_dispatch_releases_the_vulns_in_severity_order(writer, reader):
     queued = [x["id"] for x in reader.get("/rvs-queue").json()]
     assert high["id"] in listed and high["id"] in queued
     ack = writer.post(f"/vulnerabilities/{high['id']}/rvs", {"rvs_id": "RVS-pytest-9"})
-    assert ack.status_code == 200 and ack.json()["status"] == "acknowledged"
+    assert ack.status_code == 200 and ack.json()["status"] == "fixing"
+    move = lambda to: writer.post(f"/vulnerabilities/{high['id']}/transition", {"to": to})
+    assert move("retesting").status_code == 200                    # released: it moves on its own
+    assert move("fixed").status_code == 200
 
 
-def test_a_dispatched_report_is_immutable_except_internal_notes(writer, writer2):
+def test_report_progress_counts_its_fixed_vulnerabilities(writer):
+    rid, low, high, _ = build_report(writer)
+    rep = writer.post(f"/reports/{rid}/send").json()
+    assert (rep["vuln_count"], rep["fixed_count"]) == (2, 0)
+    for v in (low, high):
+        writer.post(f"/vulnerabilities/{v['id']}/rvs", {"rvs_id": f"RVS-pytest-{tag()}"})
+        writer.post(f"/vulnerabilities/{v['id']}/transition", {"to": "retesting"})
+        writer.post(f"/vulnerabilities/{v['id']}/transition", {"to": "fixed"})
+    rep = writer.get(f"/reports/{rid}").json()
+    assert rep["status"] == "sent" and (rep["vuln_count"], rep["fixed_count"]) == (2, 2)
+    listed = next(r for r in writer.get("/reports").json() if r["id"] == rid)
+    assert listed["fixed_count"] == 2
+
+
+def test_a_sent_report_is_immutable_except_internal_notes(writer, writer2):
     rid, *_ = build_report(writer)
-    writer.post(f"/reports/{rid}/dispatch")
-    assert writer.post(f"/reports/{rid}/dispatch").status_code == 409          # not twice
+    writer.post(f"/reports/{rid}/send")
+    assert writer.post(f"/reports/{rid}/send").status_code == 409          # not twice
     assert writer.patch(f"/reports/{rid}", {"name": "renamed"}).status_code == 422
     notes = writer2.patch(f"/reports/{rid}", {"internal_notes": "ok without a lock"})   # any writer, no lock needed
     assert notes.status_code == 200 and notes.json()["internal_notes"] == "ok without a lock"
@@ -72,8 +89,8 @@ def test_a_dispatched_report_is_immutable_except_internal_notes(writer, writer2)
 
 def test_dispatch_is_audited_in_both_phases(admin, writer):
     rid, *_ = build_report(writer)
-    writer.post(f"/reports/{rid}/dispatch")
-    items = admin.get("/audit-logs", params={"action": "dispatch", "page_size": 200}).json()["items"]
+    writer.post(f"/reports/{rid}/send")
+    items = admin.get("/audit-logs", params={"action": "send", "page_size": 200}).json()["items"]
     phases = {e["detail"].get("phase") for e in items if e["entity_id"] == rid}
     assert phases == {1, 2}
 
@@ -92,7 +109,7 @@ class FlakyTransport:
         return dispatcher.DispatchResult(ok=True, transport=self.name)
 
 
-def test_failed_delivery_keeps_the_report_dispatching_and_retry_does_not_reissue_ids():
+def test_failed_delivery_leaves_a_frozen_draft_and_retry_does_not_reissue_ids():
     flaky = FlakyTransport()
     original, dispatcher.transport = dispatcher.transport, flaky
     try:
@@ -106,24 +123,24 @@ def test_failed_delivery_keeps_the_report_dispatching_and_retry_does_not_reissue
             from fastapi import HTTPException
 
             with pytest.raises(HTTPException) as err:
-                report_dispatch.dispatch(s, rid, admin, None)
+                report_dispatch.send(s, rid, admin, None)
             assert err.value.status_code == 502
 
             s.expire_all()
             rep = s.get(Report, rid)
             vulns = list(s.scalars(select(Vulnerability).where(Vulnerability.report_id == rid)))
-            # Phase 1 is committed; nothing is labelled "dispatched" (D2).
-            assert rep.status == ReportStatus.dispatching and "SMTP unreachable" in rep.dispatch_error
-            assert all(v.status == VulnStatus.dispatching and v.internal_id for v in vulns)
-            assert rep.dispatched_at is None and all(v.dispatched_at is None for v in vulns)
+            # Phase 1 is committed; nothing is labelled "sent" (D2), and the report is frozen.
+            assert rep.status == ReportStatus.draft and rep.sending and "SMTP unreachable" in rep.send_error
+            assert all(v.status == VulnStatus.draft and v.internal_id for v in vulns)
+            assert rep.sent_at is None and all(v.sent_at is None for v in vulns)
             ids = sorted(v.internal_id for v in vulns)
 
             flaky.fail = False                                  # the operator retries the same call
-            out = report_dispatch.dispatch(s, rid, admin, None)
+            out = report_dispatch.send(s, rid, admin, None)
             s.expire_all()
-            assert out.status == ReportStatus.dispatched and s.get(Report, rid).dispatch_error is None
+            assert out.status == ReportStatus.sent and s.get(Report, rid).send_error is None and not s.get(Report, rid).sending
             vulns = list(s.scalars(select(Vulnerability).where(Vulnerability.report_id == rid)))
-            assert all(v.status == VulnStatus.dispatched for v in vulns)
+            assert all(v.status == VulnStatus.sent for v in vulns)
             assert sorted(v.internal_id for v in vulns) == ids       # not re-issued
             assert flaky.sent == 1                                   # delivered exactly once
             names = [n for n, _ in flaky.last.attachments]
@@ -152,7 +169,7 @@ def test_the_package_carries_non_image_files_but_not_images(writer):
     try:
         with SessionLocal() as s:
             admin = s.scalar(select(User).where(User.username == writer.user["username"]))
-            report_dispatch.dispatch(s, __import__("uuid").UUID(rid), admin, None)
+            report_dispatch.send(s, __import__("uuid").UUID(rid), admin, None)
     finally:
         dispatcher.transport = original
     names = seen["names"]

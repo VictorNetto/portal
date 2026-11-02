@@ -98,13 +98,15 @@ class ReportListItem(BaseModel):
     start_date: date | None
     end_date: date | None
     lock: LockInfo | None = None
-    dispatched_at: datetime | None
+    sent_at: datetime | None
+    fixed_count: int = 0        # how many of `vuln_count` are fixed: the report's progress
     created_at: datetime
     updated_at: datetime
 
 
 class ReportOut(ReportListItem):
-    dispatch_error: str | None
+    sending: bool = False       # a send started and did not finish (retry it)
+    send_error: str | None
     executive_summary_md: str | None
     introduction_md: str | None
     test_type: str | None

@@ -5,6 +5,7 @@ from datetime import date, datetime
 from typing import TYPE_CHECKING
 
 from sqlalchemy import (
+    Boolean,
     Column,
     Date,
     Enum,
@@ -13,6 +14,7 @@ from sqlalchemy import (
     Table,
     Text,
     UniqueConstraint,
+    text,
 )
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -71,9 +73,10 @@ class Report(UUIDPK, Timestamps, Base):
         nullable=False,
         server_default=ReportStatus.draft.value,
     )
-    # D2 — last dispatch-phase-2 failure message; set while stuck in
-    # `dispatching`, cleared on success.
-    dispatch_error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # D2/D14 — a send has started and not finished: the report is frozen until a
+    # retry delivers it. Stays a draft; `send_error` says why the last try failed.
+    sending: Mapped[bool] = mapped_column(Boolean, server_default=text("false"), nullable=False)
+    send_error: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     # Report content (§7) stored as columns.
     executive_summary_md: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -87,7 +90,7 @@ class Report(UUIDPK, Timestamps, Base):
     # Editable even after dispatch; excluded from exports.
     internal_notes: Mapped[str | None] = mapped_column(Text, nullable=True)
 
-    dispatched_at: Mapped[datetime | None] = mapped_column(nullable=True)
+    sent_at: Mapped[datetime | None] = mapped_column(nullable=True)
 
     # Write lock (§3). Idle-release at lock_last_activity_at + 10 min (lazy check).
     lock_user_id: Mapped[uuid.UUID | None] = mapped_column(

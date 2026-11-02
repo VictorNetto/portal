@@ -14,7 +14,7 @@ from app.schemas.ingest import IngestVuln
 from app.services.vulnerability import _next_vuln_internal_id
 
 # Same fields the UI requires before a vuln can be sent (FRONTEND_SPEC §8.8).
-_REQUIRED_FOR_SAVED_LOCAL = ("identifier", "description", "finding_detail", "mitigation")
+_REQUIRED_FOR_READY = ("identifier", "description", "finding_detail", "mitigation")
 
 
 def _blank(value: str | None) -> bool:
@@ -51,12 +51,12 @@ def create(
             status.HTTP_422_UNPROCESSABLE_ENTITY,
             "Provide at least one of: identifier, description, finding_detail",
         )
-    if payload.status == "saved_local":
-        missing = [f for f in _REQUIRED_FOR_SAVED_LOCAL if _blank(getattr(payload, f))]
+    if payload.status == "ready":
+        missing = [f for f in _REQUIRED_FOR_READY if _blank(getattr(payload, f))]
         if missing:
             raise HTTPException(
                 status.HTTP_422_UNPROCESSABLE_ENTITY,
-                "Required for status 'saved_local': " + ", ".join(missing),
+                "Required for status 'ready': " + ", ".join(missing),
             )
 
     operators = _resolve_operators(session, payload.operators)
@@ -86,15 +86,15 @@ def create(
         entity_type="vulnerability", entity_id=vuln.id,
         detail={"via": "api", "source": payload.source, "status": payload.status}, request=request,
     )
-    if payload.status == "saved_local":
-        vuln.status = VulnStatus.saved_local
-        vuln.saved_local_at = datetime.now(UTC)
+    if payload.status == "ready":
+        vuln.status = VulnStatus.ready
+        vuln.ready_at = datetime.now(UTC)
         vuln.internal_id = _next_vuln_internal_id(session)
         vuln.version += 1
         audit.record(
             session, action=AuditAction.status_change, api_key_id=key.id,
             entity_type="vulnerability", entity_id=vuln.id,
-            detail={"from": "draft", "to": "saved_local"}, request=request,
+            detail={"from": "draft", "to": "ready"}, request=request,
         )
     session.commit()
     session.refresh(vuln)

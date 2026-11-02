@@ -18,7 +18,7 @@ test.describe('documentation', () => {
     await expect(subTitles(page, 'geral')).toContainText(['Primeiros passos', 'Sessão'])
     await expect(subTitles(page, 'geral')).not.toContainText(['Logs de auditoria'])                  // admins read it under Gerenciamento
     await expect(subTitles(page, 'gerenciamento')).toHaveText(['Usuários', 'Acesso de cada usuário', 'Chaves de API', 'Aprovação de templates', 'Reservas de relatório', 'Logs de auditoria'])
-    await expect(subTitles(page, 'vulnerabilidades')).toHaveText(['Criar uma vulnerabilidade', 'Ciclo de vida', 'Depois do disparo', 'Edições simultâneas', 'Fila RVS'])
+    await expect(subTitles(page, 'vulnerabilidades')).toHaveText(['Criar uma vulnerabilidade', 'Ciclo de vida', 'Depois do envio', 'Edições simultâneas', 'Fila RVS'])
 
     await page.click('.toc .tocItem:has-text("Fila RVS")')
     await expect(page).toHaveURL(/\/docs#rvs$/)
@@ -68,7 +68,7 @@ test.describe('documentation', () => {
     await page.goto('/docs#sessao')
     await expect(page.locator('#doc-sessao')).toBeInViewport()
     await expect(sectionTitles(page)).toHaveText(['Informações Gerais', 'Vulnerabilidades', 'Relatórios e Templates'])   // no API
-    await expect(subTitles(page, 'relatorios')).toHaveText(['Criar um relatório', 'Edição e reserva', 'Conteúdo', 'Disparo e exclusão'])
+    await expect(subTitles(page, 'relatorios')).toHaveText(['Criar um relatório', 'Edição e reserva', 'Conteúdo', 'Envio, progresso e exclusão'])
     await expect(page.locator('.docCard h3:text-is("Logs de auditoria")')).toHaveCount(0)
     await page.click('.profileBtn')
     await page.click('.profileMenu .menuItem:has-text("English")')

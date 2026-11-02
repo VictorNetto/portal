@@ -10,11 +10,12 @@ import {
   listReportTemplates, createReportTemplate,
   acquireReportLock, heartbeatReport, releaseReportLock, releaseReportLockOnExit, forceReleaseReport,
   addReportSection, updateReportSection, deleteReportSection, reorderReportSections,
-  dispatchReport, listReportAttachments, uploadReportAttachment, deleteAttachment,
+  sendReport, listReportAttachments, uploadReportAttachment, deleteAttachment,
   fetchAttachmentBlob, downloadAuthed, ApiError,
 } from '../api'
 import { attachmentPath } from '../markdown'
 import { t } from '../i18n'
+import { reportPillClass, reportProgress, reportStatusLabel } from '../reportState'
 import { confirmDialog, promptDialog } from '../dialog'
 import { isDiscarding, useUnsaved } from '../session'
 import { vField } from '../directives'
@@ -78,10 +79,12 @@ const lockMine = computed(() => !!lock.value?.mine)
 const lockOther = computed(() => !!lock.value && !lock.value.mine)
 // Everything editable: a draft whose lock I hold.
 const editing = computed(() => (isNew.value && isWriter.value) || (status.value === 'draft' && lockMine.value && isWriter.value))
-// A dispatched report still takes internal notes.
-const notesOnly = computed(() => status.value === 'dispatched' && isWriter.value)
+// A sent report still takes internal notes.
+const notesOnly = computed(() => status.value === 'sent' && isWriter.value)
+// A send that started and did not finish: the report stays a frozen draft until retried.
+const frozen = computed(() => !!report.value?.sending)
 const canEditNotes = computed(() => editing.value || notesOnly.value)
-const canTakeLock = computed(() => status.value === 'draft' && !lock.value && isWriter.value)
+const canTakeLock = computed(() => status.value === 'draft' && !frozen.value && !lock.value && isWriter.value)
 
 // --- Load -------------------------------------------------------------------
 function sync() {
@@ -273,23 +276,23 @@ onMounted(() => window.addEventListener('pagehide', onPageHide))
 onBeforeUnmount(() => { window.removeEventListener('pagehide', onPageHide); stopBeat() })
 
 // --- Dispatch & export --------------------------------------------------------
-const dispatching = ref(false)
-const canDispatch = computed(() => (editing.value && status.value === 'draft') || (status.value === 'dispatching' && isWriter.value))
+const sendingNow = ref(false)
+const canSend = computed(() => (editing.value && status.value === 'draft') || (frozen.value && isWriter.value))
 
-async function doDispatch() {
-  const retry = status.value === 'dispatching'
-  if (!retry && !(await confirmDialog(t('rpt.confirmDispatch')))) return
+async function doSend() {
+  const retry = frozen.value
+  if (!retry && !(await confirmDialog(t('rpt.confirmSend')))) return
   error.value = ''; notice.value = ''
   if (!retry && dirty.value) { await save(); if (error.value) return }
-  dispatching.value = true
+  sendingNow.value = true
   try {
-    report.value = await dispatchReport(id.value)
+    report.value = await sendReport(id.value)
     sync()
-    notice.value = t('rpt.dispatchedOk')
+    notice.value = t('rpt.sentOk')
   } catch (e) {
-    error.value = e instanceof ApiError ? e.detail : t('errors.dispatch')
-    await reloadKeepingForm()  // shows the new state (e.g. stuck in dispatching)
-  } finally { dispatching.value = false }
+    error.value = e instanceof ApiError ? e.detail : t('errors.send')
+    await reloadKeepingForm()  // shows the new state (e.g. a failed send)
+  } finally { sendingNow.value = false }
 }
 
 const exportOptions = [
@@ -443,13 +446,14 @@ async function saveTemplate() {
           <div class="titleBlock">
             <h1>{{ report?.name || '…' }}</h1>
             <p v-if="report" class="subline">
-              <span class="pill" :class="'s-' + report.status">{{ t('status.' + report.status) }}</span>
+              <span class="pill" :class="reportPillClass(report)">{{ reportStatusLabel(report) }}</span>
+              <span v-if="reportProgress(report)">{{ reportProgress(report) }}</span>
               <span class="mono">{{ report.internal_id }}</span>
               <span>{{ t('cols.updatedAt') }} {{ fmtDateTime(report.updated_at) }}</span>
             </p>
           </div>
           <div class="pageActions" v-if="report">
-            <button v-if="status === 'draft' && mayDelete" class="btn danger" @click="remove">{{ t('rowActions.delete') }}</button>
+            <button v-if="status === 'draft' && !frozen && mayDelete" class="btn danger" @click="remove">{{ t('rowActions.delete') }}</button>
             <button class="btn" @click="router.push('/hub?entity=reports')">{{ t('rpt.back') }}</button>
             <ExportMenu :options="exportOptions" @export="exportAs" />
             <button v-if="canSaveTemplate" class="btn" @click="openTemplateModal">{{ t('tpl.saveAs') }}</button>
@@ -458,8 +462,8 @@ async function saveTemplate() {
             <button v-if="editing || notesOnly" class="btn" :class="{ primary: !canDispatch }" :disabled="saving" @click="save">
               {{ saving ? t('vuln.saving') : t('vuln.save') }}
             </button>
-            <button v-if="canDispatch" class="btn primary" :disabled="dispatching || saving" @click="doDispatch">
-              {{ dispatching ? t('rpt.dispatchingBtn') : (status === 'dispatching' ? t('rpt.retry') : t('actions.dispatch')) }}
+            <button v-if="canSend" class="btn primary" :disabled="sendingNow || saving" @click="doSend">
+              {{ sendingNow ? t('rpt.sendingBtn') : (frozen ? t('rpt.retry') : t('actions.send')) }}
             </button>
           </div>
         </div>
@@ -475,7 +479,7 @@ async function saveTemplate() {
             {{ t('rpt.lockedBy', { user: lock.holder_username, time: fmtTime(lock.acquired_at) }) }}
             <button v-if="isAdmin" class="link" @click="forceRelease">{{ t('rpt.forceRelease') }}</button>
           </p>
-          <p v-else-if="status === 'dispatching' && report.dispatch_error" class="banner other">{{ report.dispatch_error }}</p>
+          <p v-else-if="frozen" class="banner other">{{ t('rpt.sendFailed') }}<template v-if="report.send_error"> {{ report.send_error }}</template></p>
         </template>
       </template>
     </div>

@@ -98,8 +98,8 @@ def test_vulns_inside_a_report_are_not_standalone(writer, writer2):
     listed = {v["id"]: v for v in writer.get("/vulnerabilities").json()}                     # listed, with its report
     assert listed[high["id"]]["report"] == {"id": rid, "internal_id": rep["internal_id"], "name": rep["name"], "status": "draft"}
     assert writer2.get(f"/vulnerabilities/{high['id']}").status_code == 200                   # but anyone can read it
-    assert writer.post(f"/vulnerabilities/{high['id']}/send").status_code == 404              # no life of its own
-    assert writer.post(f"/vulnerabilities/{high['id']}/dispatch").status_code == 404
+    assert writer.post(f"/vulnerabilities/{high['id']}/complete").status_code == 404              # no life of its own
+    assert writer.post(f"/vulnerabilities/{high['id']}/send").status_code == 404
 
 
 def test_editing_a_report_vuln_needs_the_report_lock(writer, writer2):

@@ -74,8 +74,8 @@ export const getVuln = (id) => api(`/vulnerabilities/${id}`)
 export const createVuln = (body) => api('/vulnerabilities', { method: 'POST', body })
 export const updateVuln = (id, body) =>
   api(`/vulnerabilities/${id}`, { method: 'PATCH', body })
+export const completeVuln = (id) => api(`/vulnerabilities/${id}/complete`, { method: 'POST' })
 export const sendVuln = (id) => api(`/vulnerabilities/${id}/send`, { method: 'POST' })
-export const dispatchVuln = (id) => api(`/vulnerabilities/${id}/dispatch`, { method: 'POST' })
 export const setVulnRvs = (id, rvsId) =>
   api(`/vulnerabilities/${id}/rvs`, { method: 'POST', body: { rvs_id: rvsId } })
 export const transitionVuln = (id, to) =>
@@ -168,7 +168,7 @@ export function releaseReportLockOnExit(id) {
   }).catch(() => {})
 }
 
-export const dispatchReport = (id) => api(`/reports/${id}/dispatch`, { method: 'POST' })
+export const sendReport = (id) => api(`/reports/${id}/send`, { method: 'POST' })
 export const listReportAttachments = (id) => api(`/reports/${id}/attachments`)
 export function uploadReportAttachment(id, file, displayName) {
   const form = new FormData()

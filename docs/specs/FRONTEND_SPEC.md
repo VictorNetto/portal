@@ -1,5 +1,9 @@
 # Red Team Operations Platform — Frontend Specification (MVP Draft)
 
+> **Status names:** this document predates **D14** (`docs/DECISIONS.md`). Read `saved_local` as `ready`,
+> `dispatched` as `sent`, `acknowledged`/`waiting_fix` as `fixing`, `pending_retest` as `retesting`;
+> `dispatching` is no longer a status (now the `reports.sending` flag).
+
 ## Overview
 
 Frontend specification for the Red Team Operations Platform MVP, aligned with the system specification. The frontend is a Vue SPA with Tailwind CSS and an API-driven shell. This document defines the current visual language, routes, pages, components, interaction rules, state rules, and API calls for the currently prototyped screens.

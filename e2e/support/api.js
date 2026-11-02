@@ -54,14 +54,14 @@ export async function newVuln(token, fields = {}) {
 
 export async function savedVuln(token, fields = {}) {
   const v = await newVuln(token, fields)
-  const { status, data } = await api(`/vulnerabilities/${v.id}/send`, { token, method: 'POST' })
-  if (status !== 200) throw new Error(`send failed: ${status} ${JSON.stringify(data)}`)
+  const { status, data } = await api(`/vulnerabilities/${v.id}/complete`, { token, method: 'POST' })
+  if (status !== 200) throw new Error(`complete failed: ${status} ${JSON.stringify(data)}`)
   return data
 }
 
-export async function acknowledgedVuln(token, fields = {}) {
+export async function fixingVuln(token, fields = {}) {
   const v = await savedVuln(token, fields)
-  await api(`/vulnerabilities/${v.id}/dispatch`, { token, method: 'POST' })
+  await api(`/vulnerabilities/${v.id}/send`, { token, method: 'POST' })
   const { data } = await api(`/vulnerabilities/${v.id}/rvs`, { token, body: { rvs_id: `RVS-e2e-${tag()}` } })
   return data
 }
@@ -80,7 +80,7 @@ export async function reportVuln(token, reportId, fields = {}) {
   return data
 }
 
-/** Best-effort cleanup of what a test created (soft deletes; dispatched reports stay). */
+/** Best-effort cleanup of what a test created (soft deletes; sent reports stay). */
 export async function cleanup(token, { vulns = [], reports = [] } = {}) {
   for (const id of vulns) await api(`/vulnerabilities/${id}`, { token, method: 'DELETE' })
   for (const id of reports) {

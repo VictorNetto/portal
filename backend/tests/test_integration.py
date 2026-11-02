@@ -4,7 +4,7 @@ import httpx
 import pytest
 from conftest import (
     BASE_URL,
-    acknowledged_vuln,
+    fixing_vuln,
     new_report,
     new_vuln,
     png_bytes,
@@ -32,9 +32,9 @@ def full(admin):
     return make_key(admin, ALL)
 
 
-def dispatched(c):
+def sent_vuln(c):
     v = saved_vuln(c)
-    assert c.post(f"/vulnerabilities/{v['id']}/dispatch").status_code == 200
+    assert c.post(f"/vulnerabilities/{v['id']}/send").status_code == 200
     return v
 
 
@@ -77,7 +77,7 @@ def test_read_a_vulnerability_by_uuid_or_number_without_internal_notes(full, wri
     by_id = call(full, "GET", f"/vulnerabilities/{v['id']}").json()
     by_number = call(full, "GET", f"/vulnerabilities/{v['internal_id'].lower()}").json()
     assert by_id == by_number
-    assert by_id["internal_id"] == v["internal_id"] and by_id["status"] == "saved_local"
+    assert by_id["internal_id"] == v["internal_id"] and by_id["status"] == "ready"
     assert by_id["operators"] == [writer.user["username"]]
     assert "internal_notes" not in by_id and "segredo" not in str(by_id)
     assert call(full, "GET", "/vulnerabilities/VULN-999999").status_code == 404
@@ -117,13 +117,13 @@ def test_updated_since_returns_what_changed(full, writer):
 
 
 def test_set_rvs_through_the_queue(admin, full, writer):
-    v = dispatched(writer)
+    v = sent_vuln(writer)
     queue = [x["id"] for x in call(full, "GET", "/rvs-queue").json()]
     assert v["id"] in queue
     rvs_only = make_key(admin, ["rvs:write"])                      # a ticketing system needs nothing else
     r = call(rvs_only, "POST", f"/vulnerabilities/{v['internal_id']}/rvs", json={"rvs_id": "RVS-pytest-1"})
     assert r.status_code == 200, r.text
-    assert r.json()["status"] == "acknowledged" and r.json()["rvs_id"] == "RVS-pytest-1"
+    assert r.json()["status"] == "fixing" and r.json()["rvs_id"] == "RVS-pytest-1"
     assert v["id"] not in [x["id"] for x in call(rvs_only, "GET", "/rvs-queue").json()]
     again = call(rvs_only, "POST", f"/vulnerabilities/{v['id']}/rvs", json={"rvs_id": "RVS-2"})
     assert again.status_code == 409                                  # immutable once set
@@ -134,7 +134,7 @@ def test_set_rvs_through_the_queue(admin, full, writer):
 
 
 def test_exports_and_evidence(admin, full, writer):
-    v = acknowledged_vuln(writer)
+    v = fixing_vuln(writer)
     up = upload(writer, f"/vulnerabilities/{new_vuln(writer)['id']}/attachments", "shot.png", png_bytes())
     assert up.status_code == 201, up.text
     pdf = call(full, "GET", f"/vulnerabilities/{v['id']}/export")

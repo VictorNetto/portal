@@ -103,8 +103,8 @@ def test_attachments_follow_the_record(writer, rw, rr):
 def test_rvs_queue_is_filtered_and_lifecycle_needs_write_access(writer, rw):
     mine = saved_vuln(rw)
     other = saved_vuln(writer)
-    assert rw.post(f"/vulnerabilities/{mine['id']}/dispatch").status_code == 200
-    assert writer.post(f"/vulnerabilities/{other['id']}/dispatch").status_code == 200
+    assert rw.post(f"/vulnerabilities/{mine['id']}/send").status_code == 200
+    assert writer.post(f"/vulnerabilities/{other['id']}/send").status_code == 200
     queue = {v["id"] for v in rw.get("/rvs-queue").json()}
     assert mine["id"] in queue and other["id"] not in queue
     # a restricted writer cannot move someone else's record along

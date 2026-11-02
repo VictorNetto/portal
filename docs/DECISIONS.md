@@ -221,3 +221,32 @@ role. An admin picks the scopes and an optional expiry per key.
 - **Out for now:** dispatch through the API (it emails people; stays a human decision), deletes and
   admin actions. **Later:** de-duplication (`external_id`), updates/lifecycle, batch, evidence
   upload, webhooks.
+
+## D14 — Six statuses for vulnerabilities, two for reports ✅
+
+**Decision:** the old names confused people ("Enviar" sent nothing, "Salva" vs a saved draft,
+"Corrigida" vs "Corrigir status"), so the lifecycle was reworked. **This supersedes the status names
+used in D1–D13 and the specs.**
+
+| Vulnerability | Code | Action to move on |
+|---|---|---|
+| Rascunho | `draft` | Concluir (`POST .../complete`), assigns `VULN-xxxx` |
+| Pronta | `ready` | Enviar (`POST .../send`) |
+| Enviada | `sent` | Registrar RVS (`POST .../rvs`) |
+| Em correção | `fixing` | Solicitar reteste (`transition` to `retesting`) |
+| Em reteste | `retesting` | Aprovar reteste (to `fixed`) or Reprovar reteste (back to `fixing`) |
+| Corrigida | `fixed` | none |
+
+Old to new: `saved_local` → `ready`, `dispatched` → `sent`, `acknowledged` and `waiting_fix` → `fixing`,
+`pending_retest` → `retesting`. Reports: `draft`, `sent`. *Corrigir status* is now **Ajustar status**.
+
+- **`dispatching` is gone as a status.** D2's guarantee stays, as the `reports.sending` flag: from phase
+  1 until delivery the report is frozen; a failed delivery shows Rascunho + *Falha no envio* +
+  **Tentar novamente**, and retrying never re-issues numbers. Its vulnerabilities stay `draft`.
+- **No other endings** (risk accepted, false positive): the Red Team does not run general vulnerability
+  management, so `fixed` is the only final state.
+- **Report progress is calculated**, never stored: `fixed_count` of `vuln_count`; **Concluído** when
+  all are fixed. Only `draft` and `sent` exist as statuses.
+- Internal names stay: the `dispatcher` module, `report_dispatch.py` and `DISPATCH_*` settings are the
+  delivery channel, not a status.
+- Past audit entries keep the words used at the time.

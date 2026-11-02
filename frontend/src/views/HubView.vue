@@ -2,10 +2,11 @@
 import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import {
-  listVulns, deleteVuln, dispatchVuln, listReports, deleteReport, downloadAuthed, ApiError,
+  listVulns, deleteVuln, sendVuln, listReports, deleteReport, downloadAuthed, ApiError,
 } from '../api'
 import { useAuthStore } from '../stores/auth'
 import { t } from '../i18n'
+import { reportPillClass, reportProgress, reportStatusLabel } from '../reportState'
 import { confirmDialog } from '../dialog'
 import { canCreate, canWriteRecord, canDeleteRecord } from '../access'
 import AppShell from '../components/AppShell.vue'
@@ -20,8 +21,8 @@ const auth = useAuthStore()
 const isWriter = computed(() => canCreate(auth.user))            // may create (and so use the batch menu)
 const mayChange = (rec) => canWriteRecord(auth.user, rec)
 const mayDelete = (rec) => canDeleteRecord(auth.user, rec)
-// A vuln of a report that is not dispatched yet is changed through its report (under the lock).
-const inOpenReport = (v) => !!v.report && v.report.status !== 'dispatched'
+// A vuln of a report that is not sent yet is changed through its report (under the lock).
+const inOpenReport = (v) => !!v.report && v.report.status !== 'sent'
 
 // Entity switcher (§5.4): vulnerabilities or reports.
 // The tab lives in the URL (/hub?entity=reports) so reload and the back button keep it.
@@ -208,7 +209,7 @@ function toggleMenu(id, ev) {
     : { right: right + 'px', top: (rect.bottom + 4) + 'px' }
 }
 
-// --- Export / dispatch, one row or the whole selection ----------------------------
+// --- Export / send, one row or the whole selection ----------------------------
 const notice = ref('')
 const batchOpen = ref(false)
 const batchPos = ref({})
@@ -242,15 +243,15 @@ async function exportRow(id, format) {
   catch (e) { error.value = e instanceof ApiError ? e.detail : t('errors.load') }
 }
 
-// "Disparar" applies to vulnerabilities saved locally; the rest are skipped, not failed.
-const canDispatchRow = (v) => mayChange(v) && v.status === 'saved_local'
+// "Enviar" applies to vulnerabilities that are ready; the rest are skipped, not failed.
+const canSendRow = (v) => mayChange(v) && v.status === 'ready'
 
-async function dispatchRow(v) {
+async function sendRow(v) {
   menuFor.value = null
-  if (!(await confirmDialog(t('vuln.confirmDispatch')))) return
+  if (!(await confirmDialog(t('vuln.confirmSend')))) return
   error.value = ''; notice.value = ''
-  try { await dispatchVuln(v.id); notice.value = t('vuln.dispatched'); await load() }
-  catch (e) { error.value = e instanceof ApiError ? e.detail : t('errors.dispatch') }
+  try { await sendVuln(v.id); notice.value = t('vuln.sentOk'); await load() }
+  catch (e) { error.value = e instanceof ApiError ? e.detail : t('errors.send') }
 }
 
 // Runs `fn` over the rows one by one and reports successes, skips and failures.
@@ -268,14 +269,14 @@ function reportBatch(label, { done, failures }, skipped = 0) {
   error.value = failures.slice(0, 3).join(' · ') + (failures.length > 3 ? ` (+${failures.length - 3})` : '')
 }
 
-async function dispatchSelected() {
+async function sendSelected() {
   batchOpen.value = false
-  const eligible = selectedRows.value.filter(canDispatchRow)
-  if (!eligible.length) { error.value = t('hub.nothingToDispatch'); return }
-  if (!(await confirmDialog(t('hub.confirmBatchDispatch', { n: eligible.length })))) return
+  const eligible = selectedRows.value.filter(canSendRow)
+  if (!eligible.length) { error.value = t('hub.nothingToSend'); return }
+  if (!(await confirmDialog(t('hub.confirmBatchSend', { n: eligible.length })))) return
   error.value = ''; notice.value = ''
-  const res = await runBatch(eligible, (v) => dispatchVuln(v.id))
-  reportBatch(t('actions.dispatch'), res, selectedRows.value.length - eligible.length)
+  const res = await runBatch(eligible, (v) => sendVuln(v.id))
+  reportBatch(t('actions.send'), res, selectedRows.value.length - eligible.length)
   selected.value = new Set(); await load()
 }
 
@@ -353,7 +354,7 @@ onMounted(load)
           <div v-if="batchOpen" class="rowMenuInline" :style="batchPos">
             <button @click="exportSelected('pdf')">{{ t('hub.exportPdfZip') }}</button>
             <button v-if="isVulns" @click="exportSelected('xlsx')">{{ t('rpt.exportXlsx') }}</button>
-            <button v-if="isVulns && isWriter" @click="dispatchSelected">{{ t('actions.dispatch') }}</button>
+            <button v-if="isVulns && isWriter" @click="sendSelected">{{ t('actions.send') }}</button>
             <button v-if="isWriter" class="danger" @click="deleteSelected">{{ t('rowActions.delete') }}</button>
           </div>
         </div>
@@ -419,7 +420,7 @@ onMounted(load)
                     <button @click="openPreview(v); menuFor = null">{{ t('rowActions.view') }}</button>
                     <button @click="goDetail(v.id)">{{ t('rowActions.detail') }}</button>
                     <button @click="exportRow(v.id, 'pdf')">{{ t('rowActions.export') }}</button>
-                    <button v-if="canDispatchRow(v)" @click="dispatchRow(v)">{{ t('actions.dispatch') }}</button>
+                    <button v-if="canSendRow(v)" @click="sendRow(v)">{{ t('actions.send') }}</button>
                     <button v-if="mayDelete(v) && !inOpenReport(v)" class="danger" @click="removeRow(v.id)">{{ t('rowActions.delete') }}</button>
                   </div>
                 </div>
@@ -457,7 +458,8 @@ onMounted(load)
                 <span class="idcell">{{ r.internal_id }}</span> <span class="rname">{{ r.name }}</span>
               </td>
               <td @click="openPreview(r)">
-                <span class="pill" :class="'s-' + r.status">{{ t('status.' + r.status) }}</span>
+                <span class="pill" :class="reportPillClass(r)">{{ reportStatusLabel(r) }}</span>
+                <span v-if="reportProgress(r)" class="progress stacked">{{ reportProgress(r) }}</span>
               </td>
               <td @click="openPreview(r)">
                 <span v-if="r.max_cvss != null" class="cvss" :class="sevClass(r.max_cvss)">{{ r.max_cvss }}</span>
@@ -534,7 +536,8 @@ onMounted(load)
             <span class="detailsId" :title="preview.name">{{ preview.name }}</span>
           </div>
           <div class="detailsActions">
-            <span class="pill statusPill" :class="'s-' + preview.status">{{ t('status.' + preview.status) }}</span>
+            <span class="pill statusPill" :class="reportPillClass(preview)">{{ reportStatusLabel(preview) }}</span>
+            <span v-if="reportProgress(preview)" class="progress">{{ reportProgress(preview) }}</span>
             <span class="updated" :title="fullDate(preview.updated_at)">
               {{ t('cols.updatedAt') }} {{ fmtDateTime(preview.updated_at) }}
             </span>
@@ -650,6 +653,8 @@ tr.selected td, tr.preview td { background: var(--accent-soft); }
 .headline { display: flex; align-items: center; gap: 14px; min-width: 0; flex: 1 1 auto; }
 .detailsId { font-size: 17px; color: var(--accent); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
 .statusPill { flex: 0 0 auto; margin-right: 6px; }
+.progress { margin-left: 6px; font-size: 12px; color: var(--muted); white-space: nowrap; }
+.progress.stacked { display: block; margin: 3px 0 0; font-size: 11px; }
 .updated { flex: 0 0 auto; margin-right: 6px; font-size: 12px; color: var(--dim); }
 .detailsActions { margin-left: auto; display: flex; align-items: center; gap: 8px; }
 .metaLine, .opsLine { margin: 0 0 8px; font-size: 13px; font-weight: 300; color: var(--text-2); }

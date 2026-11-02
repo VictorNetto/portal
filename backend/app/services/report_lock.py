@@ -2,7 +2,7 @@
 
 Only the report carries a lock; holding it grants write access to the report and
 to every vulnerability linked to it. The lock frees itself after 10 minutes of
-inactivity — checked lazily, no background job. Dispatched reports skip locking.
+inactivity — checked lazily, no background job. Sent reports skip locking.
 """
 
 from datetime import UTC, datetime, timedelta
@@ -42,12 +42,12 @@ def touch(report: Report) -> None:
 def require_editable(report: Report, user: User) -> None:
     """Gate for every write to a draft report or its vulns: the report must be a
     draft and the caller must hold the lock. Bumps activity on success."""
-    if report.status == ReportStatus.dispatching:
+    if report.sending:
         raise HTTPException(
-            status.HTTP_409_CONFLICT, "The report is being dispatched and is locked"
+            status.HTTP_409_CONFLICT, "The report is being sent and is locked"
         )
-    if report.status == ReportStatus.dispatched:
-        raise HTTPException(status.HTTP_409_CONFLICT, "A dispatched report is immutable")
+    if report.status == ReportStatus.sent:
+        raise HTTPException(status.HTTP_409_CONFLICT, "A sent report is immutable")
     if not held_by(report, user):
         raise HTTPException(
             status.HTTP_409_CONFLICT,

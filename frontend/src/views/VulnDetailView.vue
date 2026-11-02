@@ -2,7 +2,7 @@
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter, onBeforeRouteLeave } from 'vue-router'
 import {
-  getVuln, createVuln, updateVuln, sendVuln, dispatchVuln, deleteVuln, listUsers,
+  getVuln, createVuln, updateVuln, completeVuln, sendVuln, deleteVuln, listUsers,
   listAttachments, uploadAttachment, deleteAttachment, fetchAttachmentBlob,
   transitionVuln, correctVuln, getReport, createReportVuln, acquireReportLock,
   heartbeatReport, releaseReportLock, downloadAuthed, ApiError,
@@ -60,7 +60,7 @@ const rLock = computed(() => reportCtx.value?.lock || null)
 const lockMine = computed(() => !!rLock.value?.mine)
 // A vuln of a free draft report: offer to take the report's lock (as on the report page).
 const canTakeReportLock = computed(() =>
-  inReport.value && reportCtx.value?.status === 'draft' && !rLock.value && isWriter.value)
+  inReport.value && reportCtx.value?.status === 'draft' && !reportCtx.value?.sending && !rLock.value && isWriter.value)
 const lockOther = computed(() => !!rLock.value && !rLock.value.mine)
 const form = ref(blankForm())
 const loading = ref(!isNew.value)
@@ -99,15 +99,14 @@ const editableFields = computed(() => {
   }
   if (isNew.value) return new Set(ALL_FIELDS)
   const s = vuln.value?.status
-  if (s === 'draft' || s === 'saved_local') return new Set(ALL_FIELDS)
-  if (s === 'dispatching') return new Set()
+  if (s === 'draft' || s === 'ready') return new Set(ALL_FIELDS)
   return new Set(['internal_notes', 'operators'])
 })
 const canEdit = (f) => editableFields.value.has(f)
 const isDraft = computed(() => !inReport.value && (isNew.value || vuln.value?.status === 'draft'))
-const isSavedLocal = computed(() => vuln.value?.status === 'saved_local')
+const isReady = computed(() => vuln.value?.status === 'ready')
 const attachEditable = computed(() =>
-  inReport.value ? lockMine.value : (isNew.value || ['draft', 'saved_local'].includes(vuln.value?.status)))
+  inReport.value ? lockMine.value : (isNew.value || ['draft', 'ready'].includes(vuln.value?.status)))
 
 // --- Validation -----------------------------------------------------------
 const REQUIRED = ['identifier', 'description', 'finding_detail', 'mitigation']
@@ -258,34 +257,33 @@ async function reloadAfterConflict(message) {
   error.value = message
 }
 
-async function doSend() {
+async function doComplete() {
   showErrors.value = true
   if (missing.value.length || hasRefErrors.value) { error.value = t('vform.errRequiredToSend'); return }
   saving.value = true; error.value = ''; notice.value = ''
   try {
     const saved = await persist()
-    vuln.value = await sendVuln(saved.id)
+    vuln.value = await completeVuln(saved.id)
     syncForm()
-    notice.value = t('vuln.sent')
+    notice.value = t('vuln.completed')
   } catch (e) {
     if (e instanceof ApiError && e.status === 409) await reloadAfterConflict(e.detail)
-    else reportError(e, 'errors.send')
+    else reportError(e, 'errors.complete')
   } finally { saving.value = false }
 }
 
-async function doDispatch() {
-  if (!(await confirmDialog(t('vuln.confirmDispatch')))) return
+async function doSend() {
+  if (!(await confirmDialog(t('vuln.confirmSend')))) return
   error.value = ''; notice.value = ''
-  try { vuln.value = await dispatchVuln(id.value); syncForm(); notice.value = t('vuln.dispatched') }
-  catch (e) { error.value = e instanceof ApiError ? e.detail : t('errors.dispatch') }
+  try { vuln.value = await sendVuln(id.value); syncForm(); notice.value = t('vuln.sentOk') }
+  catch (e) { error.value = e instanceof ApiError ? e.detail : t('errors.send') }
 }
 
-// --- Lifecycle after acknowledgment (waiting fix -> retest -> fixed) ---------
+// --- Lifecycle after the RVS ID (fixing -> retesting -> fixed) -----------------
 const NEXT_ACTIONS = {
-  acknowledged: [{ to: 'waiting_fix', label: 'transitions.toWaitingFix' }],
-  waiting_fix: [{ to: 'pending_retest', label: 'transitions.toRetest' }],
-  pending_retest: [
-    { to: 'waiting_fix', label: 'transitions.retestFailed' },
+  fixing: [{ to: 'retesting', label: 'transitions.toRetest' }],
+  retesting: [
+    { to: 'fixing', label: 'transitions.retestFailed' },
     { to: 'fixed', label: 'transitions.retestPassed', primary: true },
   ],
 }
@@ -300,8 +298,8 @@ async function doTransition(action) {
   } catch (e) { error.value = e instanceof ApiError ? e.detail : t('errors.update'); await load() }
 }
 
-// --- Admin correction (D6): move back to an earlier status -------------------
-const ORDER = ['saved_local', 'dispatched', 'acknowledged', 'waiting_fix', 'pending_retest', 'fixed']
+// --- Admin status adjustment (D6): move back to an earlier status -------------
+const ORDER = ['ready', 'sent', 'fixing', 'retesting', 'fixed']
 const correctionTargets = computed(() => {
   const i = ORDER.indexOf(vuln.value?.status)
   return i > 0 ? ORDER.slice(0, i) : []
@@ -498,8 +496,8 @@ watch(() => route.fullPath, () => {
           </button>
           <button v-for="a in nextActions" :key="a.to" class="btn" :class="{ primary: a.primary }"
                   @click="doTransition(a)">{{ t(a.label) }}</button>
-          <button v-if="isSavedLocal && isWriter" class="btn" @click="doDispatch">{{ t('actions.dispatch') }}</button>
-          <button v-if="isDraft && isWriter" class="btn" :disabled="saving" @click="doSend">{{ t('vform.send') }}</button>
+          <button v-if="isReady && isWriter" class="btn" @click="doSend">{{ t('actions.send') }}</button>
+          <button v-if="isDraft && isWriter" class="btn" :disabled="saving" @click="doComplete">{{ t('vform.complete') }}</button>
           <button v-if="canTakeReportLock" class="btn primary" @click="takeLock">{{ t('rpt.edit') }}</button>
         <button v-if="editableFields.size" class="btn primary" :disabled="saving" @click="save">
             {{ saving ? t('vuln.saving') : (isDraft ? t('vform.saveDraft') : t('vuln.save')) }}

@@ -13,8 +13,7 @@
 //   report:<text>                report id or name contains (ci); report:none = not in a report
 
 export const STATUSES = [
-  'draft', 'saved_local', 'dispatching', 'dispatched',
-  'acknowledged', 'waiting_fix', 'pending_retest', 'fixed',
+  'draft', 'ready', 'sent', 'fixing', 'retesting', 'fixed',
 ]
 
 // CVSS menu values: whole numbers 10..1 (reverse order). cvss:x means >= x.

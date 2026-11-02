@@ -42,8 +42,7 @@
   /* Status (semantic, light pills) */
   --st-draft-fg: #5f6d7e;  --st-draft-bg: #eef1f4;
   --st-local-fg: #0369a1;  --st-local-bg: #e3f1fb;
-  --st-dispatch-fg: #6d3fd6; --st-dispatch-bg: #eee9fb;
-  --st-ack-fg: #0e7490;    --st-ack-bg: #d9f3f8;
+  --st-sent-fg: #6d3fd6;   --st-sent-bg: #eee9fb;
   --st-wait-fg: #a5560a;   --st-wait-bg: #fcf0d5;
   --st-retest-fg: #8a6a06; --st-retest-bg: #fbf4cc;
   --st-fixed-fg: #137a3d;  --st-fixed-bg: #e0f4e7;
@@ -171,11 +170,10 @@ tbody tr:hover td { background: var(--hover); }
   padding: 2px 8px; font-size: 11px; font-weight: 400;
 }
 .pill.s-draft, .pill.off { color: var(--st-draft-fg); background: var(--st-draft-bg); }
-.pill.s-saved_local { color: var(--st-local-fg); background: var(--st-local-bg); }
-.pill.s-dispatching, .pill.s-waiting_fix { color: var(--st-wait-fg); background: var(--st-wait-bg); }
-.pill.s-dispatched { color: var(--st-dispatch-fg); background: var(--st-dispatch-bg); }
-.pill.s-acknowledged { color: var(--st-ack-fg); background: var(--st-ack-bg); }
-.pill.s-pending_retest { color: var(--st-retest-fg); background: var(--st-retest-bg); }
+.pill.s-ready { color: var(--st-local-fg); background: var(--st-local-bg); }
+.pill.s-sent { color: var(--st-sent-fg); background: var(--st-sent-bg); }
+.pill.s-fixing { color: var(--st-wait-fg); background: var(--st-wait-bg); }
+.pill.s-retesting { color: var(--st-retest-fg); background: var(--st-retest-bg); }
 .pill.s-fixed, .pill.on { color: var(--st-fixed-fg); background: var(--st-fixed-bg); }
 
 .cvss { font-family: var(--mono); font-weight: 500; }
