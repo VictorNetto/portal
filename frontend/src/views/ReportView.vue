@@ -427,8 +427,6 @@ async function saveTemplate() {
     <!-- Fixed top: breadcrumb, title, actions, messages and the lock state stay in view. -->
     <div class="stickyTop">
       <nav class="crumbs">
-        <a @click="router.push('/hub')">{{ t('vform.breadcrumbRoot') }}</a>
-        <span>›</span>
         <a @click="router.push('/hub?entity=reports')">{{ t('hub.tabReports') }}</a>
         <span>›</span>
         <strong>{{ isNew ? t('rpt.newTitle') : (report?.name || '…') }}</strong>
@@ -454,7 +452,6 @@ async function saveTemplate() {
           </div>
           <div class="pageActions" v-if="report">
             <button v-if="status === 'draft' && !frozen && mayDelete" class="btn danger" @click="remove">{{ t('rowActions.delete') }}</button>
-            <button class="btn" @click="router.push('/hub?entity=reports')">{{ t('rpt.back') }}</button>
             <ExportMenu :options="exportOptions" @export="exportAs" />
             <button v-if="canSaveTemplate" class="btn" @click="openTemplateModal">{{ t('tpl.saveAs') }}</button>
             <button v-if="canTakeLock" class="btn primary" @click="takeLock">{{ t('rpt.edit') }}</button>
@@ -513,7 +510,6 @@ async function saveTemplate() {
           <OperatorPicker v-model="selectedViewers" :users="knownUsers" :show-self="false" />
         </div>
         <div class="createActions">
-          <button class="btn" @click="router.push('/hub?entity=reports')">{{ t('vform.cancel') }}</button>
           <button class="btn primary" :disabled="saving || !created.name.trim()" @click="create">
             {{ t('rpt.create') }}
           </button>

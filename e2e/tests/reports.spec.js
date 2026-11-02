@@ -81,7 +81,7 @@ test.describe('reports', () => {
     await page.click('.pageActions button:text-is("Salvar")')
     await expect(page).toHaveURL(/\/vulnerabilities\/[0-9a-f-]{36}$/)
     await expect(page.locator('.banner.mine')).toBeVisible()
-    await page.locator('.crumbs a').nth(2).click()                       // back via the report crumb
+    await page.locator('.crumbs a').nth(1).click()                       // back via the report crumb
     await expect(page.locator('.vt .cvss')).toHaveText('9.1')
     await expect(page.locator('.banner.mine')).toBeVisible()             // the lock survived the round trip
     expect(errors).toEqual([])
@@ -179,7 +179,7 @@ test.describe('reports', () => {
     await page.goto(`/reports/${r.id}`)
     await expect(page.locator('.banner.mine')).toBeVisible()
     await page.fill('textarea[maxlength="5000"]', 'escopo editado')
-    await page.click('.pageActions button:has-text("Voltar")')
+    await page.click('.crumbs a >> nth=0')
     await expect.poll(() => dialogs.length).toBe(1)
     await expect(page).toHaveURL(/\/reports\//)                          // stayed
   })

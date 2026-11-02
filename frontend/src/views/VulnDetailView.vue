@@ -56,6 +56,8 @@ const reportCtx = ref(null)
 const reportId = computed(() =>
   route.params.rid || (vuln.value && vuln.value.status === 'draft' ? vuln.value.report_id : null) || null)
 const inReport = computed(() => !!reportId.value)
+// The report it belongs to, also after being sent (when it no longer depends on it).
+const crumbReport = computed(() => vuln.value?.report || (reportId.value ? reportCtx.value || { id: reportId.value, name: '…' } : null))
 const rLock = computed(() => reportCtx.value?.lock || null)
 const lockMine = computed(() => !!rLock.value?.mine)
 // A vuln of a free draft report: offer to take the report's lock (as on the report page).
@@ -450,7 +452,6 @@ onBeforeRouteLeave(async (to) => {
     try { await releaseReportLock(reportId.value) } catch { /* ignore */ }
   }
 })
-const leave = () => router.push(inReport.value ? `/reports/${reportId.value}` : '/hub')
 
 onMounted(load)
 // Navigating between new <-> a created detail reuses this component.
@@ -464,12 +465,10 @@ watch(() => route.fullPath, () => {
     <!-- Fixed top: breadcrumb, title, actions, messages and the lock state stay in view. -->
     <div class="stickyTop">
       <nav class="crumbs">
-        <a @click="router.push('/hub')">{{ t('vform.breadcrumbRoot') }}</a>
-        <span>›</span>
-        <template v-if="inReport">
+        <template v-if="crumbReport">
           <a @click="router.push('/hub?entity=reports')">{{ t('hub.tabReports') }}</a>
           <span>›</span>
-          <a @click="leave">{{ reportCtx?.name || '…' }}</a>
+          <a @click="router.push(`/reports/${crumbReport.id}`)">{{ crumbReport.name }}</a>
           <span>›</span>
         </template>
         <template v-else>
@@ -492,7 +491,6 @@ watch(() => route.fullPath, () => {
         <div class="pageActions">
           <button v-if="!isNew && mayDelete" class="btn danger" @click="remove">{{ t('rowActions.delete') }}</button>
           <ExportMenu v-if="!isNew" :options="exportOptions" @export="exportAs" />
-          <button class="btn" @click="leave">{{ inReport || !editableFields.size ? t('rpt.back') : t('vform.cancel') }}</button>
           <button v-if="isAdmin && correctionTargets.length" class="btn" @click="openCorrection">
             {{ t('correction.button') }}
           </button>

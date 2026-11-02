@@ -355,7 +355,6 @@ const messages = {
       errGeneric: 'Falha ao enviar {name}.',
     },
     vform: {
-      breadcrumbRoot: 'Operações',
       breadcrumbSection: 'Vulnerabilidades',
       createTitle: 'Criar Vulnerabilidade',
       createHint: 'Preencha os detalhes da nova vulnerabilidade.',
@@ -448,7 +447,6 @@ const messages = {
       start: 'Início',
       end: 'Fim',
       create: 'Criar relatório',
-      back: 'Voltar',
       edit: 'Editar',
       stopEditing: 'Parar de editar',
       saved: 'Relatório salvo.',
@@ -815,7 +813,6 @@ const messages = {
       errGeneric: 'Failed to upload {name}.',
     },
     vform: {
-      breadcrumbRoot: 'Operations',
       breadcrumbSection: 'Vulnerabilities',
       createTitle: 'Create Vulnerability',
       createHint: 'Fill in the details of the new vulnerability.',
@@ -909,7 +906,6 @@ const messages = {
       start: 'Start',
       end: 'End',
       create: 'Create report',
-      back: 'Back',
       edit: 'Edit',
       stopEditing: 'Stop editing',
       saved: 'Report saved.',
