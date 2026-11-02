@@ -57,6 +57,7 @@ The backend has an integration suite that drives the running API over HTTP and u
 ```bash
 docker compose exec api pip install pytest httpx pypdf    # once per container
 docker compose exec api python -m pytest tests -q
+sh scripts/dev_reset.sh    # DEV ONLY: erases the database and loads sample data (keeps admin)
 ```
 
 Lint with `pip install ruff && cd backend && ruff check app tests` (configuration in `backend/pyproject.toml`).

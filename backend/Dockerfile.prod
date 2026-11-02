@@ -15,6 +15,7 @@ RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir .
 
 COPY app ./app
+RUN rm -rf app/devdata
 COPY migrations ./migrations
 COPY alembic.ini ./
 
