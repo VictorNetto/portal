@@ -5,9 +5,10 @@ import uuid
 from fastapi import APIRouter, Depends, Query, Request, Response, status
 from sqlalchemy.orm import Session
 
+from app import audit
 from app.db import get_session
 from app.deps import get_current_user, require_roles
-from app.models.enums import UserRole
+from app.models.enums import AuditAction, UserRole
 from app.models.user import User
 from app.schemas.vulnerability import (
     BatchExport,
@@ -78,10 +79,17 @@ def create_vuln(
 @router.get("/{vuln_id}", response_model=VulnOut)
 def get_vuln(
     vuln_id: uuid.UUID,
+    request: Request,
     user: User = Depends(get_current_user),
     session: Session = Depends(get_session),
 ) -> VulnOut:
-    return svc.get_visible(session, vuln_id, user)
+    vuln = svc.get_visible(session, vuln_id, user)
+    audit.record(  # D8: who read which finding, and when
+        session, action=AuditAction.read, user_id=user.id,
+        entity_type="vulnerability", entity_id=vuln.id, request=request,
+    )
+    session.commit()
+    return vuln
 
 
 @router.patch("/{vuln_id}", response_model=VulnOut)

@@ -108,6 +108,7 @@ def _styles() -> dict[str, ParagraphStyle]:
 # --- markdown -> flowables ------------------------------------------------------
 _IMG = re.compile(r"!\[([^\]]*)\]\(([^)\s]+)\)")
 _ATT_URL = re.compile(r"^/api/attachments/([0-9a-f-]{36})/content$", re.IGNORECASE)
+_CONTROL = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f]")
 
 
 def _esc(text: str) -> str:
@@ -174,7 +175,8 @@ def parse_markdown(text: str | None) -> list[tuple]:
     · ("code", text) · ("img", alt, url). Inline markup stays inside the text."""
     if not (text or "").strip():
         return []
-    src = text.replace("\r\n", "\n").replace("\r", "\n")
+    # Control characters print nothing, and \x01 marks the fenced blocks below.
+    src = _CONTROL.sub("", text.replace("\r\n", "\n").replace("\r", "\n"))
     blocks: list[tuple] = []
 
     # fenced code blocks are lifted out first
@@ -320,7 +322,7 @@ class _Doc(BaseDocTemplate):
             key = f"toc{self.seq.nextf('toc')}"
             self.canv.bookmarkPage(key)
             self.notify("TOCEntry", (0 if flowable.style.name == "H1" else 1,
-                                     flowable.getPlainText(), self.page, key))
+                                     _esc(flowable.getPlainText()), self.page, key))
 
 
 def _kv_table(rows: list[tuple[str, str]], st: dict) -> Table:
@@ -466,6 +468,14 @@ def report_pdf(report, vulns: list, load_image: ImageLoader) -> bytes:
 
 
 # --- public: Excel ---------------------------------------------------------------------------------
+def _sheet_row(ws, values: list) -> None:
+    """Author text stays text: no control characters, and "=..." is never a formula."""
+    ws.append([_CONTROL.sub("", v) if isinstance(v, str) else v for v in values])
+    for cell in ws[ws.max_row]:
+        if cell.data_type == "f":
+            cell.data_type = "s"
+
+
 def vulnerabilities_xlsx(report, vulns: list) -> bytes:
     """Vulnerabilities as rows (SPEC §9 step 4). No internal notes. With a parent
     `report` a second sheet describes it; without one (a batch export of
@@ -477,7 +487,7 @@ def vulnerabilities_xlsx(report, vulns: list) -> bytes:
                "Status", "Descrição", "Detalhes do achado", "Mitigação / Solução", "Referências"]
     ws.append(headers)
     for v in vulns:
-        ws.append([
+        _sheet_row(ws, [
             v.internal_id or "", v.identifier or "", v.cwe or "",
             float(v.cvss_score) if v.cvss_score is not None else None,
             v.cvss_vector or "", v.source or "",
@@ -507,7 +517,7 @@ def vulnerabilities_xlsx(report, vulns: list) -> bytes:
         ("Operadores", ", ".join(sorted(o.username for o in report.operators))),
         ("Vulnerabilidades", len(vulns)),
     ):
-        info.append([k, val])
+        _sheet_row(info, [k, val])
     if info is not None:
         info.column_dimensions["A"].width = 18
         info.column_dimensions["B"].width = 50

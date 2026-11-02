@@ -102,9 +102,10 @@ def _ref_clause(model, ref: str):
         return func.upper(model.internal_id) == ref.upper()
 
 
-def _vuln(session: Session, ref: str) -> Vulnerability:
-    vuln = session.scalar(select(Vulnerability).where(
-        _ref_clause(Vulnerability, ref), Vulnerability.deleted_at.is_(None)))
+def _vuln(session: Session, ref: str, *, for_update: bool = False) -> Vulnerability:
+    stmt = select(Vulnerability).where(
+        _ref_clause(Vulnerability, ref), Vulnerability.deleted_at.is_(None))
+    vuln = session.scalar(stmt.with_for_update() if for_update else stmt)
     if vuln is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Vulnerability not found")
     return vuln
@@ -206,11 +207,15 @@ def list_vulnerabilities(
 
 @router.get("/vulnerabilities/{ref}", response_model=ExtVuln)
 def get_vulnerability(
-    ref: str,
-    _: ApiKey = Depends(require_scope(scopes.VULNS_READ)),
+    ref: str, request: Request,
+    key: ApiKey = Depends(require_scope(scopes.VULNS_READ)),
     session: Session = Depends(get_session),
 ):
-    return _vuln_full(_vuln(session, ref))
+    vuln = _vuln(session, ref)
+    audit.record(session, action=AuditAction.read, api_key_id=key.id,
+                 entity_type="vulnerability", entity_id=vuln.id, request=request)
+    session.commit()
+    return _vuln_full(vuln)
 
 
 @router.get("/vulnerabilities/{ref}/attachments", response_model=list[ExtAttachment])
@@ -244,7 +249,7 @@ def set_rvs(
     session: Session = Depends(get_session),
 ):
     """Record the RVS ID of a sent vulnerability: it moves to fixing."""
-    return _vuln_full(vuln_svc.apply_rvs(session, _vuln(session, ref), body.rvs_id, key, request))
+    return _vuln_full(vuln_svc.apply_rvs(session, _vuln(session, ref, for_update=True), body.rvs_id, key, request))
 
 
 @router.get("/rvs-queue", response_model=list[ExtVulnSummary])
@@ -314,11 +319,14 @@ def list_reports(
 
 @router.get("/reports/{ref}", response_model=ExtReport)
 def get_report(
-    ref: str,
-    _: ApiKey = Depends(require_scope(scopes.REPORTS_READ)),
+    ref: str, request: Request,
+    key: ApiKey = Depends(require_scope(scopes.REPORTS_READ)),
     session: Session = Depends(get_session),
 ):
     r = _report(session, ref)
+    audit.record(session, action=AuditAction.read, api_key_id=key.id,
+                 entity_type="report", entity_id=r.id, request=request)
+    session.commit()
     evidence = session.scalars(select(Attachment).where(Attachment.report_id == r.id)
                                .order_by(Attachment.created_at))
     return ExtReport(

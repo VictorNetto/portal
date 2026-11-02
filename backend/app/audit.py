@@ -45,8 +45,9 @@ def record(
     detail: dict | None = None,
     request: Request | None = None,
 ) -> None:
-    """Append an audit entry. Exactly one of user_id / api_key_id must be set
-    (DB CHECK enforces it). Caller is responsible for the surrounding commit."""
+    """Append an audit entry. Exactly one of user_id / api_key_id must be set, except
+    for a failed login (DB CHECK enforces it). Caller is responsible for the surrounding
+    commit."""
     session.add(
         AuditLog(
             action=action,

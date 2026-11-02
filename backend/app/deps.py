@@ -10,15 +10,15 @@ from collections.abc import Callable
 from datetime import UTC, datetime
 
 import jwt
-from fastapi import Depends, Header, HTTPException, status
+from fastapi import Depends, Header, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.db import get_session
 from app.models.enums import UserRole
-from app.models.user import ApiKey, User
-from app.security import decode_token, hash_api_key
+from app.models.user import ApiKey, AuthSession, User
+from app.security import PASSWORD_MAX_BYTES, decode_token, hash_api_key
 
 # auto_error=False so we can raise our own 401 with a clear message.
 _bearer = HTTPBearer(auto_error=False)
@@ -31,6 +31,7 @@ _CREDENTIALS_EXC = HTTPException(
 
 
 def get_current_user_allow_password_change(
+    request: Request,
     creds: HTTPAuthorizationCredentials | None = Depends(_bearer),
     session: Session = Depends(get_session),
 ) -> User:
@@ -39,13 +40,27 @@ def get_current_user_allow_password_change(
     try:
         payload = decode_token(creds.credentials, expected_type="access")
         user_id = uuid.UUID(payload["sub"])
+        sid = uuid.UUID(payload["sid"])
     except (jwt.PyJWTError, KeyError, ValueError):
         raise _CREDENTIALS_EXC from None  # don't leak token-parsing details
 
     user = session.get(User, user_id)
     if user is None or not user.is_active:
         raise _CREDENTIALS_EXC
+    live = session.scalar(select(AuthSession.id).where(
+        AuthSession.id == sid, AuthSession.user_id == user_id, AuthSession.revoked_at.is_(None)))
+    if live is None:  # signed out, or its password changed (D16)
+        raise _CREDENTIALS_EXC
+    request.state.session_id = sid
     return user
+
+
+def require_password_fits(plain: str) -> None:
+    if len(plain.encode()) > PASSWORD_MAX_BYTES:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            f"Password must be at most {PASSWORD_MAX_BYTES} bytes",
+        )
 
 
 # Returned as the 403 `detail` so clients can tell it apart from a role denial.

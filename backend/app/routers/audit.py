@@ -61,6 +61,8 @@ def list_audit(
             return usernames.get(r.user_id, "unknown-user")
         if r.api_key_id:
             return f"api:{key_prefixes.get(r.api_key_id, '????')}"
+        if r.action == AuditAction.login_failed:
+            return (r.detail or {}).get("username") or "unknown-user"
         return "system"
 
     items = [

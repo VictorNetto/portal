@@ -13,11 +13,11 @@ from sqlalchemy.orm import Session
 
 from app import audit, security
 from app.db import get_session
-from app.deps import require_roles
+from app.deps import require_password_fits, require_roles
 from app.models.enums import AuditAction, UserRole
 from app.models.user import User
 from app.schemas.user import PasswordReset, UserAccess, UserCreate, UserOut, UserUpdate
-from app.services import user_access
+from app.services import auth_session, user_access
 
 router = APIRouter(prefix="/users", tags=["users"])
 
@@ -44,6 +44,7 @@ def create_user(
     admin: User = Depends(_admin),
     session: Session = Depends(get_session),
 ) -> UserOut:
+    require_password_fits(body.password)
     user = User(
         username=body.username,
         password_hash=security.hash_password(body.password),
@@ -139,8 +140,10 @@ def reset_password(
     user = session.get(User, user_id)
     if user is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "User not found")
+    require_password_fits(body.new_password)
     user.password_hash = security.hash_password(body.new_password)
     user.must_change_password = True
+    auth_session.revoke_all(session, user.id)
     audit.record(
         session, action=AuditAction.update, user_id=admin.id,
         entity_type="user", entity_id=user.id, detail={"field": "password_reset"},

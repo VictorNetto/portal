@@ -4,7 +4,8 @@ import io
 import zipfile
 
 import openpyxl
-from conftest import new_report, new_vuln, png_bytes, report_vuln, saved_vuln, upload
+import pytest
+from conftest import new_report, new_vuln, png_bytes, report_vuln, saved_vuln, tag, upload
 from docx import Document
 from pypdf import PdfReader
 
@@ -101,3 +102,25 @@ def test_batch_export_of_reports(writer):
     z = writer.post("/reports/export", {"ids": ids})
     assert z.status_code == 200
     assert len(zipfile.ZipFile(io.BytesIO(z.content)).namelist()) == 2
+
+
+@pytest.mark.parametrize("text", ["XSS em <script>", "R&D <b>x", "\x010\x01", "x\n\x015\x01\ny", "a\x0bb"])
+def test_awkward_text_never_breaks_an_export(writer, text):
+    rep = new_report(writer, name="pytest-text " + text)
+    report_vuln(writer, rep["id"], identifier=text, description=text)
+    for fmt in ("pdf", "docx", "xlsx"):
+        assert writer.get(f"/reports/{rep['id']}/export", params={"format": fmt}).status_code == 200
+
+
+def test_a_title_is_never_a_formula_in_the_spreadsheet(writer):
+    import io
+
+    from openpyxl import load_workbook
+
+    rep = new_report(writer, name="pytest-formula-" + tag(), client_name="=2+2")
+    report_vuln(writer, rep["id"], identifier="=1+1")
+    data = writer.get(f"/reports/{rep['id']}/export", params={"format": "xlsx"}).content
+    book = load_workbook(io.BytesIO(data))
+    cell = book.active["B2"]
+    assert cell.value == "=1+1" and cell.data_type == "s"
+    assert book["Relatório"]["B3"].data_type == "s"

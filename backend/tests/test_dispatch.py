@@ -199,3 +199,43 @@ def test_smtp_transport_degrades_gracefully():
         assert not r.ok and "ConnectionRefusedError" in r.detail          # reported, never raised
     finally:
         settings.smtp_host, settings.smtp_from, settings.dispatch_to, settings.smtp_port, settings.smtp_starttls = saved
+
+
+def test_a_report_that_cannot_render_stays_an_editable_draft(writer, monkeypatch):
+    rep = new_report(writer, name="pytest-render-" + tag())
+    report_vuln(writer, rep["id"], identifier="x")
+    with SessionLocal() as s:
+        user = s.scalar(select(User).where(User.username == writer.user["username"]))
+        r = s.get(Report, rep["id"])
+
+        def broken(*_a, **_k):
+            raise ValueError("boom")
+
+        monkeypatch.setattr(report_dispatch, "build_package", broken)
+        with pytest.raises(Exception) as caught:
+            report_dispatch.send(s, r.id, user, None)
+        assert caught.value.status_code == 422
+        s.rollback()
+        s.expire_all()
+        r = s.get(Report, rep["id"])
+        assert r.status == ReportStatus.draft and not r.sending and r.internal_id is None
+
+
+def test_a_frozen_report_that_cannot_render_is_unfrozen(writer, monkeypatch):
+    rep = new_report(writer, name="pytest-thaw-" + tag())
+    report_vuln(writer, rep["id"], identifier="x")
+    with SessionLocal() as s:
+        user = s.scalar(select(User).where(User.username == writer.user["username"]))
+        r = s.get(Report, rep["id"])
+        r.sending, r.internal_id = True, "OP-T" + tag()
+        s.commit()
+
+        def broken(*_a, **_k):
+            raise ValueError("boom")
+
+        monkeypatch.setattr(report_dispatch, "build_package", broken)
+        with pytest.raises(Exception) as caught:
+            report_dispatch.send(s, r.id, user, None)
+        assert caught.value.status_code == 422
+        s.expire_all()
+        assert not s.get(Report, rep["id"]).sending

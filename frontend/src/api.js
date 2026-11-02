@@ -133,6 +133,12 @@ export function attachmentObjectUrl(id) {
   return blobUrlCache.get(id)
 }
 
+// Files the signed-out user could read must not stay available in this tab.
+export function clearAttachmentCache() {
+  for (const url of blobUrlCache.values()) url.then((u) => URL.revokeObjectURL(u)).catch(() => {})
+  blobUrlCache.clear()
+}
+
 // --- Reports ---
 export const listReports = () => api('/reports')
 export const getReport = (id) => api(`/reports/${id}`)

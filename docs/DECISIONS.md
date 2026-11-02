@@ -267,3 +267,19 @@ The UUID `id` is the database key; it stays out of the screens and appears in UR
   Existing drafts lost theirs; a retry keeps the number of the first try. Draft exports are named
   after the report.
 - The API field stays `name` for reports.
+
+---
+
+## D16 — Login limits and revocable sessions
+
+- **Limit:** 5 failed logins per account and 30 per IP within 15 minutes answer 429. A success
+  clears the account's failures. The count comes from the audit log, so it needs no extra store
+  and holds across workers.
+- **Failed logins are audited** (`login_failed`). It is the only entry that may have no actor,
+  because the name typed may not be an account.
+- **Sessions live on the server** (`auth_sessions`) and tokens carry their id. Signing out ends the
+  session, and so does a change of password: the user's own change ends their other sessions, an
+  admin reset ends all of them. A refresh token works once; two tabs may race for 30 seconds, and a
+  later reuse means a copy exists, which ends the session.
+- **Sending:** the package is built before the report is frozen, so content that cannot be rendered
+  is refused and stays an editable draft. Only a delivery failure leaves a report frozen for retry.

@@ -3,7 +3,7 @@
 // every open tab shares the same session (D12).
 
 import { defineStore } from 'pinia'
-import { api, setAccessToken, setRefreshHandler } from '../api'
+import { api, clearAttachmentCache, setAccessToken, setRefreshHandler } from '../api'
 import { resetActivity } from '../session'
 
 const ACCESS_KEY = 'rtp_access'
@@ -99,8 +99,14 @@ export const useAuthStore = defineStore('auth', {
       this.accessToken = null
       this.refreshToken = null
       this.sessionEnd = 0
-      if (!keepUser) this.user = null
+      if (!keepUser) { this.user = null; clearAttachmentCache() }
       this._persist()
+    },
+
+    // Signing out on purpose also ends the session on the server.
+    async signOut() {
+      try { await api('/auth/logout', { method: 'POST' }) } catch { /* already over */ }
+      this.logout()
     },
 
     // Called once on app start to wire the stored token into the api client

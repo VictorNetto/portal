@@ -1,4 +1,4 @@
-"""Users and API keys — SPEC §15.3, §15.4."""
+"""Users, API keys and login sessions — SPEC §15.3, §15.4, D16."""
 
 import uuid
 from datetime import datetime
@@ -27,6 +27,22 @@ class User(UUIDPK, Timestamps, Base):
     is_active: Mapped[bool] = mapped_column(
         Boolean, nullable=False, server_default=text("true")
     )
+
+
+class AuthSession(UUIDPK, Base):
+    """A login (D16). Its tokens carry its id, so ending it ends them at once."""
+
+    __tablename__ = "auth_sessions"
+
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    # The refresh token in force, and the one it replaced (tabs may race for a moment).
+    refresh_jti: Mapped[str] = mapped_column(Text, nullable=False)
+    previous_jti: Mapped[str | None] = mapped_column(Text, nullable=True)
+    rotated_at: Mapped[datetime | None] = mapped_column(nullable=True)
+    expires_at: Mapped[datetime] = mapped_column(nullable=False)
+    revoked_at: Mapped[datetime | None] = mapped_column(nullable=True)
 
 
 class ApiKey(UUIDPK, Base):

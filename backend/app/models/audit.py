@@ -1,6 +1,7 @@
 """Audit log — append-only, never updated or deleted (SPEC §15.11).
 
-Exactly one actor (human user OR api key) is non-null, enforced by CHECK.
+At most one actor (human user OR api key), enforced by CHECK; only a failed login may
+have none, because the name typed may not be an account (D16).
 Read events ARE captured deliberately (D8): confidential findings make
 who-read-what-when a security control. Volume is managed operationally.
 """
@@ -8,7 +9,7 @@ who-read-what-when a security control. Volume is managed operationally.
 import uuid
 from datetime import datetime
 
-from sqlalchemy import BigInteger, CheckConstraint, Enum, ForeignKey, Text, func
+from sqlalchemy import BigInteger, CheckConstraint, Enum, ForeignKey, Index, Text, func
 from sqlalchemy.dialects.postgresql import INET, JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -19,9 +20,11 @@ from app.models.enums import AuditAction
 class AuditLog(Base):
     __tablename__ = "audit_logs"
     __table_args__ = (
+        Index("ix_audit_action_created", "action", "created_at"),
         CheckConstraint(
-            "(user_id IS NULL) != (api_key_id IS NULL)",
-            name="ck_audit_exactly_one_actor",
+            "(user_id IS NULL) != (api_key_id IS NULL) OR "
+            "(action::text = 'login_failed' AND api_key_id IS NULL)",
+            name="ck_audit_actor",
         ),
     )
 

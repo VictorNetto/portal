@@ -35,6 +35,7 @@ class ReportStatus(str, enum.Enum):
 
 class AuditAction(str, enum.Enum):
     login = "login"
+    login_failed = "login_failed"  # D16: the only entry that may have no actor
     logout = "logout"
     create = "create"
     read = "read"

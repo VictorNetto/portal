@@ -103,10 +103,8 @@ def can_delete_vuln(session: Session, user: User, vuln: Vulnerability) -> bool:
 
 # --- Enforcement ----------------------------------------------------------------
 
-def _deny(readable: bool) -> HTTPException:
-    if readable:
-        return HTTPException(status.HTTP_403_FORBIDDEN, FORBIDDEN)
-    return HTTPException(status.HTTP_404_NOT_FOUND, "Not found")
+def _forbidden() -> HTTPException:
+    return HTTPException(status.HTTP_403_FORBIDDEN, FORBIDDEN)
 
 
 def require_read_vuln(session: Session, user: User, vuln: Vulnerability) -> None:
@@ -118,13 +116,13 @@ def require_write_vuln(session: Session, user: User, vuln: Vulnerability) -> Non
     if not can_write_vuln(session, user, vuln):
         if not can_read_vuln(session, user, vuln):
             raise HTTPException(status.HTTP_404_NOT_FOUND, "Vulnerability not found")
-        raise _deny(True)
+        raise _forbidden()
 
 
 def require_delete_vuln(session: Session, user: User, vuln: Vulnerability) -> None:
     if not can_delete_vuln(session, user, vuln):
         require_read_vuln(session, user, vuln)
-        raise _deny(True)
+        raise _forbidden()
 
 
 def require_read_report(user: User, report: Report) -> None:
@@ -135,13 +133,13 @@ def require_read_report(user: User, report: Report) -> None:
 def require_write_report(user: User, report: Report) -> None:
     if not can_write_report(user, report):
         require_read_report(user, report)
-        raise _deny(True)
+        raise _forbidden()
 
 
 def require_delete_report(user: User, report: Report) -> None:
     if not can_delete_report(user, report):
         require_read_report(user, report)
-        raise _deny(True)
+        raise _forbidden()
 
 
 # --- List filters (SQL) -----------------------------------------------------------

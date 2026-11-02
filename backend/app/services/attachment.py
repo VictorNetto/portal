@@ -39,7 +39,7 @@ _TYPES: dict[str, tuple[str, bool]] = {
 }
 
 # Attachments follow the vuln's content-field lock (SPEC §4): only editable
-# while the vuln is still a draft / saved locally.
+# while the vuln is still a draft or ready.
 _ATTACHABLE = {VulnStatus.draft, VulnStatus.ready}
 
 

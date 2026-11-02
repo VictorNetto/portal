@@ -10,7 +10,7 @@ from app.models.enums import AuditAction
 
 class AuditEntry(BaseModel):
     id: int
-    actor: str  # username, "api:<prefix>", or "system"
+    actor: str  # username, "api:<prefix>", the name typed on a failed login, or "system"
     action: AuditAction
     entity_type: str | None
     entity_id: uuid.UUID | None

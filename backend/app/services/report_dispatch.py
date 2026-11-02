@@ -3,12 +3,15 @@
 Sending runs in two phases so a delivery failure can never masquerade as a
 completed send:
 
+  Check:  the package is built once first; content that cannot be rendered is refused
+          (422) and the report stays an ordinary draft, so it can be corrected.
   Phase 1 (one DB transaction): report frozen (`sending`), OP-xxxx and VULN-xxxx
           ids assigned, lock cleared. Committed before anything is sent.
   Phase 2 (re-locked, outside phase 1): render PDF + Excel, gather non-image
           attachments, call the dispatcher. On success the report and its vulns
-          become `sent`; on failure they stay drafts, the report stays frozen
-          with the error recorded, and the operator retries the same endpoint.
+          become `sent`. If delivery fails they stay drafts, the report stays frozen
+          with the error recorded, and the operator retries the same endpoint. If
+          rendering fails, retrying cannot help: the report is unfrozen for correction.
 """
 
 import io
@@ -121,6 +124,13 @@ def _body(report: Report, vulns: list[Vulnerability]) -> str:
     return "\n".join(lines)
 
 
+def _unrenderable(exc: Exception) -> HTTPException:
+    return HTTPException(
+        status.HTTP_422_UNPROCESSABLE_ENTITY,
+        f"The report could not be generated, so nothing was sent. Review its content. ({str(exc)[:200]})",
+    )
+
+
 # --- dispatch --------------------------------------------------------------------------------
 
 def send(
@@ -142,11 +152,16 @@ def send(
                 f"{len(missing)} vulnerability(ies) have no identifier — fill it in before "
                 "sending (D3)",
             )
+        try:
+            build_package(session, report, vulns)
+        except Exception as exc:
+            raise _unrenderable(exc) from exc
         # --- Phase 1: one atomic transaction
         for v in vulns:  # already CVSS-descending, so VULN numbers follow severity
-            v.internal_id = _next_vuln_internal_id(session)
+            # A report unfrozen after a failed render keeps the numbers it already has.
+            v.internal_id = v.internal_id or _next_vuln_internal_id(session)
             v.version += 1
-        report.internal_id = report_svc._next_report_internal_id(session)
+        report.internal_id = report.internal_id or report_svc._next_report_internal_id(session)
         report.sending = True
         report.send_error = None
         report.lock_user_id = None
@@ -167,6 +182,18 @@ def send(
 
     try:
         pdf, xlsx, files = build_package(session, report, vulns)
+    except Exception as exc:
+        report.sending = False
+        report.send_error = None
+        audit.record(
+            session, action=AuditAction.send, user_id=user.id,
+            entity_type="report", entity_id=report.id,
+            detail={"phase": 2, "ok": False, "error": str(exc)[:500]}, request=request,
+        )
+        session.commit()
+        raise _unrenderable(exc) from exc
+
+    try:
         payload = dispatcher.DispatchPayload(
             subject=f"[Portal Red Team] {report.internal_id} — {report.name}",
             body=_body(report, vulns),

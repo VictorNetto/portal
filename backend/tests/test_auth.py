@@ -42,8 +42,8 @@ def test_admin_reset_locks_an_already_open_session(admin):
     assert user.get("/vulnerabilities").status_code == 200
     r = admin.post(f"/users/{user.user['id']}/reset-password", {"new_password": "Reset-By-Admin-1"})
     assert r.status_code == 200
-    # Same access token, but the account is flagged again: blocked at once.
-    assert user.get("/vulnerabilities").status_code == 403
+    # A reset ends every open session at once (D16).
+    assert user.get("/vulnerabilities").status_code == 401
 
 
 def test_refresh_token_gives_a_new_access_token(writer):
@@ -106,8 +106,8 @@ def test_password_changes_and_logins_are_audited(admin):
     assert "login" in actions and "update" in actions
 
 
-def _forged_refresh(user_id: str, started_min_ago: int, issued_min_ago: int, life_min: int) -> str:
-    """A refresh token as the server would have signed it in the past."""
+def _forged_refresh(user, started_min_ago: int, issued_min_ago: int, life_min: int) -> str:
+    """The refresh token of a real session, as the server would have signed it in the past."""
     from datetime import UTC, datetime, timedelta
 
     import jwt
@@ -115,8 +115,10 @@ def _forged_refresh(user_id: str, started_min_ago: int, issued_min_ago: int, lif
     from app.config import settings
 
     now = datetime.now(UTC)
+    live = login(user.user["username"], user.password).json()["refresh_token"]
+    claims = jwt.decode(live, options={"verify_signature": False})
     payload = {
-        "sub": user_id, "type": "refresh",
+        "sub": user.user["id"], "type": "refresh", "sid": claims["sid"], "jti": claims["jti"],
         "sst": int((now - timedelta(minutes=started_min_ago)).timestamp()),
         "iat": now - timedelta(minutes=issued_min_ago),
         "exp": now - timedelta(minutes=issued_min_ago) + timedelta(minutes=life_min),
@@ -136,14 +138,91 @@ def test_session_lasts_one_hour_and_refresh_never_extends_it(writer):
     assert r.json()["refresh_token"] != tokens["refresh_token"]              # rotated: idle window restarts
 
     # a session that began 61 minutes ago cannot be renewed, even with a live refresh token
-    stale = _forged_refresh(writer.user["id"], started_min_ago=61, issued_min_ago=1, life_min=15)
+    stale = _forged_refresh(writer, started_min_ago=61, issued_min_ago=1, life_min=15)
     assert httpx.post(f"{BASE_URL}/auth/refresh", json={"refresh_token": stale}).status_code == 401
     # a session started 30 minutes ago is still renewable
-    ok = _forged_refresh(writer.user["id"], started_min_ago=30, issued_min_ago=1, life_min=15)
+    ok = _forged_refresh(writer, started_min_ago=30, issued_min_ago=1, life_min=15)
     assert httpx.post(f"{BASE_URL}/auth/refresh", json={"refresh_token": ok}).status_code == 200
 
 
 def test_idle_session_cannot_be_renewed(writer):
     # last renewed 16 minutes ago: the refresh token (15 min) is dead
-    idle = _forged_refresh(writer.user["id"], started_min_ago=20, issued_min_ago=16, life_min=15)
+    idle = _forged_refresh(writer, started_min_ago=20, issued_min_ago=16, life_min=15)
     assert httpx.post(f"{BASE_URL}/auth/refresh", json={"refresh_token": idle}).status_code == 401
+
+
+def refresh(token: str) -> httpx.Response:
+    return httpx.post(f"{BASE_URL}/auth/refresh", json={"refresh_token": token})
+
+
+def bearer(token: str) -> dict:
+    return {"Authorization": f"Bearer {token}"}
+
+
+def test_failed_logins_are_audited_and_the_account_is_blocked_for_a_while(admin, writer):
+    name = "nobody-" + tag()
+    for _ in range(5):
+        assert login(name, "wrong").status_code == 401
+    assert login(name, "wrong").status_code == 429
+    entries = admin.get("/audit-logs", params={"action": "login_failed", "page_size": 20}).json()["items"]
+    assert sum(e["actor"] == name for e in entries) == 5
+
+
+def test_a_success_clears_the_failures_of_the_account(writer):
+    name = writer.user["username"]
+    for _ in range(4):
+        login(name, "wrong")
+    assert login(name, writer.password).status_code == 200
+    assert login(name, "wrong").status_code == 401
+    assert login(name, writer.password).status_code == 200
+
+
+def test_logout_ends_the_session_for_every_token(writer):
+    tokens = login(writer.user["username"], writer.password).json()
+    assert httpx.post(f"{BASE_URL}/auth/logout", headers=bearer(tokens["access_token"])).status_code == 204
+    assert httpx.get(f"{BASE_URL}/auth/me", headers=bearer(tokens["access_token"])).status_code == 401
+    assert refresh(tokens["refresh_token"]).status_code == 401
+
+
+def test_a_replayed_refresh_token_ends_the_session(writer, monkeypatch):
+    from datetime import timedelta
+
+    from sqlalchemy import update
+
+    from app.db import SessionLocal
+    from app.models.user import AuthSession
+
+    first = login(writer.user["username"], writer.password).json()
+    second = refresh(first["refresh_token"]).json()
+    assert refresh(first["refresh_token"]).status_code == 200    # tabs racing: tolerated briefly
+    with SessionLocal() as s:
+        s.execute(update(AuthSession).where(AuthSession.user_id == writer.user["id"])
+                  .values(rotated_at=AuthSession.rotated_at - timedelta(minutes=5)))
+        s.commit()
+    assert refresh(first["refresh_token"]).status_code == 401     # a replay
+    assert refresh(second["refresh_token"]).status_code == 401    # and the whole session died
+
+
+def test_a_password_change_ends_the_other_sessions(admin):
+    from conftest import make_user
+
+    user = make_user(admin, "read_all")
+    other = login(user.user["username"], user.password).json()
+    assert user.post("/auth/change-password", {"current_password": user.password,
+                                               "new_password": "another-pass-1"}).status_code == 204
+    assert httpx.get(f"{BASE_URL}/auth/me", headers=bearer(other["access_token"])).status_code == 401
+    assert user.get("/auth/me").status_code == 200                # the session that changed it stays
+
+
+def test_a_password_over_72_bytes_is_refused_not_a_crash(admin):
+    body = {"username": "pytest-long-" + tag(), "password": "x" * 73, "role": "read_all"}
+    assert admin.post("/users", body).status_code == 422
+
+
+def test_reading_a_vulnerability_is_audited(admin, writer):
+    from conftest import new_vuln
+
+    v = new_vuln(writer, identifier="pytest-read-" + tag())
+    writer.get(f"/vulnerabilities/{v['id']}")
+    entries = admin.get("/audit-logs", params={"action": "read", "entity_type": "vulnerability"}).json()["items"]
+    assert any(e["entity_id"] == v["id"] for e in entries)

@@ -15,8 +15,7 @@ const expanded = ref(false)
 // enforces it too; this just makes it visible).
 const forced = computed(() => !!auth.user?.must_change_password)
 
-// Nav items. `to` navigates; `soon` marks not-yet-built destinations (stubbed);
-// `adminOnly` / `roles` hide the item from users without access; `children`
+// Nav items. `to` navigates; `adminOnly` / `roles` hide the item from users without access; `children`
 // makes a group (a flyout on the collapsed rail, indented entries when expanded);
 // `bottom` pins it to the foot of the rail.
 // Icons are thin outline paths (24x24 grid) — the nav rail is the only place
@@ -63,7 +62,7 @@ function isActive(item) {
 // The group whose flyout is pinned open by a click (hover opens it too).
 const openGroup = ref(null)
 function go(item) {
-  if (item.soon || forced.value) return
+  if (forced.value) return
   if (item.children) {
     if (!expanded.value) openGroup.value = openGroup.value === item.label ? null : item.label
     return
@@ -98,7 +97,7 @@ async function signOut() {
   profileOpen.value = false
   if (hasUnsaved() && !(await confirmDialog(t('common.unsavedLeave'), { danger: true, ok: t('dialog.leave') }))) return
   setDiscarding(true)
-  auth.logout()
+  await auth.signOut()
   try { await router.push('/login') } finally { setDiscarding(false) }
 }
 </script>
@@ -112,17 +111,14 @@ async function signOut() {
     <div v-for="item in navItems" :key="item.label" :class="{ navGroup: item.children, navBottom: item.bottom, open: openGroup === item.label }">
       <button
         class="navItem"
-        :class="{ active: isActive(item), soon: item.soon }"
+        :class="{ active: isActive(item) }"
         :aria-label="t(item.label)"
         :aria-current="isActive(item) && !item.children ? 'page' : undefined"
         :aria-haspopup="item.children ? 'menu' : undefined"
         @click="go(item)"
       >
         <span class="navIcon"><svg viewBox="0 0 24 24" class="ico"><path :d="item.icon" /></svg></span>
-        <span class="navLabel">
-          {{ t(item.label) }}
-          <small v-if="item.soon" class="soonTag">{{ t('comingSoon') }}</small>
-        </span>
+        <span class="navLabel">{{ t(item.label) }}</span>
         <span v-if="!item.children" class="tip">{{ t(item.label) }}</span>
       </button>
       <!-- Collapsed rail: a flyout beside the icon. Expanded rail: indented entries. -->
@@ -187,14 +183,12 @@ async function signOut() {
   height: 42px; width: 100%; display: flex; align-items: center;
   color: var(--nav-fg); border: 0; background: transparent; position: relative; text-align: left;
 }
-.navItem:hover:not(.soon):not(.active) { background: var(--nav-hover); }
+.navItem:hover:not(.active) { background: var(--nav-hover); }
 .navItem.active { background: var(--nav-active); }
-.navItem.soon { opacity: .45; cursor: default; }
 .sidebar.locked .navItem { opacity: .35; cursor: not-allowed; pointer-events: none; }
 .navIcon { flex: 0 0 var(--sidebar); display: grid; place-items: center; }
 .navLabel { display: none; white-space: nowrap; font-size: 13px; color: #d5e0ec; }
-.sidebar.expanded .navLabel { display: inline-flex; align-items: center; gap: 8px; }
-.soonTag { font-size: 10px; color: var(--nav-fg); border: 1px solid rgba(255,255,255,.18); border-radius: 3px; padding: 0 5px; }
+.sidebar.expanded .navLabel { display: inline; }
 .tip {
   display: none; position: absolute; left: calc(var(--sidebar) + 6px); top: 50%;
   transform: translateY(-50%); background: var(--text); color: #fff;

@@ -27,7 +27,8 @@ async function submit() {
     await auth.login(username.value, password.value)
     router.push('/')
   } catch (e) {
-    error.value = e instanceof ApiError ? e.detail || t('errors.login') : t('errors.network')
+    if (e instanceof ApiError) error.value = e.status === 429 ? t('errors.tooManyLogins') : e.detail || t('errors.login')
+    else error.value = t('errors.network')
   } finally {
     busy.value = false
   }
