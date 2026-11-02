@@ -6,7 +6,7 @@ import {
 } from '../api'
 import { useAuthStore } from '../stores/auth'
 import { t } from '../i18n'
-import { reportPillClass, reportProgress, reportStatusLabel } from '../reportState'
+import { REPORT_STEPS, reportPillClass, reportProgress, reportStatusLabel, reportTimeline } from '../reportState'
 import { confirmDialog } from '../dialog'
 import { canCreate, canWriteRecord, canDeleteRecord } from '../access'
 import AppShell from '../components/AppShell.vue'
@@ -318,11 +318,10 @@ const sevClass = (score) => {
 
 // dd/mm/aaaa in the list; full local timestamp on hover.
 const fullDate = (iso) => (iso ? fmtDateTime(iso) : '')
+const previewTitle = computed(() => (isVulns.value
+  ? preview.value?.identifier || preview.value?.internal_id || t('vuln.draft')
+  : preview.value?.name))
 
-const opNames = (v) => {
-  const ops = Array.isArray(v.operators) ? v.operators : []
-  return ops.length ? ops.map((o) => o.username).join(', ') : '—'
-}
 
 onMounted(load)
 </script>
@@ -382,12 +381,9 @@ onMounted(load)
               <th><input type="checkbox" class="check" :checked="allChecked"
                          :indeterminate.prop="someChecked" @change="toggleAll" /></th>
               <th>{{ t('cols.identifier') }}</th>
-              <th>{{ t('cols.report') }}</th>
               <th>{{ t('cols.status') }}</th>
               <th>{{ t('cols.cvss') }}</th>
-              <th>{{ t('cols.operators') }}</th>
-              <th>{{ t('cols.source') }}</th>
-              <th>{{ t('cols.createdAt') }}</th>
+              <th>{{ t('cols.report') }}</th>
               <th>{{ t('cols.updatedAt') }}</th>
               <th style="text-align:center">{{ t('cols.actions') }}</th>
             </tr>
@@ -397,11 +393,7 @@ onMounted(load)
                 :class="{ selected: selected.has(v.id), preview: preview?.id === v.id }">
               <td @click.stop><input type="checkbox" class="check"
                    :checked="selected.has(v.id)" @change="toggleRow(v.id)" /></td>
-              <td class="val idcell" @click="openPreview(v)">{{ v.identifier || '—' }}</td>
-              <td class="repCell" :title="v.report?.name" @click="v.report ? goReport(v.report.id) : openPreview(v)">
-                <span v-if="v.report" class="repLink">{{ v.report.name }}</span>
-                <span v-else class="muted">—</span>
-              </td>
+              <td class="val idcell" :title="v.identifier" @click="openPreview(v)">{{ v.identifier || '—' }}</td>
               <td @click="openPreview(v)">
                 <span class="pill" :class="'s-' + v.status">{{ t('status.' + v.status) }}</span>
               </td>
@@ -409,16 +401,17 @@ onMounted(load)
                 <span v-if="v.cvss_score != null" class="cvss" :class="sevClass(v.cvss_score)">{{ v.cvss_score }}</span>
                 <span v-else>—</span>
               </td>
-              <td class="val" @click="openPreview(v)">{{ opNames(v) }}</td>
-              <td class="val" @click="openPreview(v)">{{ v.source || '—' }}</td>
-              <td class="dateCell" :title="fullDate(v.created_at)" @click="openPreview(v)">{{ fmtDate(v.created_at) }}</td>
+              <td class="val repCell" :title="v.report?.name" @click="v.report ? goReport(v.report.id) : openPreview(v)">
+                <span v-if="v.report" class="repLink">{{ v.report.name }}</span>
+                <span v-else class="muted">—</span>
+              </td>
               <td class="dateCell" :title="fullDate(v.updated_at)" @click="openPreview(v)">{{ fmtDate(v.updated_at) }}</td>
               <td style="text-align:center" @click.stop>
                 <div class="rowActionWrap">
                   <button class="link rowBtn" @click="toggleMenu(v.id, $event)">{{ t('common.rowMenu') }}</button>
                   <div v-if="menuFor === v.id" class="rowMenuInline" :style="menuPos">
                     <button @click="openPreview(v); menuFor = null">{{ t('rowActions.view') }}</button>
-                    <button @click="goDetail(v.id)">{{ t('rowActions.detail') }}</button>
+                    <button @click="goDetail(v.id)">{{ t('rowActions.open') }}</button>
                     <button @click="exportRow(v.id, 'pdf')">{{ t('rowActions.export') }}</button>
                     <button v-if="canSendRow(v)" @click="sendRow(v)">{{ t('actions.send') }}</button>
                     <button v-if="mayDelete(v) && !inOpenReport(v)" class="danger" @click="removeRow(v.id)">{{ t('rowActions.delete') }}</button>
@@ -427,7 +420,7 @@ onMounted(load)
               </td>
             </tr>
             <tr v-if="!loading && !pageRows.length">
-              <td colspan="10" class="empty">{{ t('hub.empty') }}</td>
+              <td colspan="7" class="empty">{{ t('hub.empty') }}</td>
             </tr>
           </tbody>
         </table>
@@ -442,7 +435,6 @@ onMounted(load)
               <th>{{ t('rcols.name') }}</th>
               <th>{{ t('cols.status') }}</th>
               <th>{{ t('rcols.risk') }}</th>
-              <th>{{ t('cols.operators') }}</th>
               <th>{{ t('rcols.client') }}</th>
               <th>{{ t('rcols.vulns') }}</th>
               <th>{{ t('cols.updatedAt') }}</th>
@@ -454,9 +446,7 @@ onMounted(load)
                 :class="{ selected: selected.has(r.id), preview: preview?.id === r.id }">
               <td @click.stop><input type="checkbox" class="check"
                    :checked="selected.has(r.id)" @change="toggleRow(r.id)" /></td>
-              <td class="val" @click="openPreview(r)">
-                <span class="idcell">{{ r.name }}</span>
-              </td>
+              <td class="val idcell" :title="r.name" @click="openPreview(r)">{{ r.name }}</td>
               <td @click="openPreview(r)">
                 <span class="pill" :class="reportPillClass(r)">{{ reportStatusLabel(r) }}</span>
                 <span v-if="reportProgress(r)" class="progress stacked">{{ reportProgress(r) }}</span>
@@ -465,8 +455,7 @@ onMounted(load)
                 <span v-if="r.max_cvss != null" class="cvss" :class="sevClass(r.max_cvss)">{{ r.max_cvss }}</span>
                 <span v-else>—</span>
               </td>
-              <td class="val" @click="openPreview(r)">{{ opNames(r) }}</td>
-              <td class="val" @click="openPreview(r)">{{ r.client_name || '—' }}</td>
+              <td class="val" :title="r.client_name" @click="openPreview(r)">{{ r.client_name || '—' }}</td>
               <td class="dateCell" @click="openPreview(r)">{{ r.vuln_count }}</td>
               <td class="dateCell" :title="fullDate(r.updated_at)" @click="openPreview(r)">{{ fmtDate(r.updated_at) }}</td>
               <td style="text-align:center" @click.stop>
@@ -482,7 +471,7 @@ onMounted(load)
               </td>
             </tr>
             <tr v-if="!loading && !pageRows.length">
-              <td colspan="9" class="empty">{{ t('hub.emptyReports') }}</td>
+              <td colspan="7" class="empty">{{ t('hub.emptyReports') }}</td>
             </tr>
           </tbody>
         </table>
@@ -492,79 +481,64 @@ onMounted(load)
 
     <!-- Bottom details panel (§6/§7) -->
     <aside ref="detailsEl" class="details" :class="{ open: preview }">
-      <div v-if="preview && entity === 'vulns'" class="detailsInner">
+      <div v-if="preview" class="detailsInner">
         <div class="detailsTop">
           <div class="headline">
-            <span class="detailsId mono" :title="preview.identifier || ''">
-              {{ preview.identifier || preview.internal_id || t('vuln.draft') }}
-            </span>
+            <span class="detailsId" :title="previewTitle">{{ previewTitle }}</span>
           </div>
           <div class="detailsActions">
-            <span class="pill statusPill" :class="'s-' + preview.status">{{ t('status.' + preview.status) }}</span>
+            <span v-if="isVulns" class="pill statusPill" :class="'s-' + preview.status">{{ t('status.' + preview.status) }}</span>
+            <template v-else>
+              <span class="pill statusPill" :class="reportPillClass(preview)">{{ reportStatusLabel(preview) }}</span>
+              <span v-if="reportProgress(preview)" class="progress">{{ reportProgress(preview) }}</span>
+            </template>
             <span class="updated" :title="fullDate(preview.updated_at)">
               {{ t('cols.updatedAt') }} {{ fmtDateTime(preview.updated_at) }}
             </span>
-            <button class="btn" @click="goDetail(preview.id)">{{ t('rowActions.detail') }}</button>
+            <button class="btn" @click="isVulns ? goDetail(preview.id) : goReport(preview.id)">{{ t('rowActions.open') }}</button>
             <button class="btn" @click="closePreview">{{ t('common.close') }}</button>
           </div>
         </div>
         <h2 class="metaLine">
           <span v-if="preview.internal_id" class="m"><span class="k">{{ t('cols.internalId') }}</span>
             <span class="mono v">{{ preview.internal_id }}</span></span>
-          <span class="m"><span class="k">{{ t('cols.cvss') }}</span>
-            <span v-if="preview.cvss_score != null" class="cvss" :class="sevClass(preview.cvss_score)">{{ preview.cvss_score }}</span>
-            <span v-else>—</span></span>
-          <span class="m"><span class="k">{{ t('vform.cvssVector') }}</span>
-            <span class="mono v">{{ preview.cvss_vector || '—' }}</span></span>
-          <span class="m"><span class="k">{{ t('cols.source') }}</span>
-            <span class="v">{{ preview.source || '—' }}</span></span>
-          <span v-if="preview.report" class="m"><span class="k">{{ t('cols.report') }}</span>
-            <span class="v repLink" @click="goReport(preview.report.id)">{{ preview.report.name }}</span></span>
-          <span class="m"><span class="k">{{ t('hub.rvsShort') }}</span>
-            <span class="mono v">{{ preview.rvs_id || '—' }}</span></span>
+          <template v-if="isVulns">
+            <span class="m"><span class="k">{{ t('cols.cvss') }}</span>
+              <span v-if="preview.cvss_score != null" class="cvss" :class="sevClass(preview.cvss_score)">{{ preview.cvss_score }}</span>
+              <span v-else>—</span></span>
+            <span class="m"><span class="k">{{ t('vform.cvssVector') }}</span>
+              <span class="mono v">{{ preview.cvss_vector || '—' }}</span></span>
+            <span class="m"><span class="k">{{ t('cols.source') }}</span>
+              <span class="v">{{ preview.source || '—' }}</span></span>
+            <span v-if="preview.report" class="m"><span class="k">{{ t('cols.report') }}</span>
+              <span class="v repLink" @click="goReport(preview.report.id)">{{ preview.report.name }}</span></span>
+            <span class="m"><span class="k">{{ t('hub.rvsShort') }}</span>
+              <span class="mono v">{{ preview.rvs_id || '—' }}</span></span>
+          </template>
+          <template v-else>
+            <span class="m"><span class="k">{{ t('rcols.risk') }}</span>
+              <span v-if="preview.max_cvss != null" class="cvss" :class="sevClass(preview.max_cvss)">{{ preview.max_cvss }}</span>
+              <span v-else>—</span></span>
+            <span class="m"><span class="k">{{ t('rcols.client') }}</span>
+              <span class="v">{{ preview.client_name || '—' }}</span></span>
+            <span class="m"><span class="k">{{ t('rcols.period') }}</span>
+              <span class="v">{{ period(preview) }}</span></span>
+            <span class="m"><span class="k">{{ t('rcols.vulns') }}</span>
+              <span class="v">{{ preview.vuln_count }}</span></span>
+          </template>
         </h2>
         <h2 class="opsLine">
+          <span class="k">{{ t('cols.operators') }}</span>
           <template v-if="preview.operators?.length">
             <span v-for="o in preview.operators" :key="o.id" class="op">{{ o.username }}</span>
           </template>
           <span v-else class="none">—</span>
         </h2>
-        <VulnTimeline :vuln="preview" compact class="drawerTimeline" />
-      </div>
-
-      <div v-else-if="preview" class="detailsInner">
-        <div class="detailsTop">
-          <div class="headline">
-            <span class="detailsId" :title="preview.name">{{ preview.name }}</span>
-          </div>
-          <div class="detailsActions">
-            <span class="pill statusPill" :class="reportPillClass(preview)">{{ reportStatusLabel(preview) }}</span>
-            <span v-if="reportProgress(preview)" class="progress">{{ reportProgress(preview) }}</span>
-            <span class="updated" :title="fullDate(preview.updated_at)">
-              {{ t('cols.updatedAt') }} {{ fmtDateTime(preview.updated_at) }}
-            </span>
-            <button class="btn" @click="goReport(preview.id)">{{ t('rowActions.open') }}</button>
-            <button class="btn" @click="closePreview">{{ t('common.close') }}</button>
-          </div>
-        </div>
-        <h2 class="metaLine">
-          <span v-if="preview.internal_id" class="m"><span class="k">{{ t('cols.internalId') }}</span><span class="mono v">{{ preview.internal_id }}</span></span>
-          <span class="m"><span class="k">{{ t('rcols.client') }}</span><span class="v">{{ preview.client_name || '—' }}</span></span>
-          <span class="m"><span class="k">{{ t('rcols.period') }}</span><span class="v">{{ period(preview) }}</span></span>
-          <span class="m"><span class="k">{{ t('rcols.vulns') }}</span><span class="v">{{ preview.vuln_count }}</span></span>
-          <span class="m"><span class="k">{{ t('rcols.risk') }}</span>
-            <span v-if="preview.max_cvss != null" class="cvss" :class="sevClass(preview.max_cvss)">{{ preview.max_cvss }}</span>
-            <span v-else>—</span></span>
-        </h2>
-        <h2 class="opsLine">
-          <template v-if="preview.operators?.length">
-            <span v-for="o in preview.operators" :key="o.id" class="op">{{ o.username }}</span>
-          </template>
-          <span v-else class="none">—</span>
-        </h2>
-        <p v-if="preview.lock" class="lockLine">
+        <p v-if="!isVulns && preview.lock" class="lockLine">
           {{ t('reports.editingBy', { user: preview.lock.holder_username }) }}
         </p>
+        <VulnTimeline v-if="isVulns" :vuln="preview" compact class="drawerTimeline" />
+        <VulnTimeline v-else :vuln="reportTimeline(preview)" :steps="REPORT_STEPS" compact class="drawerTimeline" />
       </div>
     </aside>
   </AppShell>
@@ -592,36 +566,19 @@ thead th { position: sticky; top: 0; background: var(--panel); z-index: 1; box-s
 th { border-bottom: 0; }
 .stub { padding: 3rem; text-align: center; color: var(--muted); }
 
+/* Only what identifies and prioritises a record; the rest is in its detail panel.
+   The identifier takes what is left, and the second text column keeps a share of it,
+   so wide screens stay balanced. */
 table { table-layout: fixed; }
-.vtable th:nth-child(1), .vtable td:nth-child(1) { width: 48px; }
-/* Column 2 (identifier) has no width: it takes whatever the fixed columns leave. */
-.vtable th:nth-child(3), .vtable td:nth-child(3) { width: 96px; }
-.vtable th:nth-child(4), .vtable td:nth-child(4) { width: 150px; }
-.vtable th:nth-child(5), .vtable td:nth-child(5) { width: 90px; }
-.vtable th:nth-child(6), .vtable td:nth-child(6) { width: 180px; }
-.vtable th:nth-child(7), .vtable td:nth-child(7) { width: 120px; }
-.vtable th:nth-child(8), .vtable td:nth-child(8), .vtable th:nth-child(9), .vtable td:nth-child(9) { width: 110px; }
-.vtable th:nth-child(10), .vtable td:nth-child(10) { width: 96px; }
-.rtable th:nth-child(1), .rtable td:nth-child(1) { width: 48px; }
-/* Column 2 (report name) is the flexible one. */
-.rtable th:nth-child(3), .rtable td:nth-child(3) { width: 140px; }
-.rtable th:nth-child(4), .rtable td:nth-child(4) { width: 90px; }
-.rtable th:nth-child(5), .rtable td:nth-child(5) { width: 180px; }
-.rtable th:nth-child(6), .rtable td:nth-child(6) { width: 160px; }
-.rtable th:nth-child(7), .rtable td:nth-child(7) { width: 90px; }
-.rtable th:nth-child(8), .rtable td:nth-child(8) { width: 120px; }
-.rtable th:nth-child(9), .rtable td:nth-child(9) { width: 96px; }
-/* Wider than 1920: the identifier/name stops taking all the extra width. Up to 1920 the
-   layout is unchanged; beyond it the identifier/name gets only 10% of the extra, the source/client
-   a quarter or so, and the operators column (left without a width) absorbs the rest. */
-@media (min-width: 1921px) {
-  .vtable th:nth-child(2), .vtable td:nth-child(2) { width: calc(798px + (100vw - 1920px) * 0.1); }
-  .vtable th:nth-child(6), .vtable td:nth-child(6) { width: auto; }
-  .vtable th:nth-child(7), .vtable td:nth-child(7) { width: calc(120px + (100vw - 1920px) * 0.25); }
-  .rtable th:nth-child(2), .rtable td:nth-child(2) { width: calc(874px + (100vw - 1920px) * 0.1); }
-  .rtable th:nth-child(5), .rtable td:nth-child(5) { width: auto; }
-  .rtable th:nth-child(6), .rtable td:nth-child(6) { width: calc(160px + (100vw - 1920px) * 0.3); }
-}
+.vtable th:nth-child(1), .vtable td:nth-child(1), .rtable th:nth-child(1), .rtable td:nth-child(1) { width: 48px; }
+.vtable th:nth-child(3), .vtable td:nth-child(3), .rtable th:nth-child(3), .rtable td:nth-child(3) { width: 140px; }
+.vtable th:nth-child(4), .vtable td:nth-child(4), .rtable th:nth-child(4), .rtable td:nth-child(4) { width: 80px; }
+.vtable th:nth-child(5), .vtable td:nth-child(5), .rtable th:nth-child(5), .rtable td:nth-child(5) { width: 30%; }
+.vtable th:nth-child(6), .vtable td:nth-child(6) { width: 120px; }
+.vtable th:nth-child(7), .vtable td:nth-child(7) { width: 96px; }
+.rtable th:nth-child(6), .rtable td:nth-child(6) { width: 80px; }
+.rtable th:nth-child(7), .rtable td:nth-child(7) { width: 120px; }
+.rtable th:nth-child(8), .rtable td:nth-child(8) { width: 96px; }
 .repCell { color: var(--muted); }
 .repLink { color: var(--report-ink); cursor: pointer; }
 .repLink:hover { text-decoration: underline; }
@@ -660,9 +617,9 @@ tr.selected td, tr.preview td { background: var(--accent-soft); }
 .detailsActions { margin-left: auto; display: flex; align-items: center; gap: 8px; }
 .metaLine, .opsLine { margin: 0 0 8px; font-size: 13px; font-weight: 300; color: var(--text-2); }
 .metaLine { display: flex; flex-wrap: wrap; gap: 2px 28px; }
-.metaLine .k { margin-right: 8px; font-size: 12px; color: var(--muted); }
+.metaLine .k, .opsLine .k { margin-right: 8px; font-size: 12px; color: var(--muted); }
 .metaLine .v { word-break: break-all; }
-.opsLine { display: flex; flex-wrap: wrap; gap: 6px; }
+.opsLine { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
 .op { padding: 1px 9px; border: 1px solid var(--line-2); border-radius: var(--radius); font-size: 12px; color: var(--text-2); }
 .none { color: var(--dim); }
 .drawerTimeline { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line); }

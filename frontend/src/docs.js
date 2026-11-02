@@ -50,7 +50,7 @@ As vulnerabilidades de um relatório seguem o acesso do relatório.`,
       },
       {
         id: 'operacoes', title: 'Operações e filtros',
-        md: `A página **Operações** lista vulnerabilidades e relatórios. Clique em uma linha para ver o resumo; abra o registro para os detalhes. Marque várias linhas para ações em lote (exportar, enviar, excluir). Itens que não podem receber a ação são ignorados e informados.
+        md: `A página **Operações** lista vulnerabilidades e relatórios. A lista mostra só o essencial. Clique em uma linha para ver todas as informações no painel de detalhes, abaixo da lista; **Abrir** leva à página do registro. Marque várias linhas para ações em lote (exportar, enviar, excluir). Itens que não podem receber a ação são ignorados e informados.
 
 Use a caixa **Filtrar**. Digite \`/\` para ver as chaves disponíveis:
 
@@ -836,7 +836,7 @@ A report's vulnerabilities follow the report's access.`,
       },
       {
         id: 'operacoes', title: 'Operations and filters',
-        md: `The **Operations** page lists vulnerabilities and reports. Click a row for a summary; open the record for its details. Tick several rows for batch actions (export, send, delete). Items the action doesn't apply to are skipped and reported.
+        md: `The **Operations** page lists vulnerabilities and reports. The list shows only the essentials. Click a row to see everything in the detail panel below the list; **Open** goes to the record's page. Tick several rows for batch actions (export, send, delete). Items the action doesn't apply to are skipped and reported.
 
 Use the **Filter** box. Type \`/\` to see the keys:
 

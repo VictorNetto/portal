@@ -11,6 +11,8 @@ const props = defineProps({
   // Tighter layout without the RVS sub-line and "last updated" footer, for
   // places that already show those elsewhere (the Hub details panel).
   compact: { type: Boolean, default: false },
+  // Another record's steps (a report's), each with a `label` key for its text.
+  steps: { type: Array, default: null },
 })
 
 // `status` is the vuln status that makes this step the "current" one.
@@ -23,7 +25,7 @@ const STEPS = [
   { key: 'fixed', at: 'fixed_at', status: 'fixed' },
 ]
 
-const steps = computed(() => STEPS.map((s) => {
+const rows = computed(() => (props.steps || STEPS).map((s) => {
   const at = props.vuln[s.at] || null
   const current = props.vuln.status === s.status
   const reached = current || !!at
@@ -31,19 +33,19 @@ const steps = computed(() => STEPS.map((s) => {
 }))
 
 // A connector is "done" when the step after it has been reached.
-const lineDone = (i) => steps.value[i + 1]?.reached
+const lineDone = (i) => rows.value[i + 1]?.reached
 </script>
 
 <template>
   <div class="timeline" :class="{ compact }">
     <ol class="steps">
-      <li v-for="(s, i) in steps" :key="s.key" class="step"
+      <li v-for="(s, i) in rows" :key="s.key" class="step"
           :class="{ reached: s.reached, current: s.current }">
         <div class="track">
           <span class="dot"></span>
-          <span v-if="i < steps.length - 1" class="line" :class="{ done: lineDone(i) }"></span>
+          <span v-if="i < rows.length - 1" class="line" :class="{ done: lineDone(i) }"></span>
         </div>
-        <div class="label">{{ t('timeline.' + s.key) }}</div>
+        <div class="label">{{ t(s.label || 'timeline.' + s.key) }}</div>
         <div v-if="s.value" class="when" :title="fmtDateTime(s.value)">
           {{ fmtDate(s.value) }}<span class="time">{{ fmtTime(s.value) }}</span>
         </div>

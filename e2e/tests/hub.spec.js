@@ -72,6 +72,7 @@ test.describe('operations hub', () => {
     await expect(drawer.locator('.statusPill')).toHaveText('Em correção')
     await expect(drawer.locator('.metaLine .k')).toHaveText(['ID interno', 'CVSS', 'Vetor CVSS', 'Fonte', 'RVS'])
     await expect(drawer.locator('.metaLine')).toContainText(v.rvs_id)
+    await expect(drawer.locator('.opsLine .k')).toHaveText('Operadores')
     await expect(drawer.locator('.step.reached')).toHaveCount(4)                   // created, ready, sent, fixing
     await expect(drawer.locator('.step.current .label')).toHaveText('Em correção')
 
@@ -87,7 +88,7 @@ test.describe('operations hub', () => {
     await page.setViewportSize({ width: 1300, height: 430 })
     await loginUI(page, writer.username, writer.password)
     await filterHub(page, 'e2e-m-')
-    await page.click('.vtable tbody tr:last-child td:nth-child(10) button')
+    await page.click('.vtable tbody tr:last-child td:nth-child(7) button')
     const menu = page.locator('.rowMenuInline')
     await expect(menu).toBeVisible()
     const box = await menu.boundingBox()
@@ -126,8 +127,8 @@ test.describe('operations hub', () => {
     await expect(page.locator('.toolbar .batchWrap')).toHaveCount(0)                // selection cleared
 
     // row menu: a draft cannot be sent, a single export is the PDF itself
-    await page.click(`.vtable tbody tr:has-text("${d1.identifier}") td:nth-child(10) button`)
-    await expect(page.locator('.rowMenuInline button')).toHaveText(['Visualizar', 'Detalhar', 'Exportar', 'Excluir'])
+    await page.click(`.vtable tbody tr:has-text("${d1.identifier}") td:nth-child(7) button`)
+    await expect(page.locator('.rowMenuInline button')).toHaveText(['Visualizar', 'Abrir', 'Exportar', 'Excluir'])
     const [pdf] = await Promise.all([page.waitForEvent('download'), page.click('.rowMenuInline button:has-text("Exportar")')])
     expect(readFileSync(await pdf.path()).subarray(0, 5).toString()).toBe('%PDF-')
 
@@ -153,8 +154,8 @@ test.describe('operations hub', () => {
     await filterHub(page, `e2e-rv-${u}`)
     expect(await rowCount(page)).toBe(2)
     const row = page.locator(`.vtable tbody tr:has-text("${inside.identifier}")`)
-    await expect(row.locator('td:nth-child(3)')).toHaveText(r.name)
-    await expect(page.locator(`.vtable tbody tr:has-text("-alone") td:nth-child(3)`)).toHaveText('—')
+    await expect(row.locator('td:nth-child(5)')).toHaveText(r.name)
+    await expect(page.locator(`.vtable tbody tr:has-text("-alone") td:nth-child(5)`)).toHaveText('—')
 
     // filter by report, or by "not in a report"
     await filterHub(page, `e2e-rv-${u} report:${r.name}`)
@@ -165,12 +166,12 @@ test.describe('operations hub', () => {
 
     // a draft report's vuln is deleted from its report, not from the list
     await filterHub(page, `e2e-rv-${u} report:${r.name}`)
-    await row.locator('td:nth-child(10) button').click()
-    await expect(page.locator('.rowMenuInline button')).toHaveText(['Visualizar', 'Detalhar', 'Exportar'])
+    await row.locator('td:nth-child(7) button').click()
+    await expect(page.locator('.rowMenuInline button')).toHaveText(['Visualizar', 'Abrir', 'Exportar'])
     await page.locator('.hubTop').click({ position: { x: 2, y: 2 } })            // close the menu
 
     // the report id opens the report
-    await row.locator('td:nth-child(3) .repLink').click()
+    await row.locator('td:nth-child(5) .repLink').click()
     await expect(page).toHaveURL(new RegExp(`/reports/${r.id}$`))
   })
 
@@ -183,8 +184,8 @@ test.describe('operations hub', () => {
     await page.click('.toolbar .batchWrap button')
     await expect(page.locator('.batchWrap .rowMenuInline button')).toHaveText(['Exportar PDF (ZIP)', 'Exportar Excel'])
     await page.click('.hubTop', { position: { x: 4, y: 4 } })
-    await page.click('.vtable tbody tr:first-child td:nth-child(10) button')
-    await expect(page.locator('.rowMenuInline button')).toHaveText(['Visualizar', 'Detalhar', 'Exportar'])
+    await page.click('.vtable tbody tr:first-child td:nth-child(7) button')
+    await expect(page.locator('.rowMenuInline button')).toHaveText(['Visualizar', 'Abrir', 'Exportar'])
   })
 
   test('the reports tab lists, filters by client, previews and deletes', async ({ page }) => {
@@ -197,11 +198,16 @@ test.describe('operations hub', () => {
     await filterHub(page, client)
     expect(await rowCount(page, '.rtable')).toBe(1)
     await page.click('.rtable tbody tr:first-child td:nth-child(2)')
+    await expect(page.locator('.details.open .metaLine .k')).toHaveText(['Risco', 'Cliente', 'Período', 'Vulns.'])
     await expect(page.locator('.details.open .metaLine')).toContainText(client)
+    await expect(page.locator('.details.open .opsLine .k')).toHaveText('Operadores')
+    await expect(page.locator('.details.open .step .label')).toHaveText(['Criado', 'Enviado', 'Concluído'])
+    await expect(page.locator('.details.open .step.current .label')).toHaveText('Criado')
+    await expect(page.locator('.details .btn:has-text("Abrir")')).toBeVisible()
     await page.click('.details .btn:has-text("Fechar")')
 
     autoDialogs(page)
-    await page.click('.rtable tbody tr:first-child td:nth-child(9) button')
+    await page.click('.rtable tbody tr:first-child td:nth-child(8) button')
     await page.click('.rowMenuInline button:has-text("Excluir")')
     await expect.poll(() => rowCount(page, '.rtable')).toBe(0)
   })

@@ -41,9 +41,9 @@ test.describe('restricted roles', () => {
     await expect(page.locator('.vtable tbody')).not.toContainText('foreign')
 
     // operating is enough to edit, not to delete
-    await page.click(`.vtable tbody tr:has-text("${assigned.identifier}") td:nth-child(10) button`)
-    await expect(page.locator('.rowMenuInline button')).toHaveText(['Visualizar', 'Detalhar', 'Exportar'])
-    await page.click('.rowMenuInline button:has-text("Detalhar")')
+    await page.click(`.vtable tbody tr:has-text("${assigned.identifier}") td:nth-child(7) button`)
+    await expect(page.locator('.rowMenuInline button')).toHaveText(['Visualizar', 'Abrir', 'Exportar'])
+    await page.click('.rowMenuInline button:has-text("Abrir")')
     await expect(page.locator('.pageActions .btn.primary')).toBeVisible()
     await expect(page.locator('.pageActions .btn.danger')).toHaveCount(0)
 
@@ -75,7 +75,7 @@ test.describe('restricted roles', () => {
     await expect(readerPage.locator('.sidebar [aria-label^="Criar"]')).toHaveCount(0)
 
     await readerPage.click('.vtable tbody tr:first-child td:nth-child(2)')
-    await readerPage.click('.details .btn:has-text("Detalhar")')
+    await readerPage.click('.details .btn:has-text("Abrir")')
     await expect(readerPage.locator('.pageActions .btn.primary, .pageActions .btn.danger')).toHaveCount(0)
     await expect(readerPage.locator('.infoGrid input, .mdEditor')).toHaveCount(0)
     await expect(readerPage.locator('.infoGrid .roVal').first()).toContainText('shared')

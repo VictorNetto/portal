@@ -56,7 +56,6 @@ const messages = {
       view: 'Visualizar',
       open: 'Abrir',
       export: 'Exportar',
-      detail: 'Detalhar',
       send: 'Enviar',
       delete: 'Excluir',
     },
@@ -249,7 +248,7 @@ const messages = {
       retesting: 'Em reteste',
       fixed: 'Corrigida',
     },
-    rstatus: { draft: 'Rascunho', sent: 'Enviado', done: 'Concluído', progress: '{fixed} de {total} corrigidas' },
+    rstatus: { draft: 'Rascunho', created: 'Criado', sent: 'Enviado', done: 'Concluído', progress: '{fixed} de {total} corrigidas' },
     docs: { menu: 'Documentação', title: 'Documentação', subtitle: 'Como usar o portal.', contents: 'Conteúdo' },
     dialog: { title: 'Confirmação', ok: 'Confirmar', cancel: 'Cancelar', delete: 'Excluir', revoke: 'Revogar', leave: 'Sair sem salvar', discard: 'Descartar' },
     session: {
@@ -534,7 +533,7 @@ const messages = {
       name: 'Name',
       client: 'Client',
     },
-    rowActions: { view: 'View', export: 'Export', open: 'Open', detail: 'Details', send: 'Send', delete: 'Delete' },
+    rowActions: { view: 'View', export: 'Export', open: 'Open', send: 'Send', delete: 'Delete' },
     export: { button: 'Export' },
     tpls: {
       title: 'Templates',
@@ -709,7 +708,7 @@ const messages = {
       retesting: 'Retesting',
       fixed: 'Fixed',
     },
-    rstatus: { draft: 'Draft', sent: 'Sent', done: 'Completed', progress: '{fixed} of {total} fixed' },
+    rstatus: { draft: 'Draft', created: 'Created', sent: 'Sent', done: 'Completed', progress: '{fixed} of {total} fixed' },
     docs: { menu: 'Documentation', title: 'Documentation', subtitle: 'How to use the portal.', contents: 'Contents' },
     dialog: { title: 'Confirmation', ok: 'Confirm', cancel: 'Cancel', delete: 'Delete', revoke: 'Revoke', leave: 'Leave without saving', discard: 'Discard' },
     session: {
