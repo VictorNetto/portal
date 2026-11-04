@@ -14,6 +14,7 @@ from app.models.enums import VulnStatus
 
 
 class DefenseReportRef(BaseModel):
+    id: uuid.UUID
     internal_id: str | None
     name: str
 

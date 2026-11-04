@@ -22,9 +22,12 @@ const TABS = [
   { key: 'new', test: isNew },
   { key: 'awaitingRvs', test: (v) => v.status === 'sent' && !!v.accepted_at },
   { key: 'inProgress', test: (v) => ['fixing', 'retesting'].includes(v.status) },
-  { key: 'closed', test: (v) => ['fixed', 'risk_accepted'].includes(v.status) },
+  { key: 'fixed', test: (v) => v.status === 'fixed' },
+  { key: 'riskAccepted', test: (v) => v.status === 'risk_accepted' },
   { key: 'all', test: () => true },
 ]
+// Tabs where a report name selects that report's vulns, to act on them together.
+const REPORT_PICK_TABS = ['new', 'awaitingRvs', 'riskAccepted']
 const tab = ref('new')
 const count = (key) => items.value.filter(TABS.find((x) => x.key === key).test).length
 
@@ -63,6 +66,16 @@ function toggleRow(id) {
   selected.value = new Set(selected.value)
 }
 const selectedRows = computed(() => items.value.filter((v) => selected.value.has(v.id)))
+
+// Selects every vuln of the report in this tab (all pages, within the filter);
+// a second click, with all of them selected, clears them.
+const reportPick = computed(() => REPORT_PICK_TABS.includes(tab.value))
+function pickReport(report) {
+  const ids = rows.value.filter((v) => v.report?.id === report.id).map((v) => v.id)
+  const all = ids.every((id) => selected.value.has(id))
+  for (const id of ids) all ? selected.value.delete(id) : selected.value.add(id)
+  selected.value = new Set(selected.value)
+}
 
 const sevClass = (s) => { const n = Number(s); return n >= 7 ? 'hi' : n >= 4 ? 'me' : 'lo' }
 // Where the vuln stands for the defense team; "sent" is split by acceptance.
@@ -192,7 +205,10 @@ onUnmounted(() => {
                 <span v-if="v.cvss_score != null" class="cvss" :class="sevClass(v.cvss_score)">{{ Number(v.cvss_score).toFixed(1) }}</span>
                 <span v-else>—</span>
               </td>
-              <td class="val muted" :title="v.report?.name">{{ v.report?.name || '—' }}</td>
+              <td class="val muted" :title="v.report?.name">
+                <a v-if="v.report && reportPick" class="repLink" @click.stop="pickReport(v.report)">{{ v.report.name }}</a>
+                <template v-else>{{ v.report?.name || '—' }}</template>
+              </td>
               <td class="dateCell" :title="fmtDateTime(v.sent_at)">{{ fmtDate(v.sent_at) }}</td>
               <td class="val mono">{{ v.rvs_id || '—' }}</td>
             </tr>
@@ -238,6 +254,8 @@ td { cursor: pointer; }
 .dateCell { color: var(--muted); font-variant-numeric: tabular-nums; }
 .mono { font-family: var(--mono); font-size: 12px; }
 tr.selected td { background: var(--accent-soft); }
+.repLink { color: var(--report-ink); cursor: pointer; }
+.repLink:hover { text-decoration: underline; }
 
 .rowMenuInline {
   position: fixed; min-width: 160px; border: 1px solid var(--line); display: flex; flex-direction: column;

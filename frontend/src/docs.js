@@ -64,7 +64,7 @@ Use a caixa **Filtrar**. Digite \`/\` para ver as chaves disponíveis:
 - texto livre: busca no identificador
 - \`-chave:valor\`: exclui o que corresponde
 
-Vários termos são combinados com **E**. O filtro fica no endereço da página, então você pode compartilhar o link.`,
+O valor vai até o primeiro espaço. Para incluir espaços, use aspas: \`report:"Rede do Data Center"\`. Vários termos são combinados com **E**.`,
       },
       {
         id: 'textos', title: 'Textos, imagens e anexos',
@@ -114,7 +114,7 @@ Em vez de corrigir, o time de defesa pode **assumir o risco** de uma vulnerabili
         id: 'rvs', title: 'Fila RVS',
         md: `A **Fila RVS** lista as vulnerabilidades enviadas que ainda não têm ID de RVS. Informe o ID (ex.: \`RVS-2026-001\`) e use **Registrar RVS**: a vulnerabilidade passa para **Em correção**. O ID não pode ser alterado depois.
 
-O time de defesa também registra o RVS pela própria conta (papel **Defesa**): primeiro **aceita** a vulnerabilidade, depois informa o ID. A aceitação aparece na linha do tempo como **Aceita**; um RVS registrado aqui conta como aceitação no mesmo momento.`,
+O time de defesa também registra o RVS pela própria conta (papel **Defesa**): primeiro **aceita** a vulnerabilidade, depois informa o ID. Um RVS registrado aqui conta como aceitação no mesmo momento.`,
       },
     ],
   },
@@ -855,7 +855,7 @@ Use the **Filter** box. Type \`/\` to see the keys:
 - free text: searches the identifier
 - \`-key:value\`: excludes matches
 
-Several terms combine with **AND**. The filter is kept in the page address, so you can share the link.`,
+A value ends at the first space. To include spaces, quote it: \`report:"Rede do Data Center"\`. Several terms combine with **AND**.`,
       },
       {
         id: 'textos', title: 'Text, images and attachments',
@@ -905,7 +905,7 @@ Instead of fixing, the defense team can **accept the risk** of a sent vulnerabil
         id: 'rvs', title: 'RVS Queue',
         md: `The **RVS Queue** lists sent vulnerabilities that have no RVS ID yet. Enter the ID (e.g. \`RVS-2026-001\`) and use **Record RVS**: the vulnerability moves to **Fixing**. The ID can't be changed afterwards.
 
-The defense team can also record the RVS from its own account (**Defense** role): it first **accepts** the vulnerability, then enters the ID. The acceptance shows on the timeline as **Accepted**; an RVS recorded here counts as the acceptance at the same moment.`,
+The defense team can also record the RVS from its own account (**Defense** role): it first **accepts** the vulnerability, then enters the ID. An RVS recorded here counts as the acceptance at the same moment.`,
       },
     ],
   },

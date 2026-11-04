@@ -95,8 +95,7 @@ test.describe('vulnerability lifecycle', () => {
 
     await expect(status(page)).toContainText('Enviada')
     await expect(page.locator('.timeline .rvs')).toHaveCount(0)
-    // created, ready, sent and accepted: the acceptance stays, only the RVS id goes (D17)
-    await expect(page.locator('.timeline .step.reached')).toHaveCount(4)
+    await expect(page.locator('.timeline .step.reached')).toHaveCount(3)
 
     // it is back in the RVS queue
     await page.locator('.sidebar .navItem[aria-label="Fila RVS"]').click()

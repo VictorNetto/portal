@@ -29,7 +29,6 @@ onUnmounted(() => document.documentElement.removeAttribute('data-entity'))
 
 const STEPS = [
   { key: 'sent', label: 'timeline.received', at: 'sent_at', status: 'sent' },
-  { key: 'accepted', label: 'timeline.accepted', at: 'accepted_at' },
   { key: 'fixing', at: 'fixing_at', status: 'fixing' },
   { key: 'retesting', at: 'retesting_at', status: 'retesting' },
   { key: 'fixed', at: 'fixed_at', status: 'fixed' },

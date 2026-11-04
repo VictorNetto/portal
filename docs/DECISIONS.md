@@ -300,12 +300,16 @@ The UUID `id` is the database key; it stays out of the screens and appears in UR
   *sent* clears it.
 - A defense account cannot be an operator or be shared with.
 - **RVS implies acceptance:** an RVS ID recorded without an acceptance (red team, API key) sets
-  `accepted_at` at the same moment, so the timeline never skips the step. Existing records were
-  backfilled with `fixing_at`.
+  `accepted_at` at the same moment. Existing records were backfilled with `fixing_at`. The
+  timeline has no *Aceita* step: *Em correção* or *Risco assumido* already says the vuln was taken.
 - **Risk accepted (`risk_accepted`):** instead of fixing, the defense team may assume the risk of a
   sent vuln, accepted or not, with a reason (5+ characters). It ends the flow like *fixed*: a report
   is done when every vuln is fixed or risk-accepted (`closed_count`). An admin correction back to
   *sent* undoes the decision and its reason.
 - **The defense list** works like the Hub: work tabs (Novas, Aguardando RVS, Em andamento,
-  Encerradas, Todas), the filter bar with its own keys (status, cvss, id, report), pagination, and a
-  batch menu (Aceitar, Assumir risco with one reason for all).
+  Corrigidas, Risco assumido, Todas), the filter bar with its own keys (status, cvss, id, report),
+  pagination, and a batch menu (Aceitar, Assumir risco with one reason for all). In Novas,
+  Aguardando RVS and Risco assumido a report name selects that report's vulns (a second click
+  clears them).
+- **Filter values end at the first space;** a value with spaces is quoted: `report:"Rede do Data
+  Center"`. Applies to every key and to free text, in the Hub and the defense list.

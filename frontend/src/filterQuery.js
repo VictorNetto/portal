@@ -4,6 +4,8 @@
 //   key:value        include rows matching
 //   -key:value       exclude rows matching
 //   <bare text>      free search on identifier (negatable: -text)
+// A value is only what follows the ":" up to the next space. To include spaces, quote it:
+//   report:"Rede do Data Center"   "texto com espaços"   -id:"sem rotação"
 //
 // Keys:
 //   status:<one of STATUSES>     exact status
@@ -48,6 +50,29 @@ export function isValidCvss(v) {
 
 const STATUS_SET = new Set(STATUSES)
 
+// Splits on spaces, except inside double quotes. An unclosed quote runs to the end.
+export function tokenize(text) {
+  const s = text || ''
+  const out = []
+  let i = 0
+  while (i < s.length) {
+    while (i < s.length && /\s/.test(s[i])) i++
+    let raw = ''
+    while (i < s.length && !/\s/.test(s[i])) {
+      if (s[i] === '"') {
+        const end = s.indexOf('"', i + 1)
+        const stop = end === -1 ? s.length : end + 1
+        raw += s.slice(i, stop)
+        i = stop
+      } else raw += s[i++]
+    }
+    if (raw) out.push(raw)
+  }
+  return out
+}
+
+const unquote = (v) => v.replaceAll('"', '')
+
 function makeToken(raw) {
   let negate = false
   let body = raw
@@ -56,12 +81,15 @@ function makeToken(raw) {
     body = body.slice(1)
   }
 
+  // A ":" inside quotes is text, not a key.
   const colon = body.indexOf(':')
-  if (colon === -1) {
-    return { raw, negate, key: 'id', op: 'contains', value: body, valid: body.length > 0 }
+  const quote = body.indexOf('"')
+  if (colon === -1 || (quote !== -1 && quote < colon)) {
+    const value = unquote(body)
+    return { raw, negate, key: 'id', op: 'contains', value, valid: value.length > 0 }
   }
   let key = body.slice(0, colon).toLowerCase()
-  const value = body.slice(colon + 1)
+  const value = unquote(body.slice(colon + 1))
   if (key === 'identifier') key = 'id'
 
   if (key === 'status')
@@ -112,7 +140,7 @@ function tokenPredicate(tok) {
 }
 
 export function parseQuery(text) {
-  const tokens = (text || '').trim().split(/\s+/).filter(Boolean).map(makeToken)
+  const tokens = tokenize(text).map(makeToken)
   const preds = tokens.map(tokenPredicate)
   return { tokens, predicate: (row) => preds.every((p) => p(row)) }
 }

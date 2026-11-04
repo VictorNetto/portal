@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test'
-import { adminToken, api, cleanup, createUser, pngBuffer, savedVuln, tag } from '../support/api.js'
+import { adminToken, api, cleanup, createUser, newReport, pngBuffer, reportVuln, savedVuln, tag } from '../support/api.js'
 
 let admin
 let defense
@@ -133,18 +133,41 @@ test('batch accept over a filtered selection', async ({ page }) => {
   }
 })
 
-test('an RVS recorded by the red team fills the Aceita step', async ({ page }) => {
-  const v = await savedVuln(admin, { identifier: `e2e-tl-${tag()}` })
-  vulns.push(v.id)
-  await api(`/vulnerabilities/${v.id}/send`, { token: admin, method: 'POST' })
-  await api(`/vulnerabilities/${v.id}/rvs`, { token: admin, body: { rvs_id: `RVS-e2e-${tag()}` } })
-  await page.goto('/login')
-  await page.fill('input[autocomplete=username]', 'admin')
-  await page.fill('input[type=password]', process.env.E2E_ADMIN_PASSWORD || 'admin')
-  await page.click('button')
-  await expect(page).toHaveURL(/\/hub/)
-  await page.goto(`/vulnerabilities/${v.id}`)
-  const accepted = page.locator('.timeline .step', { hasText: 'Aceita' })
-  await expect(accepted).toHaveClass(/reached/)
-  await expect(accepted.locator('.when')).not.toHaveText('—')
+test('a report name selects its vulns, and a quoted filter keeps spaces', async ({ page }) => {
+  const u = tag()
+  const name = `e2e Rede ${u} Data Center`
+  const r = await newReport(admin, { name })
+  const a = await reportVuln(admin, r.id, { identifier: `e2e-pick-${u}-a`, finding_detail: 'f', mitigation: 'm' })
+  const b = await reportVuln(admin, r.id, { identifier: `e2e-pick-${u}-b`, finding_detail: 'f', mitigation: 'm' })
+  await api(`/reports/${r.id}/lock`, { token: admin, method: 'POST' })
+  expect((await api(`/reports/${r.id}/send`, { token: admin, method: 'POST' })).status).toBe(200)
+  vulns.push(a.id, b.id)
+  const other = await savedVuln(admin, { identifier: `e2e-pick-${u}-other` })
+  vulns.push(other.id)
+  await api(`/vulnerabilities/${other.id}/send`, { token: admin, method: 'POST' })
+
+  await loginDefense(page)
+  const rowsShown = page.locator('tbody tr:not(:has(td.empty))')
+  await page.fill('.filterbar input', `report:"Rede ${u} Data"`)
+  await page.keyboard.press('Escape')
+  await expect(rowsShown).toHaveCount(2)
+  // Unquoted, the value stops at the space: "Data" becomes a search on the identifier.
+  await page.fill('.filterbar input', `report:${u} Data`)
+  await page.keyboard.press('Escape')
+  await expect(rowsShown).toHaveCount(0)
+
+  // Clicking the report name selects its vulns (and only them), a second click clears them.
+  await page.fill('.filterbar input', `e2e-pick-${u}`)
+  await page.keyboard.press('Escape')
+  await expect(rowsShown).toHaveCount(3)
+  await page.locator('tbody .repLink', { hasText: name }).first().click()
+  await expect(page.locator('.selectionHint')).toContainText('2')
+  await expect(page).toHaveURL(/\/defense$/)                               // it selects, it does not open
+  await expect(page.locator('tbody tr.selected')).toHaveCount(2)
+  await page.locator('tbody .repLink', { hasText: name }).first().click()
+  await expect(page.locator('.selectionHint')).toHaveCount(0)
+
+  // Not a link where nothing can be done with the selection.
+  await page.click('.tab:has-text("Em andamento")')
+  await expect(page.locator('tbody .repLink')).toHaveCount(0)
 })
