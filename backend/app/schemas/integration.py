@@ -41,6 +41,7 @@ class ExtVuln(ExtVulnSummary):
     metadata: dict
     ready_at: datetime | None
     sent_at: datetime | None
+    accepted_at: datetime | None   # by the defense team (D17)
     fixing_at: datetime | None
     retesting_at: datetime | None
     fixed_at: datetime | None

@@ -8,6 +8,8 @@ Role gates on routes decide *who may try*; this module decides *on which records
   operates. It may delete only what it created.
 - `read_restricted` reads only records it created, operates or was shared with
   (`viewers`). A report's vulnerabilities follow the report's access.
+- `defense` never reaches these routes (deps.get_current_user refuses it); its own
+  rules are in services/defense.py (D17).
 
 A record a user may not read answers 404, never 403, so its existence is not revealed.
 """
@@ -189,6 +191,12 @@ def resolve_users(
     if missing:
         raise HTTPException(
             status.HTTP_422_UNPROCESSABLE_ENTITY, f"Unknown {what} id(s): {', '.join(missing)}"
+        )
+    defense = [u.username for u in users if u.role == UserRole.defense]
+    if defense:  # D17: the defense team receives vulns, it does not work on them
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            f"A defense account cannot be a {what}: {', '.join(defense)}",
         )
     already = {u.id for u in keep or []}
     inactive = [u.username for u in users if not u.is_active and u.id not in already]

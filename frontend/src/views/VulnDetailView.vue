@@ -167,7 +167,7 @@ async function load() {
   // A new form is reset before anything is awaited, so text typed meanwhile is never wiped.
   if (isNew.value) resetForNew()
   // users for the operator picker, regardless of new/edit
-  try { allUsers.value = await listUsers() } catch { /* non-fatal */ }
+  try { allUsers.value = (await listUsers()).filter((u) => u.role !== 'defense') } catch { /* non-fatal */ }
   if (isNew.value) { await loadReportCtx(); return }
   // Don't flash the loading state when we just created this very record.
   if (vuln.value?.id !== id.value) loading.value = true

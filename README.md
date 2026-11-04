@@ -15,7 +15,7 @@ A self-hosted web platform for a professional red team to **manage, document, an
 | **Exports** | PDF, Excel and Word for reports; PDF/Word for a vulnerability; batch ZIP/Excel from the Hub. Internal notes are never exported |
 | **Dispatch** | Decoupled dispatcher: `stub` (default, logs only) or `smtp` (real email with PDF + Excel + non-image files) |
 | **Integration API** | `/api/v1` with scoped API keys: read vulnerabilities/reports, exports, RVS IDs, create vulnerabilities — see [docs/API.md](docs/API.md) |
-| **Administration** | Users and roles (admin · write_all · read_all · write_restricted · read_restricted · auditor; see D10), forced password change on first login, API keys, audit log viewer |
+| **Administration** | Users and roles (admin · write_all · read_all · write_restricted · read_restricted · auditor · defense; see D10, D17), forced password change on first login, API keys, audit log viewer |
 | **Hub** | Vulnerabilities / Reports tabs, filter language, details drawer with timeline, row and batch actions, RVS queue |
 | **i18n** | PT-BR and EN (language selector in the profile menu) |
 

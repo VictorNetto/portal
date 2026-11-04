@@ -85,6 +85,14 @@ export const correctVuln = (id, to, reason) =>
 export const rvsQueue = () => api('/rvs-queue')
 export const deleteVuln = (id) => api(`/vulnerabilities/${id}`, { method: 'DELETE' })
 
+// --- Defense team (D17) ---
+export const defenseVulns = () => api('/defense/vulnerabilities')
+export const defenseVuln = (id) => api(`/defense/vulnerabilities/${id}`)
+export const defenseAttachments = (id) => api(`/defense/vulnerabilities/${id}/attachments`)
+export const defenseAccept = (id) => api(`/defense/vulnerabilities/${id}/accept`, { method: 'POST' })
+export const defenseSetRvs = (id, rvsId) =>
+  api(`/defense/vulnerabilities/${id}/rvs`, { method: 'POST', body: { rvs_id: rvsId } })
+
 // --- User management ---
 export const listUsers = () => api('/users')
 export const createUser = (body) => api('/users', { method: 'POST', body })
@@ -118,8 +126,11 @@ export const deleteAttachment = (id) => api(`/attachments/${id}`, { method: 'DEL
 
 // File content needs the bearer token, so <img src> / <a href> can't point at
 // it directly. Fetch it as a Blob and hand out object URLs instead.
+// Defense accounts read files through their own routes (D17).
+let filesRoot = '/attachments'
+export function setFilesRoot(root) { filesRoot = root }
 export async function fetchAttachmentBlob(id) {
-  const res = await authedFetch(`${BASE}/attachments/${id}/content`)
+  const res = await authedFetch(`${BASE}${filesRoot}/${id}/content`)
   if (!res.ok) throw new ApiError(res.status, null)
   return res.blob()
 }

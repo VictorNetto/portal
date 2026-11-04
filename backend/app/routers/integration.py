@@ -136,7 +136,7 @@ def _vuln_full(v: Vulnerability) -> ExtVuln:
         description=v.description, finding_detail=v.finding_detail, mitigation=v.mitigation,
         references=v.references or [], cvss_vector=v.cvss_vector,
         operators=sorted(u.username for u in v.operators), metadata=v.extra_metadata or {},
-        ready_at=v.ready_at, sent_at=v.sent_at, fixing_at=v.fixing_at,
+        ready_at=v.ready_at, sent_at=v.sent_at, accepted_at=v.accepted_at, fixing_at=v.fixing_at,
         retesting_at=v.retesting_at, fixed_at=v.fixed_at,
     )
 

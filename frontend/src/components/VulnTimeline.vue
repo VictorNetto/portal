@@ -1,6 +1,6 @@
 <script setup>
 // Lifecycle timeline of a vulnerability: when it was created, completed, sent,
-// put in fixing (with its RVS id), and so on. Steps not yet reached stay dimmed.
+// accepted by the defense team, put in fixing (with its RVS id), and so on. Steps not yet reached stay dimmed.
 // Works with both the list row (Hub panel) and the full record (detail page).
 import { computed } from 'vue'
 import { t } from '../i18n'
@@ -20,6 +20,7 @@ const STEPS = [
   { key: 'created', at: 'created_at', status: 'draft' },
   { key: 'ready', at: 'ready_at', status: 'ready' },
   { key: 'sent', at: 'sent_at', status: 'sent' },
+  { key: 'accepted', at: 'accepted_at' },  // by the defense team (D17); not a status
   { key: 'fixing', at: 'fixing_at', status: 'fixing' },
   { key: 'retesting', at: 'retesting_at', status: 'retesting' },
   { key: 'fixed', at: 'fixed_at', status: 'fixed' },

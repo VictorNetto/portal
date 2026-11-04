@@ -13,7 +13,7 @@ const actionFilter = ref('')
 const ACTIONS = [
   'login', 'login_failed', 'logout', 'create', 'read', 'update', 'delete', 'status_change',
   'export', 'send', 'api_key_create', 'api_key_revoke', 'permission_change',
-  'lock_override', 'correction',
+  'lock_override', 'correction', 'accept',
 ]
 
 const page = ref(1)
@@ -39,7 +39,7 @@ function fmtDetail(d) {
 // Color actions by rough category for quick scanning.
 const actionClass = (a) => {
   if (['delete', 'api_key_revoke', 'login_failed'].includes(a)) return 'danger'
-  if (['create', 'api_key_create', 'send'].includes(a)) return 'good'
+  if (['create', 'api_key_create', 'send', 'accept'].includes(a)) return 'good'
   if (['permission_change', 'correction', 'lock_override', 'status_change'].includes(a)) return 'warn'
   return 'neutral'
 }

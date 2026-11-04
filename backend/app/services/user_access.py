@@ -8,6 +8,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app import access
+from app.models.enums import UserRole
 from app.models.report import Report
 from app.models.user import User
 from app.models.vulnerability import Vulnerability
@@ -32,6 +33,8 @@ def _relations(user: User, rec: Vulnerability | Report, via_report: bool) -> lis
 def for_user(session: Session, user: User) -> UserAccess:
     if access.reads_all(user):
         return UserAccess(scope="all")
+    if user.role == UserRole.defense:  # D17: every sent vuln, nothing else
+        return UserAccess(scope="sent")
 
     reports = session.scalars(
         select(Report)

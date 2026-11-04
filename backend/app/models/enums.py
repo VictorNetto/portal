@@ -15,6 +15,8 @@ class UserRole(str, enum.Enum):
     # Restricted roles (D10): see/touch only records they created, operate or were shared.
     write_restricted = "write_restricted"
     read_restricted = "read_restricted"
+    # D17: the defense team. Reads sent vulns only, accepts them and records their RVS ID.
+    defense = "defense"
 
 
 class VulnStatus(str, enum.Enum):
@@ -49,3 +51,4 @@ class AuditAction(str, enum.Enum):
     permission_change = "permission_change"
     lock_override = "lock_override"  # D4
     correction = "correction"  # D6
+    accept = "accept"  # D17: the defense team took a sent vuln

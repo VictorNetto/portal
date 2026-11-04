@@ -82,6 +82,22 @@ def get_current_user(
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN, detail=PASSWORD_CHANGE_REQUIRED
         )
+    # D17: defense accounts reach only /defense (get_defense_user), never the red team's API.
+    if user.role == UserRole.defense:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient permissions")
+    return user
+
+
+def get_defense_user(
+    user: User = Depends(get_current_user_allow_password_change),
+) -> User:
+    """The gate of the /defense routes: a defense account past its first-login change."""
+    if user.must_change_password:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail=PASSWORD_CHANGE_REQUIRED
+        )
+    if user.role != UserRole.defense:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient permissions")
     return user
 
 

@@ -11,6 +11,7 @@ from app.routers import (
     attachments,
     audit,
     auth,
+    defense,
     integration,
     report_templates,
     reports,
@@ -61,6 +62,7 @@ app.include_router(api_keys.router)
 app.include_router(audit.router)
 app.include_router(attachments.router)
 app.include_router(integration.router)
+app.include_router(defense.router)
 app.include_router(reports.router)
 app.include_router(report_templates.router)
 

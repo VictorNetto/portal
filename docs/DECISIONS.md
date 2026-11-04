@@ -283,3 +283,19 @@ The UUID `id` is the database key; it stays out of the screens and appears in UR
   later reuse means a copy exists, which ends the session.
 - **Sending:** the package is built before the report is frozen, so content that cannot be rendered
   is refused and stays an editable draft. Only a delivery failure leaves a report frozen for retry.
+
+---
+
+## D17 — Defense-team accounts
+
+- **Role `defense`:** an account of the defense team. It sees only vulnerabilities that were sent
+  (sent, fixing, retesting, fixed), and only what the red team sends: no internal notes, operators,
+  sharing, creator, or report beyond its name. Report files are not shown, only the vuln's own.
+- **Its own API:** `/defense/*`. The rest of the API refuses a defense account outright
+  (`get_current_user`), so no red-team route can leak to it by a missed role check.
+- **Two steps:** *accept* the sent vuln (`accepted_at`, `accepted_by`, audited as `accept`), then
+  record the RVS ID, which moves it to fixing as before. The red team, and API keys with `rvs:write`,
+  can still record the RVS without an acceptance.
+- **Not a status:** acceptance is a field, so D14 is unchanged. An admin correction back before
+  *sent* clears it.
+- A defense account cannot be an operator or be shared with.

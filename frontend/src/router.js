@@ -11,6 +11,8 @@ import ProfileView from './views/ProfileView.vue'
 import TemplatesView from './views/TemplatesView.vue'
 import ReportView from './views/ReportView.vue'
 import DocsView from './views/DocsView.vue'
+import DefenseInboxView from './views/DefenseInboxView.vue'
+import DefenseVulnView from './views/DefenseVulnView.vue'
 
 // Routes follow FRONTEND_SPEC §4.1.
 const routes = [
@@ -29,7 +31,12 @@ const routes = [
   { path: '/docs', name: 'docs', component: DocsView },
   { path: '/templates', name: 'templates', component: TemplatesView, meta: { roles: ['admin', 'write_all', 'write_restricted'] } },
   { path: '/audit-logs', name: 'audit', component: AuditView, meta: { roles: ['admin', 'auditor'] } },
+  { path: '/defense', name: 'defense', component: DefenseInboxView, meta: { roles: ['defense'] } },
+  { path: '/defense/vulnerabilities/:id', name: 'defense-vuln', component: DefenseVulnView, meta: { roles: ['defense'] } },
 ]
+
+// D17: a defense account has its own pages and the profile, nothing else.
+const DEFENSE_ROUTES = ['defense', 'defense-vuln', 'profile']
 
 const router = createRouter({
   history: createWebHistory(),
@@ -44,7 +51,8 @@ router.beforeEach((to) => {
   if (auth.isAuthenticated && auth.user?.must_change_password && to.name !== 'profile') {
     return { name: 'profile' }
   }
-  if (to.name === 'login' && auth.isAuthenticated) return { name: 'hub' }
+  if (auth.user?.role === 'defense' && !to.meta.public && !DEFENSE_ROUTES.includes(to.name)) return { name: 'defense' }
+  if (to.name === 'login' && auth.isAuthenticated) return { name: auth.user?.role === 'defense' ? 'defense' : 'hub' }
   if (to.meta.adminOnly && auth.user?.role !== 'admin') return { name: 'hub' }
   if (to.meta.roles && !to.meta.roles.includes(auth.user?.role)) return { name: 'hub' }
 })

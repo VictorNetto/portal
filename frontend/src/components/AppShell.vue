@@ -31,6 +31,10 @@ const allNavItems = [
   { icon: 'M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z', label: 'nav.audit', to: '/audit-logs', roles: ['auditor'] },
   { icon: 'M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0M14 4v4M8 10v4M16 16v4', label: 'nav.admin', to: '/audit-logs', adminOnly: true, bottom: true },
 ]
+// D17: the defense team's rail.
+const defenseItems = [
+  { icon: 'M4 13h4l2 3h4l2-3h4M4 13l2.5-8h11l2.5 8v6a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1z', label: 'nav.defenseInbox', to: '/defense' },
+]
 // The admin area: while an admin is on one of these pages the rail shows only them.
 const adminItems = [
   { icon: 'M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z', label: 'nav.audit', to: '/audit-logs' },
@@ -40,8 +44,9 @@ const adminItems = [
 ]
 const inAdmin = computed(() =>
   auth.user?.role === 'admin' && adminItems.some((i) => i.to !== '/hub' && i.to === route.path))
+const isDefense = computed(() => auth.user?.role === 'defense')
 const navItems = computed(() =>
-  inAdmin.value ? adminItems : allNavItems.filter((i) => {
+  isDefense.value ? defenseItems : inAdmin.value ? adminItems : allNavItems.filter((i) => {
     const role = auth.user?.role
     if (i.adminOnly && role !== 'admin') return false
     if (i.roles && !i.roles.includes(role)) return false
@@ -52,6 +57,7 @@ const navItems = computed(() =>
 function isActive(item) {
   if (item.children) return item.children.some(isActive)
   if (!item.to) return false
+  if (item.to === '/defense') return route.path.startsWith('/defense')
   if (item.to === '/hub') {
     return route.path === '/hub' ||
       (route.path.startsWith('/vulnerabilities/') && route.path !== '/vulnerabilities/new')
@@ -146,7 +152,7 @@ async function signOut() {
           {{ l.label }}
         </button>
         <div class="sep"></div>
-        <button class="menuItem" @click="goDocs">{{ t('docs.menu') }}</button>
+        <button v-if="!isDefense" class="menuItem" @click="goDocs">{{ t('docs.menu') }}</button>
         <button class="menuItem" @click="goProfile">{{ t('profile.menu') }}</button>
         <div class="sep"></div>
         <button class="menuItem" @click="signOut">{{ t('signOut') }}</button>

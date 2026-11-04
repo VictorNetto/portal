@@ -37,6 +37,7 @@ const pt = [
 - **Auditor:** vê tudo e consulta os logs de auditoria.
 - **Editor restrito:** cria vulnerabilidades e relatórios; vê e altera os que **criou** ou de que é **operador**; exclui apenas os que criou.
 - **Leitor restrito:** vê apenas o que criou, aquilo de que é operador e o que foi **compartilhado com ele** (campo *Compartilhado com*).
+- **Defesa:** conta do time de defesa. Vê apenas as vulnerabilidades **enviadas**, sem notas internas, operadores nem relatórios; **aceita** cada uma e registra o **ID de RVS**. Não pode ser operador nem receber compartilhamentos.
 
 As vulnerabilidades de um relatório seguem o acesso do relatório.`,
       },
@@ -109,7 +110,9 @@ Vários termos são combinados com **E**. O filtro fica no endereço da página,
       },
       {
         id: 'rvs', title: 'Fila RVS',
-        md: `A **Fila RVS** lista as vulnerabilidades enviadas que ainda não têm ID de RVS. Informe o ID (ex.: \`RVS-2026-001\`) e use **Registrar RVS**: a vulnerabilidade passa para **Em correção**. O ID não pode ser alterado depois.`,
+        md: `A **Fila RVS** lista as vulnerabilidades enviadas que ainda não têm ID de RVS. Informe o ID (ex.: \`RVS-2026-001\`) e use **Registrar RVS**: a vulnerabilidade passa para **Em correção**. O ID não pode ser alterado depois.
+
+O time de defesa também registra o RVS pela própria conta (papel **Defesa**): primeiro **aceita** a vulnerabilidade, depois informa o ID. A aceitação aparece na linha do tempo como **Aceita**.`,
       },
     ],
   },
@@ -823,6 +826,7 @@ const en = [
 - **Auditor:** sees everything and reads the audit logs.
 - **Restricted editor:** creates vulnerabilities and reports; sees and changes the ones they **created** or **operate**; deletes only the ones they created.
 - **Restricted reader:** sees only what they created, what they operate and what was **shared with them** (*Shared with* field).
+- **Defense:** an account of the defense team. Sees only **sent** vulnerabilities, without internal notes, operators or reports; **accepts** each one and records its **RVS ID**. Cannot be an operator or be shared with.
 
 A report's vulnerabilities follow the report's access.`,
       },
@@ -895,7 +899,9 @@ Several terms combine with **AND**. The filter is kept in the page address, so y
       },
       {
         id: 'rvs', title: 'RVS Queue',
-        md: `The **RVS Queue** lists sent vulnerabilities that have no RVS ID yet. Enter the ID (e.g. \`RVS-2026-001\`) and use **Record RVS**: the vulnerability moves to **Fixing**. The ID can't be changed afterwards.`,
+        md: `The **RVS Queue** lists sent vulnerabilities that have no RVS ID yet. Enter the ID (e.g. \`RVS-2026-001\`) and use **Record RVS**: the vulnerability moves to **Fixing**. The ID can't be changed afterwards.
+
+The defense team can also record the RVS from its own account (**Defense** role): it first **accepts** the vulnerability, then enters the ID. The acceptance shows on the timeline as **Accepted**.`,
       },
     ],
   },

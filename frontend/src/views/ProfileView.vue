@@ -52,7 +52,7 @@ async function submit() {
     await auth.changePassword(current.value, next.value)
     current.value = next.value = confirm.value = ''
     done.value = true
-    if (wasForced) router.push('/hub')
+    if (wasForced) router.push(auth.user?.role === 'defense' ? '/defense' : '/hub')
   } catch (e) {
     error.value = serverError(e)
   } finally {

@@ -46,6 +46,7 @@ TEAM = [
     ("samantha", UserRole.write_restricted, True, False),
     ("theodore", UserRole.write_restricted, True, False),
     ("victoria", UserRole.auditor, True, False),
+    ("defesa", UserRole.defense, True, False),
 ]
 OPERATORS = ["jonathan", "michelle", "benjamin", "samantha", "theodore"]
 ORDER = list(VulnStatus)
@@ -146,6 +147,11 @@ class Builder:
         if v.status not in (VulnStatus.draft, VulnStatus.ready, VulnStatus.sent):
             self.rvs_n += 1
             v.rvs_id = f"RVS-2026-{self.rvs_n:05d}"
+        # The defense team accepts before it records the RVS ID; some sent ones are still new.
+        if v.fixing_at or (v.status == VulnStatus.sent and self.rng.random() < 0.5):
+            v.accepted_at = sent + ((v.fixing_at or final) - sent) * self.rng.uniform(0.2, 0.8)
+            v.accepted_by = self.users["defesa"].id
+            self.audit(self.users["defesa"], AuditAction.accept, "vulnerability", v.id, v.accepted_at)
         v.updated_at = at
 
     def number_vuln(self) -> str:

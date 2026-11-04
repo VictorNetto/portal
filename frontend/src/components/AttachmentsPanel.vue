@@ -9,6 +9,8 @@ defineProps({
   disabled: { type: Boolean, default: false },
   uploading: { type: Boolean, default: false },
   error: { type: String, default: '' },
+  // Offer "copy as Markdown" for images (only useful to whoever writes the vuln).
+  copyable: { type: Boolean, default: true },
 })
 const emit = defineEmits(['upload', 'remove', 'download', 'copy-markdown'])
 
@@ -57,7 +59,7 @@ function size(bytes) {
           <span class="sub mono">{{ a.original_filename }} · {{ size(a.size_bytes) }}</span>
         </div>
         <div class="acts">
-          <button v-if="a.is_image" type="button" class="link" @click="emit('copy-markdown', a)">
+          <button v-if="a.is_image && copyable" type="button" class="link" @click="emit('copy-markdown', a)">
             {{ t('attach.copyMd') }}
           </button>
           <button type="button" class="link" @click="emit('download', a)">{{ t('attach.download') }}</button>

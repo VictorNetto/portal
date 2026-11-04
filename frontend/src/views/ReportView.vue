@@ -105,7 +105,7 @@ const snapshotOf = () => JSON.stringify({ f: form.value, o: [...selectedOps.valu
 const dirty = computed(() => !!report.value && snapshot.value !== snapshotOf())
 
 async function load() {
-  try { allUsers.value = await listUsers() } catch { /* non-fatal */ }
+  try { allUsers.value = (await listUsers()).filter((u) => u.role !== 'defense') } catch { /* non-fatal */ }
   if (isNew.value && !isWriter.value) { router.replace('/hub?entity=reports'); return }
   if (isNew.value) {
     selectedOps.value = new Set(auth.user?.id ? [auth.user.id] : []); selectedViewers.value = new Set()

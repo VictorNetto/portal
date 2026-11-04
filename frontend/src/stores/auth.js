@@ -3,7 +3,7 @@
 // every open tab shares the same session (D12).
 
 import { defineStore } from 'pinia'
-import { api, clearAttachmentCache, setAccessToken, setRefreshHandler } from '../api'
+import { api, clearAttachmentCache, setAccessToken, setFilesRoot, setRefreshHandler } from '../api'
 import { resetActivity } from '../session'
 
 const ACCESS_KEY = 'rtp_access'
@@ -66,6 +66,7 @@ export const useAuthStore = defineStore('auth', {
 
     async fetchMe() {
       this.user = await api('/auth/me')
+      setFilesRoot(this.user.role === 'defense' ? '/defense/attachments' : '/attachments')
       return this.user
     },
 
