@@ -1,9 +1,9 @@
 <script setup>
 // The defense team's list (D17), laid out like the Hub: work tabs, the filter bar,
-// pagination, and a batch menu to accept or assume the risk of many vulns at once.
+// pagination, and a batch menu with the actions that fit the tab's vulns.
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { defenseVulns, defenseAccept, defenseAcceptRisk, ApiError } from '../api'
+import { defenseVulns, defenseAccept, defenseAcceptRisk, defenseSetRvs, defenseUndoRisk, ApiError } from '../api'
 import { t } from '../i18n'
 import { fmtDate, fmtDateTime } from '../dates'
 import { confirmDialog, promptDialog } from '../dialog'
@@ -18,17 +18,23 @@ const error = ref('')
 const notice = ref('')
 
 const isNew = (v) => v.status === 'sent' && !v.accepted_at
+const awaitingRvs = (v) => v.status === 'sent' && !!v.accepted_at
+const riskAccepted = (v) => v.status === 'risk_accepted'
+// Each tab offers only what its vulns allow. Fixing, retesting and fixed belong to the
+// red team now, so those tabs have no actions (and no selection). "Todas" offers all of
+// them; each one applies to the selected vulns it fits and skips the rest.
 const TABS = [
-  { key: 'new', test: isNew },
-  { key: 'awaitingRvs', test: (v) => v.status === 'sent' && !!v.accepted_at },
-  { key: 'inProgress', test: (v) => ['fixing', 'retesting'].includes(v.status) },
-  { key: 'fixed', test: (v) => v.status === 'fixed' },
-  { key: 'riskAccepted', test: (v) => v.status === 'risk_accepted' },
-  { key: 'all', test: () => true },
+  { key: 'new', test: isNew, actions: ['accept', 'acceptRisk'] },
+  { key: 'awaitingRvs', test: awaitingRvs, actions: ['rvs', 'acceptRisk'] },
+  { key: 'inProgress', test: (v) => ['fixing', 'retesting'].includes(v.status), actions: [] },
+  { key: 'fixed', test: (v) => v.status === 'fixed', actions: [] },
+  { key: 'riskAccepted', test: riskAccepted, actions: ['undoRisk'] },
+  { key: 'all', test: () => true, actions: ['accept', 'rvs', 'acceptRisk', 'undoRisk'] },
 ]
-// Tabs where a report name selects that report's vulns, to act on them together.
-const REPORT_PICK_TABS = ['new', 'awaitingRvs', 'riskAccepted']
 const tab = ref('new')
+const tabActions = computed(() => TABS.find((x) => x.key === tab.value).actions)
+// Selecting (checkboxes, and report names that select their vulns) only where something can follow.
+const selectable = computed(() => tabActions.value.length > 0)
 const count = (key) => items.value.filter(TABS.find((x) => x.key === key).test).length
 
 // The filter applies within the tab (the report field is matched by name, as in the Hub).
@@ -69,7 +75,6 @@ const selectedRows = computed(() => items.value.filter((v) => selected.value.has
 
 // Selects every vuln of the report in this tab (all pages, within the filter);
 // a second click, with all of them selected, clears them.
-const reportPick = computed(() => REPORT_PICK_TABS.includes(tab.value))
 function pickReport(report) {
   const ids = rows.value.filter((v) => v.report?.id === report.id).map((v) => v.id)
   const all = ids.every((id) => selected.value.has(id))
@@ -118,24 +123,45 @@ async function runBatch(list, fn, label) {
   await load()
 }
 
-async function acceptSelected() {
-  batchOpen.value = false
-  error.value = ''; notice.value = ''
-  const list = selectedRows.value.filter(isNew)
-  if (!list.length) { error.value = t('defense.nothingToAccept'); return }
-  if (!(await confirmDialog(t('defense.confirmBatchAccept', { n: list.length })))) return
-  await runBatch(list, (v) => defenseAccept(v.id), t('defense.accept'))
+// `fits`: which vulns the action applies to. `ask`: what to confirm or ask first; it resolves
+// to the value the action needs (true for a plain confirmation), or false/null to stop.
+// `invalid`: an error message key when the value typed can't be used.
+const ACTIONS = {
+  accept: {
+    label: 'defense.accept', fits: isNew,
+    ask: (n) => confirmDialog(t('defense.confirmBatchAccept', { n })),
+    run: (v) => defenseAccept(v.id),
+  },
+  rvs: {
+    label: 'rvs.enter', fits: awaitingRvs,
+    ask: (n) => promptDialog(t('defense.rvsPromptBatch', { n }), { ok: t('rvs.enter') }),
+    invalid: (id) => (id.trim() ? '' : 'defense.rvsEmpty'),
+    run: (v, id) => defenseSetRvs(v.id, id.trim()),
+  },
+  acceptRisk: {
+    label: 'defense.acceptRisk', fits: (v) => v.status === 'sent',
+    ask: (n) => promptDialog(t('defense.riskPromptBatch', { n }), { ok: t('defense.acceptRisk') }),
+    invalid: (reason) => (reason.trim().length >= 5 ? '' : 'defense.riskShort'),
+    run: (v, reason) => defenseAcceptRisk(v.id, reason.trim()),
+  },
+  undoRisk: {
+    label: 'defense.undoRisk', fits: riskAccepted,
+    ask: (n) => confirmDialog(t('defense.confirmBatchUndoRisk', { n })),
+    run: (v) => defenseUndoRisk(v.id),
+  },
 }
 
-async function acceptRiskSelected() {
+async function runAction(key) {
+  const action = ACTIONS[key]
   batchOpen.value = false
   error.value = ''; notice.value = ''
-  const list = selectedRows.value.filter((v) => v.status === 'sent')
-  if (!list.length) { error.value = t('defense.nothingToRisk'); return }
-  const reason = await promptDialog(t('defense.riskPromptBatch', { n: list.length }), { ok: t('defense.acceptRisk') })
-  if (reason === null) return
-  if (reason.trim().length < 5) { error.value = t('defense.riskShort'); return }
-  await runBatch(list, (v) => defenseAcceptRisk(v.id, reason.trim()), t('defense.acceptRisk'))
+  const list = selectedRows.value.filter(action.fits)
+  if (!list.length) { error.value = t('defense.nothingFor', { action: t(action.label) }); return }
+  const value = await action.ask(list.length)
+  if (value === null || value === false) return
+  const invalid = action.invalid?.(value)
+  if (invalid) { error.value = t(invalid); return }
+  await runBatch(list, (v) => action.run(v, value), t(action.label))
 }
 
 onMounted(() => {
@@ -165,8 +191,7 @@ onUnmounted(() => {
           <div v-if="selected.size" class="batchWrap">
             <button class="btn" @click="toggleBatch($event)">{{ t('hub.actions') }}</button>
             <div v-if="batchOpen" class="rowMenuInline" :style="batchPos">
-              <button @click="acceptSelected">{{ t('defense.accept') }}</button>
-              <button @click="acceptRiskSelected">{{ t('defense.acceptRisk') }}</button>
+              <button v-for="a in tabActions" :key="a" @click="runAction(a)">{{ t(ACTIONS[a].label) }}</button>
             </div>
           </div>
         </div>
@@ -186,7 +211,7 @@ onUnmounted(() => {
         <table class="dtable">
           <thead>
             <tr>
-              <th><input type="checkbox" class="check" :checked="allChecked" :indeterminate.prop="someChecked" @change="toggleAll" /></th>
+              <th><input v-if="selectable" type="checkbox" class="check" :checked="allChecked" :indeterminate.prop="someChecked" @change="toggleAll" /></th>
               <th>{{ t('cols.identifier') }}</th>
               <th>{{ t('defense.state') }}</th>
               <th>{{ t('cols.cvss') }}</th>
@@ -198,7 +223,7 @@ onUnmounted(() => {
           <tbody>
             <tr v-for="v in pageRows" :key="v.id" :class="{ selected: selected.has(v.id) }"
                 @click="router.push(`/defense/vulnerabilities/${v.id}`)">
-              <td @click.stop><input type="checkbox" class="check" :checked="selected.has(v.id)" @change="toggleRow(v.id)" /></td>
+              <td @click.stop><input v-if="selectable" type="checkbox" class="check" :checked="selected.has(v.id)" @change="toggleRow(v.id)" /></td>
               <td class="val idcell" :title="v.identifier">{{ v.identifier || '—' }}</td>
               <td><span class="pill" :class="stateClass(v)">{{ stateLabel(v) }}</span></td>
               <td>
@@ -206,7 +231,7 @@ onUnmounted(() => {
                 <span v-else>—</span>
               </td>
               <td class="val muted" :title="v.report?.name">
-                <a v-if="v.report && reportPick" class="repLink" @click.stop="pickReport(v.report)">{{ v.report.name }}</a>
+                <a v-if="v.report && selectable" class="repLink" @click.stop="pickReport(v.report)">{{ v.report.name }}</a>
                 <template v-else>{{ v.report?.name || '—' }}</template>
               </td>
               <td class="dateCell" :title="fmtDateTime(v.sent_at)">{{ fmtDate(v.sent_at) }}</td>

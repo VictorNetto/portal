@@ -70,6 +70,16 @@ def accept_risk(
     return svc.accept_risk(session, vuln_id, body.reason, user, request)
 
 
+@router.post("/vulnerabilities/{vuln_id}/risk-undo", response_model=DefenseVuln)
+def undo_risk(
+    vuln_id: uuid.UUID,
+    request: Request,
+    user: User = Depends(get_defense_user),
+    session: Session = Depends(get_session),
+):
+    return svc.undo_risk(session, vuln_id, user, request)
+
+
 @router.post("/vulnerabilities/{vuln_id}/rvs", response_model=DefenseVuln)
 def set_rvs(
     vuln_id: uuid.UUID,

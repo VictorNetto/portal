@@ -4,9 +4,10 @@
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
-  defenseVuln, defenseAttachments, defenseAccept, defenseAcceptRisk, defenseSetRvs, fetchAttachmentBlob, ApiError,
+  defenseVuln, defenseAttachments, defenseAccept, defenseAcceptRisk, defenseSetRvs, defenseUndoRisk,
+  fetchAttachmentBlob, ApiError,
 } from '../api'
-import { promptDialog } from '../dialog'
+import { confirmDialog, promptDialog } from '../dialog'
 import { t } from '../i18n'
 import { fmtDateTime } from '../dates'
 import AppShell from '../components/AppShell.vue'
@@ -66,6 +67,14 @@ async function acceptRisk() {
   finally { busy.value = false }
 }
 
+async function undoRisk() {
+  if (!(await confirmDialog(t('defense.confirmUndoRisk')))) return
+  busy.value = true; error.value = ''; notice.value = ''
+  try { vuln.value = await defenseUndoRisk(vuln.value.id); notice.value = t('defense.undoRiskOk') }
+  catch (e) { error.value = e instanceof ApiError ? e.detail : t('errors.update'); await load() }
+  finally { busy.value = false }
+}
+
 async function recordRvs() {
   const value = rvs.value.trim()
   if (!value) return
@@ -111,6 +120,7 @@ watch(() => route.params.id, (id) => { if (id) load() })
           </p>
         </div>
         <div class="pageActions">
+          <button v-if="vuln?.status === 'risk_accepted'" class="btn" :disabled="busy" @click="undoRisk">{{ t('defense.undoRisk') }}</button>
           <button v-if="mayAcceptRisk" class="btn" :disabled="busy" @click="acceptRisk">{{ t('defense.acceptRisk') }}</button>
           <button v-if="mayAccept" class="btn primary" :disabled="busy" @click="accept">{{ t('defense.accept') }}</button>
         </div>

@@ -181,3 +181,28 @@ def test_a_report_with_fixed_and_risk_accepted_vulns_is_closed(writer, defense):
     writer.post(f"/vulnerabilities/{b['id']}/transition", {"to": "fixed"})
     r = writer.get(f"/reports/{rid}").json()
     assert (r["vuln_count"], r["fixed_count"], r["closed_count"]) == (2, 1, 2)
+
+
+def test_undo_risk_returns_the_vuln_to_its_queue(writer, defense):
+    fresh, taken = sent_vuln(writer), sent_vuln(writer)
+    defense.post(f"/defense/vulnerabilities/{taken['id']}/accept")
+    for v in (fresh, taken):
+        defense.post(f"/defense/vulnerabilities/{v['id']}/risk-accept", {"reason": "Revisão posterior"})
+    assert defense.post(f"/defense/vulnerabilities/{fresh['id']}/accept").status_code == 409
+
+    r = defense.post(f"/defense/vulnerabilities/{fresh['id']}/risk-undo")
+    assert r.status_code == 200, r.text
+    assert r.json()["status"] == "sent" and r.json()["accepted_at"] is None   # back in Novas
+    assert r.json()["risk_reason"] is None and r.json()["risk_accepted_at"] is None
+    r = defense.post(f"/defense/vulnerabilities/{taken['id']}/risk-undo")
+    assert r.json()["status"] == "sent" and r.json()["accepted_at"]           # back to awaiting its RVS
+    assert defense.post(f"/defense/vulnerabilities/{taken['id']}/risk-undo").status_code == 409
+    assert defense.post(f"/defense/vulnerabilities/{taken['id']}/rvs", {"rvs_id": f"RVS-{tag()}"}).status_code == 200
+
+
+def test_one_rvs_id_may_cover_several_vulns(writer, defense):
+    rvs = f"RVS-{tag()}"
+    for v in (sent_vuln(writer), sent_vuln(writer)):
+        defense.post(f"/defense/vulnerabilities/{v['id']}/accept")
+        r = defense.post(f"/defense/vulnerabilities/{v['id']}/rvs", {"rvs_id": rvs})
+        assert r.status_code == 200 and r.json()["rvs_id"] == rvs

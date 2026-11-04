@@ -308,8 +308,12 @@ The UUID `id` is the database key; it stays out of the screens and appears in UR
   *sent* undoes the decision and its reason.
 - **The defense list** works like the Hub: work tabs (Novas, Aguardando RVS, Em andamento,
   Corrigidas, Risco assumido, Todas), the filter bar with its own keys (status, cvss, id, report),
-  pagination, and a batch menu (Aceitar, Assumir risco with one reason for all). In Novas,
-  Aguardando RVS and Risco assumido a report name selects that report's vulns (a second click
-  clears them).
+  pagination, and a batch menu with what each tab allows: Novas — Aceitar, Assumir risco;
+  Aguardando RVS — Registrar RVS (one id for all: one RVS may cover a whole report), Assumir risco;
+  Risco assumido — Desfazer; Todas — all of them, each applied to the vulns it fits. Em andamento
+  and Corrigidas belong to the red team: no actions, no selection. Where there are actions, a
+  report name selects that report's vulns (a second click clears them).
+- **Undo risk accepted:** the defense team can take the decision back; the vuln returns to sent
+  (Novas, or Aguardando RVS if it was accepted before). The old reason stays in the audit log.
 - **Filter values end at the first space;** a value with spaces is quoted: `report:"Rede do Data
   Center"`. Applies to every key and to free text, in the Hub and the defense list.

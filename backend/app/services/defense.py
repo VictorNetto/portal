@@ -100,6 +100,27 @@ def accept_risk(session: Session, vuln_id: uuid.UUID, reason: str, user: User, r
     return vuln
 
 
+def undo_risk(session: Session, vuln_id: uuid.UUID, user: User, request: Request) -> Vulnerability:
+    """risk_accepted -> sent: the team will fix it after all. An acceptance made before stays,
+    so the vuln waits for its RVS ID; the old reason is kept in the audit log."""
+    vuln = get_vuln(session, vuln_id, for_update=True)
+    if vuln.status != VulnStatus.risk_accepted:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT, f"Only a risk-accepted vuln can be reopened (current: {vuln.status.value})")
+    reason = vuln.risk_reason
+    vuln.status = VulnStatus.sent
+    vuln.risk_accepted_at = vuln.risk_accepted_by = vuln.risk_reason = None
+    vuln.version += 1
+    audit.record(
+        session, action=AuditAction.status_change, user_id=user.id,
+        entity_type="vulnerability", entity_id=vuln.id,
+        detail={"from": "risk_accepted", "to": "sent", "previous_reason": reason}, request=request,
+    )
+    session.commit()
+    session.refresh(vuln)
+    return vuln
+
+
 def set_rvs(session: Session, vuln_id: uuid.UUID, rvs_id: str, user: User, request: Request) -> Vulnerability:
     vuln = get_vuln(session, vuln_id, for_update=True)
     if vuln.status == VulnStatus.sent and vuln.accepted_at is None:

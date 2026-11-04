@@ -96,7 +96,7 @@ test('the defense team assumes the risk instead of fixing, and the red team sees
   await box.locator('input').fill('Sistema será desativado em dezembro')
   await box.locator('.modalActions .btn', { hasText: 'Assumir risco' }).click()
   await expect(page.locator('.ok.msg')).toContainText('Risco assumido')
-  await expect(page.locator('.pageActions .btn')).toHaveCount(0)
+  await expect(page.locator('.pageActions .btn')).toHaveText(['Desfazer risco assumido'])  // the only way back
   await expect(page.locator('.timeline .label')).toHaveText(['Recebida', 'Risco assumido'])
   await expect(page.locator('.riskReason')).toContainText('desativado em dezembro')
 
@@ -170,4 +170,61 @@ test('a report name selects its vulns, and a quoted filter keeps spaces', async 
   // Not a link where nothing can be done with the selection.
   await page.click('.tab:has-text("Em andamento")')
   await expect(page.locator('tbody .repLink')).toHaveCount(0)
+})
+
+test('each tab offers only the batch actions its vulns allow', async ({ page }) => {
+  const u = tag()
+  const made = []
+  for (const s of ['a', 'b']) {
+    const v = await savedVuln(admin, { identifier: `e2e-tabs-${u}-${s}` })
+    vulns.push(v.id); made.push(v)
+    await api(`/vulnerabilities/${v.id}/send`, { token: admin, method: 'POST' })
+  }
+  await loginDefense(page)
+  const menu = page.locator('.rowMenuInline button')
+  const openMenu = async () => { await page.click('thead .check'); await page.click('.batchWrap .btn') }
+  const filter = async () => { await page.fill('.filterbar input', `e2e-tabs-${u}`); await page.keyboard.press('Escape') }
+  const okDialog = () => page.locator('.appDialog .modal .modalActions .btn').last().click()
+
+  await filter()
+  await openMenu()
+  await expect(menu).toHaveText(['Aceitar', 'Assumir risco'])
+  await menu.filter({ hasText: 'Aceitar' }).click()
+  await okDialog()
+
+  await page.click('.tab:has-text("Aguardando RVS")')
+  await filter()
+  await openMenu()
+  await expect(menu).toHaveText(['Registrar RVS', 'Assumir risco'])
+  await menu.filter({ hasText: 'Assumir risco' }).click()
+  await page.locator('.appDialog .modal input').fill('Sistema em desativação')
+  await okDialog()
+  await expect(page.locator('.ok.msg')).toContainText('2')
+
+  await page.click('.tab:has-text("Risco assumido")')
+  await filter()
+  await openMenu()
+  await expect(menu).toHaveText(['Desfazer risco assumido'])
+  await menu.click()
+  await okDialog()
+  await expect(page.locator('.ok.msg')).toContainText('2')
+
+  // Undone, they were accepted before: back to waiting for the RVS, and one id covers both.
+  await page.click('.tab:has-text("Aguardando RVS")')
+  await filter()
+  await openMenu()
+  await menu.filter({ hasText: 'Registrar RVS' }).click()
+  const rvs = `RVS-e2e-${tag()}`
+  await page.locator('.appDialog .modal input').fill(rvs)
+  await okDialog()
+  await page.click('.tab:has-text("Em andamento")')
+  await filter()
+  await expect(page.locator('tbody tr', { hasText: rvs })).toHaveCount(2)
+  await expect(page.locator('tbody .check, thead .check')).toHaveCount(0)       // nothing to do here
+  for (const v of made) expect((await api(`/vulnerabilities/${v.id}`, { token: admin })).data.rvs_id).toBe(rvs)
+
+  await page.click('.tab:has-text("Todas")')
+  await filter()
+  await openMenu()
+  await expect(menu).toHaveText(['Aceitar', 'Registrar RVS', 'Assumir risco', 'Desfazer risco assumido'])
 })

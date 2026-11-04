@@ -100,7 +100,7 @@ O valor vai até o primeiro espaço. Para incluir espaços, use aspas: \`report:
 5. **Em reteste:** o Red Team verifica a correção. *Aprovar reteste* conclui; *Reprovar reteste* volta para *Em correção*.
 6. **Corrigida:** correção confirmada; fim do fluxo.
 
-Em vez de corrigir, o time de defesa pode **assumir o risco** de uma vulnerabilidade enviada, com uma justificativa. Ela passa para **Risco assumido**, que também encerra o fluxo; a justificativa aparece na linha do tempo.`,
+Em vez de corrigir, o time de defesa pode **assumir o risco** de uma vulnerabilidade enviada, com uma justificativa. Ela passa para **Risco assumido**, que também encerra o fluxo; a justificativa aparece na linha do tempo. A defesa pode **desfazer** a decisão: a vulnerabilidade volta a ficar enviada.`,
       },
       {
         id: 'vuln-apos', title: 'Depois do envio',
@@ -891,7 +891,7 @@ A value ends at the first space. To include spaces, quote it: \`report:"Rede do 
 5. **Retesting:** the Red Team checks the fix. *Pass retest* finishes it; *Fail retest* goes back to *Fixing*.
 6. **Fixed:** fix confirmed; end of the flow.
 
-Instead of fixing, the defense team can **accept the risk** of a sent vulnerability, with a reason. It moves to **Risk accepted**, which also ends the flow; the reason shows under the timeline.`,
+Instead of fixing, the defense team can **accept the risk** of a sent vulnerability, with a reason. It moves to **Risk accepted**, which also ends the flow; the reason shows under the timeline. The defense team can **undo** the decision: the vulnerability is sent again.`,
       },
       {
         id: 'vuln-apos', title: 'After sending',
