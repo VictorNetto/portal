@@ -100,6 +100,7 @@ class ReportListItem(BaseModel):
     lock: LockInfo | None = None
     sent_at: datetime | None
     fixed_count: int = 0        # how many of `vuln_count` are fixed: the report's progress
+    closed_count: int = 0       # fixed or risk accepted: all closed means the report is done
     created_at: datetime
     updated_at: datetime
 

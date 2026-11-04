@@ -85,3 +85,66 @@ test('red-team pages are out of reach for a defense account', async ({ page }) =
     await expect(page).toHaveURL(/\/defense$/)
   }
 })
+
+test('the defense team assumes the risk instead of fixing, and the red team sees why', async ({ page }) => {
+  const id = `e2e-risk-${tag()}`
+  const v = await sentWithEvidence(id)
+  await loginDefense(page)
+  await page.goto(`/defense/vulnerabilities/${v.id}`)
+  await page.click('.pageActions .btn:has-text("Assumir risco")')
+  const box = page.locator('.appDialog .modal')
+  await box.locator('input').fill('Sistema será desativado em dezembro')
+  await box.locator('.modalActions .btn', { hasText: 'Assumir risco' }).click()
+  await expect(page.locator('.ok.msg')).toContainText('Risco assumido')
+  await expect(page.locator('.pageActions .btn')).toHaveCount(0)
+  await expect(page.locator('.timeline .label')).toHaveText(['Recebida', 'Risco assumido'])
+  await expect(page.locator('.riskReason')).toContainText('desativado em dezembro')
+
+  const { data } = await api(`/vulnerabilities/${v.id}`, { token: admin })
+  expect(data.status).toBe('risk_accepted')
+  expect(data.risk_reason).toBe('Sistema será desativado em dezembro')
+})
+
+test('batch accept over a filtered selection', async ({ page }) => {
+  const u = tag()
+  const ids = [`e2e-batch-${u}-a`, `e2e-batch-${u}-b`]
+  const made = []
+  for (const identifier of ids) {
+    const v = await savedVuln(admin, { identifier })
+    vulns.push(v.id); made.push(v)
+    await api(`/vulnerabilities/${v.id}/send`, { token: admin, method: 'POST' })
+  }
+  await loginDefense(page)
+  await page.fill('.filterbar input', `e2e-batch-${u}`)
+  await expect(page.locator('tbody tr:not(:has(td.empty))')).toHaveCount(2)
+  await page.click('thead .check')
+  await expect(page.locator('.selectionHint')).toContainText('2')
+  await page.click('.batchWrap .btn')
+  await page.click('.rowMenuInline button:has-text("Aceitar")')
+  await page.locator('.appDialog .modal .modalActions .btn').last().click()
+  await expect(page.locator('.ok.msg')).toContainText('2')
+  // They left "Novas" and wait for their RVS.
+  await expect(page.locator('tbody tr:not(:has(td.empty))')).toHaveCount(0)
+  await page.click('.tab:has-text("Aguardando RVS")')
+  await expect(page.locator('tbody tr:not(:has(td.empty))')).toHaveCount(2)
+  for (const v of made) {
+    const { data } = await api(`/vulnerabilities/${v.id}`, { token: admin })
+    expect(data.accepted_at).toBeTruthy()
+  }
+})
+
+test('an RVS recorded by the red team fills the Aceita step', async ({ page }) => {
+  const v = await savedVuln(admin, { identifier: `e2e-tl-${tag()}` })
+  vulns.push(v.id)
+  await api(`/vulnerabilities/${v.id}/send`, { token: admin, method: 'POST' })
+  await api(`/vulnerabilities/${v.id}/rvs`, { token: admin, body: { rvs_id: `RVS-e2e-${tag()}` } })
+  await page.goto('/login')
+  await page.fill('input[autocomplete=username]', 'admin')
+  await page.fill('input[type=password]', process.env.E2E_ADMIN_PASSWORD || 'admin')
+  await page.click('button')
+  await expect(page).toHaveURL(/\/hub/)
+  await page.goto(`/vulnerabilities/${v.id}`)
+  const accepted = page.locator('.timeline .step', { hasText: 'Aceita' })
+  await expect(accepted).toHaveClass(/reached/)
+  await expect(accepted.locator('.when')).not.toHaveText('—')
+})

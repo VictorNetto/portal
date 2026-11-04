@@ -42,6 +42,8 @@ class ExtVuln(ExtVulnSummary):
     ready_at: datetime | None
     sent_at: datetime | None
     accepted_at: datetime | None   # by the defense team (D17)
+    risk_accepted_at: datetime | None  # or it assumed the risk instead, and why
+    risk_reason: str | None
     fixing_at: datetime | None
     retesting_at: datetime | None
     fixed_at: datetime | None
@@ -73,6 +75,7 @@ class ExtReportSummary(BaseModel):
     sent_at: datetime | None
     vulnerability_count: int
     fixed_count: int               # how many of them are fixed: the report's progress
+    closed_count: int              # fixed or risk accepted (D17)
     created_at: datetime
     updated_at: datetime
 

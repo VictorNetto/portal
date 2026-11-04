@@ -299,3 +299,13 @@ The UUID `id` is the database key; it stays out of the screens and appears in UR
 - **Not a status:** acceptance is a field, so D14 is unchanged. An admin correction back before
   *sent* clears it.
 - A defense account cannot be an operator or be shared with.
+- **RVS implies acceptance:** an RVS ID recorded without an acceptance (red team, API key) sets
+  `accepted_at` at the same moment, so the timeline never skips the step. Existing records were
+  backfilled with `fixing_at`.
+- **Risk accepted (`risk_accepted`):** instead of fixing, the defense team may assume the risk of a
+  sent vuln, accepted or not, with a reason (5+ characters). It ends the flow like *fixed*: a report
+  is done when every vuln is fixed or risk-accepted (`closed_count`). An admin correction back to
+  *sent* undoes the decision and its reason.
+- **The defense list** works like the Hub: work tabs (Novas, Aguardando RVS, Em andamento,
+  Encerradas, Todas), the filter bar with its own keys (status, cvss, id, report), pagination, and a
+  batch menu (Aceitar, Assumir risco with one reason for all).

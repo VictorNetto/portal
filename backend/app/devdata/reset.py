@@ -138,6 +138,14 @@ class Builder:
 
     def advance(self, v, sent, final, actor) -> None:
         """Walk a sent vulnerability through its dates up to its status."""
+        if v.status == VulnStatus.risk_accepted:  # the defense team chose not to fix it
+            v.sent_at = sent
+            v.risk_accepted_at = v.updated_at = sent + (final - sent) * self.rng.uniform(0.1, 0.6)
+            v.risk_accepted_by = self.users["defesa"].id
+            v.risk_reason = self.rng.choice(c.RISK_REASONS)
+            self.audit(self.users["defesa"], AuditAction.status_change, "vulnerability", v.id,
+                       v.risk_accepted_at, to="risk_accepted")
+            return
         steps = ORDER[ORDER.index(VulnStatus.sent):ORDER.index(v.status) + 1]
         moments = sorted(sent + (final - sent) * self.rng.uniform(0.1, 0.95) for _ in steps[1:])
         at = v.sent_at = sent

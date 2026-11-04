@@ -72,10 +72,10 @@ REFERENCES = [
 REPORTS = [
     dict(name="Avaliação do Portal do Cliente 2026", client="Diretoria de Canais Digitais", app="Portal do Cliente",
          test_type="web", test_model="graybox", environment="production", origin="Calendário anual", sent=120, days=20,
-         statuses=["fixed"] * 8),
+         statuses=["fixed"] * 7 + ["risk_accepted"]),
     dict(name="Avaliação das APIs de Parceiros", client="Diretoria de Plataformas Digitais", app="API de Parceiros",
          test_type="API", test_model="graybox", environment="staging", origin="Exigência regulatória", sent=75, days=15,
-         statuses=["fixed"] * 3 + ["retesting"] * 3 + ["fixing"] * 3),
+         statuses=["fixed"] * 3 + ["retesting"] * 3 + ["fixing"] * 2 + ["risk_accepted"]),
     dict(name="Avaliação do Aplicativo Conta Digital", client="Diretoria de Canais Digitais", app="Aplicativo Conta Digital",
          test_type="mobile", test_model="whitebox", environment="staging", origin="Novo lançamento", sent=42, days=12,
          statuses=["fixing"] * 4 + ["sent"] * 3),
@@ -104,6 +104,14 @@ STANDALONE = [
     ("Plataforma de Dados", "fixing", 35), ("Sistema de Cobrança", "fixing", 48),
     ("Plataforma de Dados", "retesting", 60), ("Intranet", "retesting", 70),
     ("Portal de RH", "fixed", 90), ("Plataforma de Dados", "fixed", 110),
+    ("Intranet", "risk_accepted", 40),
+]
+
+# Why the defense team assumed a risk instead of fixing it (D17).
+RISK_REASONS = [
+    "O sistema será descontinuado no próximo trimestre e o acesso já está restrito à rede interna.",
+    "Há controle compensatório em vigor (monitoramento e bloqueio na borda); a correção exige troca do fornecedor.",
+    "Risco aceito pela área de negócio após análise de impacto, com revisão prevista em seis meses.",
 ]
 
 EXECUTIVE = [

@@ -36,6 +36,7 @@ class DefenseVulnItem(BaseModel):
     report: DefenseReportRef | None = None
     sent_at: datetime | None
     accepted_at: datetime | None
+    risk_accepted_at: datetime | None
     fixing_at: datetime | None
     retesting_at: datetime | None
     fixed_at: datetime | None
@@ -51,6 +52,8 @@ class DefenseVuln(DefenseVulnItem):
     mitigation: str | None
     references: list[str] = Field(default_factory=list)
     accepter: DefenseUserRef | None = None
+    risk_accepter: DefenseUserRef | None = None
+    risk_reason: str | None = None
 
 
 class DefenseAttachment(BaseModel):
@@ -62,6 +65,10 @@ class DefenseAttachment(BaseModel):
     is_image: bool
 
     model_config = {"from_attributes": True}
+
+
+class DefenseRiskAccept(BaseModel):
+    reason: str = Field(min_length=5, max_length=2000)
 
 
 class DefenseRvs(BaseModel):

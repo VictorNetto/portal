@@ -103,6 +103,7 @@ def _base(session: Session, report: Report, user: User, vulns: list[Vulnerabilit
     scored = [float(v.cvss_score) for v in vulns if v.cvss_score is not None]
     return dict(
         fixed_count=sum(v.status == VulnStatus.fixed for v in vulns),
+        closed_count=sum(v.status in (VulnStatus.fixed, VulnStatus.risk_accepted) for v in vulns),
         id=report.id, internal_id=report.internal_id, name=report.name,
         client_name=report.client_name, status=report.status,
         operators=[OperatorRef.model_validate(o) for o in report.operators],

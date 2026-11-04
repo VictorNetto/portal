@@ -26,7 +26,16 @@ const STEPS = [
   { key: 'fixed', at: 'fixed_at', status: 'fixed' },
 ]
 
-const rows = computed(() => (props.steps || STEPS).map((s) => {
+// D17: a vuln whose risk was assumed ends there instead of going through the fix.
+const RISK_STEP = { key: 'riskAccepted', at: 'risk_accepted_at', status: 'risk_accepted' }
+const steps = computed(() => {
+  const all = props.steps || STEPS
+  if (props.vuln.status !== 'risk_accepted' && !props.vuln.risk_accepted_at) return all
+  const upTo = all.slice(0, all.findIndex((s) => s.key === 'fixing'))
+  return [...upTo.filter((s) => s.key !== 'accepted' || props.vuln.accepted_at), RISK_STEP]
+})
+
+const rows = computed(() => steps.value.map((s) => {
   const at = props.vuln[s.at] || null
   const current = props.vuln.status === s.status
   const reached = current || !!at

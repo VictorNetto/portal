@@ -12,6 +12,7 @@ from tests.conftest import (
     tag,
     upload,
 )
+from tests.test_dispatch import build_report
 
 
 @pytest.fixture(scope="module")
@@ -126,3 +127,57 @@ def test_correction_before_sent_clears_acceptance(admin, writer, defense):
 
 def test_admin_sees_defense_scope(admin, defense):
     assert admin.get(f"/users/{defense.user['id']}/access").json()["scope"] == "sent"
+
+
+def test_rvs_by_the_red_team_counts_as_accepted(writer):
+    v = sent_vuln(writer)
+    r = writer.post(f"/vulnerabilities/{v['id']}/rvs", {"rvs_id": f"RVS-{tag()}"})
+    assert r.status_code == 200, r.text
+    assert r.json()["accepted_at"] == r.json()["fixing_at"]
+    assert r.json()["accepter"]["username"] == writer.user["username"]
+
+
+def test_risk_accepted_instead_of_fixing(writer, defense):
+    v = sent_vuln(writer)
+    path = f"/defense/vulnerabilities/{v['id']}"
+    assert defense.post(f"{path}/risk-accept", {"reason": "no"}).status_code == 422  # a real reason
+    r = defense.post(f"{path}/risk-accept", {"reason": "Sistema será desativado em dezembro"})
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["status"] == "risk_accepted" and body["risk_accepted_at"]
+    assert body["risk_accepter"]["username"] == defense.user["username"]
+    # A closed decision: no accepting, no RVS, no second decision.
+    assert defense.post(f"{path}/accept").status_code == 409
+    assert defense.post(f"{path}/rvs", {"rvs_id": "X"}).status_code == 409
+    assert defense.post(f"{path}/risk-accept", {"reason": "outra vez"}).status_code == 409
+    # The red team sees the decision and its reason; nothing to retest.
+    mine = writer.get(f"/vulnerabilities/{v['id']}").json()
+    assert mine["status"] == "risk_accepted" and mine["risk_reason"].startswith("Sistema")
+    assert writer.post(f"/vulnerabilities/{v['id']}/transition", {"to": "retesting"}).status_code == 409
+
+
+def test_risk_on_an_accepted_vuln(writer, defense):
+    v = sent_vuln(writer)
+    defense.post(f"/defense/vulnerabilities/{v['id']}/accept")
+    r = defense.post(f"/defense/vulnerabilities/{v['id']}/risk-accept", {"reason": "Custo maior que o risco"})
+    assert r.status_code == 200 and r.json()["status"] == "risk_accepted"
+
+
+def test_correction_undoes_the_risk_decision(admin, writer, defense):
+    v = sent_vuln(writer)
+    defense.post(f"/defense/vulnerabilities/{v['id']}/risk-accept", {"reason": "Decisão revista depois"})
+    r = admin.post(f"/vulnerabilities/{v['id']}/correction", {"to": "sent", "reason": "decisão revista"})
+    assert r.status_code == 200, r.text
+    assert r.json()["status"] == "sent"
+    assert r.json()["risk_accepted_at"] is None and r.json()["risk_reason"] is None
+
+
+def test_a_report_with_fixed_and_risk_accepted_vulns_is_closed(writer, defense):
+    rid, a, b, _ = build_report(writer)
+    assert writer.post(f"/reports/{rid}/send").status_code == 200
+    defense.post(f"/defense/vulnerabilities/{a['id']}/risk-accept", {"reason": "Ambiente descontinuado"})
+    writer.post(f"/vulnerabilities/{b['id']}/rvs", {"rvs_id": f"RVS-{tag()}"})
+    writer.post(f"/vulnerabilities/{b['id']}/transition", {"to": "retesting"})
+    writer.post(f"/vulnerabilities/{b['id']}/transition", {"to": "fixed"})
+    r = writer.get(f"/reports/{rid}").json()
+    assert (r["vuln_count"], r["fixed_count"], r["closed_count"]) == (2, 1, 2)

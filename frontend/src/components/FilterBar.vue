@@ -8,6 +8,9 @@ const props = defineProps({
   // Dynamic value sets for enumerable keys whose values aren't static,
   // e.g. { operator: ['alice', 'bob'] }. Resolved by the parent from data.
   dynamicValues: { type: Object, default: () => ({}) },
+  keys: { type: Array, default: () => FILTER_KEYS },
+  // i18n key of the help lines (an array).
+  help: { type: String, default: 'filter.help' },
 })
 const emit = defineEmits(['update:modelValue'])
 
@@ -22,12 +25,11 @@ const text = computed({
 
 const hasText = computed(() => (text.value || '').length > 0)
 
-const KEY_LIST = FILTER_KEYS.map((k) => k.key)
-const KEY_DESC = Object.fromEntries(FILTER_KEYS.map((k) => [k.key, k.desc]))
-const KEY_DEF = Object.fromEntries(FILTER_KEYS.map((k) => [k.key, k]))
+const KEY_LIST = computed(() => props.keys.map((k) => k.key))
+const KEY_DEF = computed(() => Object.fromEntries(props.keys.map((k) => [k.key, k])))
 
 function valuesFor(key) {
-  const def = KEY_DEF[key]
+  const def = KEY_DEF.value[key]
   if (!def || !def.enumerable) return null
   // Prefer a dynamic set (e.g. operators from loaded rows) when provided.
   if (props.dynamicValues[key]?.length) return props.dynamicValues[key]
@@ -49,7 +51,7 @@ const autocomplete = computed(() => {
   const slashIndex = negate ? 1 : t[0] === '/' ? 0 : -1
   if (slashIndex !== -1) {
     const needle = t.slice(slashIndex + 1).toLowerCase()
-    const options = KEY_LIST.filter((k) => k.startsWith(needle))
+    const options = KEY_LIST.value.filter((k) => k.startsWith(needle))
     if (!options.length) return null
     return { mode: 'key', negate, options }
   }
@@ -122,7 +124,7 @@ function focusAndTrigger() {
 defineExpose({ focusAndTrigger })
 
 // Computed so the help follows the selected language.
-const HELP_LINES = computed(() => [1, 2, 3, 4, 5, 6, 7, 8].map((n) => t('filter.line' + n)))
+const HELP_LINES = computed(() => t(props.help))
 </script>
 
 <template>

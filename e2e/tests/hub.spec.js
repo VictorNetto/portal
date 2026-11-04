@@ -73,7 +73,7 @@ test.describe('operations hub', () => {
     await expect(drawer.locator('.metaLine .k')).toHaveText(['ID interno', 'CVSS', 'Vetor CVSS', 'Fonte', 'RVS'])
     await expect(drawer.locator('.metaLine')).toContainText(v.rvs_id)
     await expect(drawer.locator('.opsLine .k')).toHaveText('Operadores')
-    await expect(drawer.locator('.step.reached')).toHaveCount(4)                   // created, ready, sent, fixing
+    await expect(drawer.locator('.step.reached')).toHaveCount(5)                   // created, ready, sent, accepted, fixing
     await expect(drawer.locator('.step.current .label')).toHaveText('Em correção')
 
     // the list shrinks above the drawer: the last row stays reachable

@@ -2,8 +2,9 @@
 
 A defense account sees only vulnerabilities that were sent to it: status sent or later,
 never a draft, a ready vuln or anything inside a draft report. It accepts a sent vuln and
-then records its RVS ID, which moves it to fixing. Reports, internal notes, operators and
-sharing are the red team's and are never shown.
+then records its RVS ID, which moves it to fixing; or it assumes the risk instead
+(risk_accepted). Reports, internal notes, operators and sharing are the red team's and
+are never shown.
 """
 
 import uuid
@@ -20,7 +21,8 @@ from app.models.user import User
 from app.models.vulnerability import Vulnerability
 from app.services import vulnerability as vuln_svc
 
-RELEASED = (VulnStatus.sent, VulnStatus.fixing, VulnStatus.retesting, VulnStatus.fixed)
+RELEASED = (VulnStatus.sent, VulnStatus.fixing, VulnStatus.retesting, VulnStatus.fixed,
+            VulnStatus.risk_accepted)
 
 
 def _released():
@@ -71,6 +73,27 @@ def accept(session: Session, vuln_id: uuid.UUID, user: User, request: Request) -
     audit.record(
         session, action=AuditAction.accept, user_id=user.id,
         entity_type="vulnerability", entity_id=vuln.id, request=request,
+    )
+    session.commit()
+    session.refresh(vuln)
+    return vuln
+
+
+def accept_risk(session: Session, vuln_id: uuid.UUID, reason: str, user: User, request: Request) -> Vulnerability:
+    """sent -> risk_accepted: the team will not fix it, and says why. Accepted or not."""
+    vuln = get_vuln(session, vuln_id, for_update=True)
+    if vuln.status != VulnStatus.sent:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT, f"Only a sent vuln can have its risk accepted (current: {vuln.status.value})")
+    vuln.status = VulnStatus.risk_accepted
+    vuln.risk_accepted_at = datetime.now(UTC)
+    vuln.risk_accepted_by = user.id
+    vuln.risk_reason = reason.strip()
+    vuln.version += 1
+    audit.record(
+        session, action=AuditAction.status_change, user_id=user.id,
+        entity_type="vulnerability", entity_id=vuln.id,
+        detail={"from": "sent", "to": "risk_accepted", "reason": vuln.risk_reason}, request=request,
     )
     session.commit()
     session.refresh(vuln)

@@ -20,13 +20,15 @@ class UserRole(str, enum.Enum):
 
 
 class VulnStatus(str, enum.Enum):
-    """D14. draft -complete-> ready -send-> sent -RVS ID-> fixing <-> retesting -> fixed"""
+    """D14. draft -complete-> ready -send-> sent -RVS ID-> fixing <-> retesting -> fixed
+    D17: sent -> risk_accepted when the defense team assumes the risk instead of fixing."""
     draft = "draft"          # Rascunho
     ready = "ready"          # Pronta
     sent = "sent"            # Enviada
     fixing = "fixing"        # Em correção
     retesting = "retesting"  # Em reteste
     fixed = "fixed"          # Corrigida
+    risk_accepted = "risk_accepted"  # Risco assumido (D17)
 
 
 class ReportStatus(str, enum.Enum):

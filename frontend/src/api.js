@@ -90,6 +90,8 @@ export const defenseVulns = () => api('/defense/vulnerabilities')
 export const defenseVuln = (id) => api(`/defense/vulnerabilities/${id}`)
 export const defenseAttachments = (id) => api(`/defense/vulnerabilities/${id}/attachments`)
 export const defenseAccept = (id) => api(`/defense/vulnerabilities/${id}/accept`, { method: 'POST' })
+export const defenseAcceptRisk = (id, reason) =>
+  api(`/defense/vulnerabilities/${id}/risk-accept`, { method: 'POST', body: { reason } })
 export const defenseSetRvs = (id, rvsId) =>
   api(`/defense/vulnerabilities/${id}/rvs`, { method: 'POST', body: { rvs_id: rvsId } })
 

@@ -136,7 +136,8 @@ def _vuln_full(v: Vulnerability) -> ExtVuln:
         description=v.description, finding_detail=v.finding_detail, mitigation=v.mitigation,
         references=v.references or [], cvss_vector=v.cvss_vector,
         operators=sorted(u.username for u in v.operators), metadata=v.extra_metadata or {},
-        ready_at=v.ready_at, sent_at=v.sent_at, accepted_at=v.accepted_at, fixing_at=v.fixing_at,
+        ready_at=v.ready_at, sent_at=v.sent_at, accepted_at=v.accepted_at,
+        risk_accepted_at=v.risk_accepted_at, risk_reason=v.risk_reason, fixing_at=v.fixing_at,
         retesting_at=v.retesting_at, fixed_at=v.fixed_at,
     )
 
@@ -153,6 +154,7 @@ def _report_summary(session: Session, r: Report) -> ExtReportSummary:
         status=r.status.value, start_date=r.start_date, end_date=r.end_date,
         sent_at=r.sent_at, vulnerability_count=len(vulns),
         fixed_count=sum(v.status == VulnStatus.fixed for v in vulns),
+        closed_count=sum(v.status in (VulnStatus.fixed, VulnStatus.risk_accepted) for v in vulns),
         created_at=r.created_at, updated_at=r.updated_at,
     )
 

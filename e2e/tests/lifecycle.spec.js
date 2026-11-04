@@ -32,11 +32,11 @@ test.describe('vulnerability lifecycle', () => {
     await loginUI(page, writer.username, writer.password)
     await page.goto(`/reports/${r.id}`)
     await expect(page.locator('.subline .pill')).toHaveText('Enviado')
-    await expect(page.locator('.subline')).toContainText('1 de 2 corrigidas')
+    await expect(page.locator('.subline')).toContainText('1 de 2 encerradas')
     await fix(b)
     await page.reload()
     await expect(page.locator('.subline .pill')).toHaveText('Concluído')
-    await expect(page.locator('.subline')).not.toContainText('corrigidas')
+    await expect(page.locator('.subline')).not.toContainText('encerradas')
   })
 
   test('RVS queue: registering an id starts the fix', async ({ page }) => {
@@ -95,7 +95,8 @@ test.describe('vulnerability lifecycle', () => {
 
     await expect(status(page)).toContainText('Enviada')
     await expect(page.locator('.timeline .rvs')).toHaveCount(0)
-    await expect(page.locator('.timeline .step.reached')).toHaveCount(3)
+    // created, ready, sent and accepted: the acceptance stays, only the RVS id goes (D17)
+    await expect(page.locator('.timeline .step.reached')).toHaveCount(4)
 
     // it is back in the RVS queue
     await page.locator('.sidebar .navItem[aria-label="Fila RVS"]').click()

@@ -13,7 +13,7 @@
 //   report:<text>                report id or name contains (ci); report:none = not in a report
 
 export const STATUSES = [
-  'draft', 'ready', 'sent', 'fixing', 'retesting', 'fixed',
+  'draft', 'ready', 'sent', 'fixing', 'retesting', 'fixed', 'risk_accepted',
 ]
 
 // CVSS menu values: whole numbers 10..1 (reverse order). cvss:x means >= x.
@@ -28,6 +28,14 @@ export const FILTER_KEYS = [
   { key: 'operator', desc: 'operador atribuído', enumerable: true, values: [] },
   { key: 'id', desc: 'identificador contém', enumerable: false, values: [] },
   { key: 'source', desc: 'fonte contém', enumerable: false, values: [] },
+  { key: 'report', desc: 'relatório contém (ou none)', enumerable: false, values: [] },
+]
+
+// The defense team's list (D17): only released statuses, and no operator or source.
+export const DEFENSE_FILTER_KEYS = [
+  { key: 'status', desc: 'status exato', enumerable: true, values: ['sent', 'fixing', 'retesting', 'fixed', 'risk_accepted'] },
+  { key: 'cvss', desc: 'CVSS ≥ x', enumerable: true, values: CVSS_VALUES },
+  { key: 'id', desc: 'identificador contém', enumerable: false, values: [] },
   { key: 'report', desc: 'relatório contém (ou none)', enumerable: false, values: [] },
 ]
 

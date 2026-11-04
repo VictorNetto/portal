@@ -12,7 +12,13 @@ from app.db import get_session
 from app.deps import get_defense_user
 from app.models.enums import AuditAction
 from app.models.user import User
-from app.schemas.defense import DefenseAttachment, DefenseRvs, DefenseVuln, DefenseVulnItem
+from app.schemas.defense import (
+    DefenseAttachment,
+    DefenseRiskAccept,
+    DefenseRvs,
+    DefenseVuln,
+    DefenseVulnItem,
+)
 from app.services import defense as svc
 from app.storage import get_storage
 
@@ -51,6 +57,17 @@ def accept(
     session: Session = Depends(get_session),
 ):
     return svc.accept(session, vuln_id, user, request)
+
+
+@router.post("/vulnerabilities/{vuln_id}/risk-accept", response_model=DefenseVuln)
+def accept_risk(
+    vuln_id: uuid.UUID,
+    body: DefenseRiskAccept,
+    request: Request,
+    user: User = Depends(get_defense_user),
+    session: Session = Depends(get_session),
+):
+    return svc.accept_risk(session, vuln_id, body.reason, user, request)
 
 
 @router.post("/vulnerabilities/{vuln_id}/rvs", response_model=DefenseVuln)

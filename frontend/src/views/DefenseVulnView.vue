@@ -4,8 +4,9 @@
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
-  defenseVuln, defenseAttachments, defenseAccept, defenseSetRvs, fetchAttachmentBlob, ApiError,
+  defenseVuln, defenseAttachments, defenseAccept, defenseAcceptRisk, defenseSetRvs, fetchAttachmentBlob, ApiError,
 } from '../api'
+import { promptDialog } from '../dialog'
 import { t } from '../i18n'
 import { fmtDateTime } from '../dates'
 import AppShell from '../components/AppShell.vue'
@@ -35,6 +36,8 @@ const STEPS = [
 ]
 const mayAccept = computed(() => vuln.value?.status === 'sent' && !vuln.value.accepted_at)
 const mayRecordRvs = computed(() => vuln.value?.status === 'sent' && !!vuln.value.accepted_at)
+// Instead of fixing it, the team may assume the risk, with a reason (accepted or not).
+const mayAcceptRisk = computed(() => vuln.value?.status === 'sent')
 const sevClass = (s) => { const n = Number(s); return n >= 7 ? 'hi' : n >= 4 ? 'me' : 'lo' }
 
 async function load() {
@@ -49,6 +52,17 @@ async function load() {
 async function accept() {
   busy.value = true; error.value = ''; notice.value = ''
   try { vuln.value = await defenseAccept(vuln.value.id); notice.value = t('defense.acceptedOk') }
+  catch (e) { error.value = e instanceof ApiError ? e.detail : t('errors.update'); await load() }
+  finally { busy.value = false }
+}
+
+async function acceptRisk() {
+  const reason = await promptDialog(t('defense.riskPrompt'), { ok: t('defense.acceptRisk') })
+  if (reason === null) return
+  error.value = ''; notice.value = ''
+  if (reason.trim().length < 5) { error.value = t('defense.riskShort'); return }
+  busy.value = true
+  try { vuln.value = await defenseAcceptRisk(vuln.value.id, reason.trim()); notice.value = t('defense.riskOk') }
   catch (e) { error.value = e instanceof ApiError ? e.detail : t('errors.update'); await load() }
   finally { busy.value = false }
 }
@@ -98,6 +112,7 @@ watch(() => route.params.id, (id) => { if (id) load() })
           </p>
         </div>
         <div class="pageActions">
+          <button v-if="mayAcceptRisk" class="btn" :disabled="busy" @click="acceptRisk">{{ t('defense.acceptRisk') }}</button>
           <button v-if="mayAccept" class="btn primary" :disabled="busy" @click="accept">{{ t('defense.accept') }}</button>
         </div>
       </div>
@@ -120,6 +135,9 @@ watch(() => route.params.id, (id) => { if (id) load() })
       <section class="panel card">
         <h2 class="secTitle">{{ t('timeline.title') }}</h2>
         <VulnTimeline :vuln="vuln" :steps="STEPS" />
+        <p v-if="vuln.risk_reason" class="riskReason">
+          <span class="k">{{ t('defense.riskBy', { user: vuln.risk_accepter?.username || '—' }) }}</span><span>{{ vuln.risk_reason }}</span>
+        </p>
       </section>
 
       <section class="panel card">
@@ -193,6 +211,9 @@ watch(() => route.params.id, (id) => { if (id) load() })
 .refList { margin: 0; padding-left: 18px; display: grid; gap: 4px; font-size: 13px; }
 .refList a { color: var(--accent); word-break: break-all; }
 .rvsForm { display: flex; gap: 8px; max-width: 520px; }
+.riskReason { margin: 14px 0 0; padding-top: 12px; border-top: 1px solid var(--line); font-size: 13px; color: var(--text-2); }
+.riskReason > span:last-child { white-space: pre-wrap; }
+.riskReason .k { display: block; margin-bottom: 4px; font-size: 12px; color: var(--muted); }
 .rvsForm input { flex: 1; font-family: var(--mono); font-size: 13px; }
 @media (max-width: 1100px) { .infoGrid, .layout { grid-template-columns: 1fr; } }
 </style>

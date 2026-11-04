@@ -175,6 +175,7 @@ tbody tr:hover td { background: var(--hover); }
 .pill.s-fixing { color: var(--st-wait-fg); background: var(--st-wait-bg); }
 .pill.s-retesting { color: var(--st-retest-fg); background: var(--st-retest-bg); }
 .pill.s-fixed, .pill.on { color: var(--st-fixed-fg); background: var(--st-fixed-bg); }
+.pill.s-risk_accepted { color: var(--st-draft-fg); background: var(--st-draft-bg); }
 
 .cvss { font-family: var(--mono); font-weight: 500; }
 .cvss.hi { color: var(--sev-hi); } .cvss.me { color: var(--sev-me); } .cvss.lo { color: var(--sev-lo); }

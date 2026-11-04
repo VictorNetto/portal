@@ -303,6 +303,7 @@ async function doTransition(action) {
 // --- Admin status adjustment (D6): move back to an earlier status -------------
 const ORDER = ['ready', 'sent', 'fixing', 'retesting', 'fixed']
 const correctionTargets = computed(() => {
+  if (vuln.value?.status === 'risk_accepted') return ['ready', 'sent']
   const i = ORDER.indexOf(vuln.value?.status)
   return i > 0 ? ORDER.slice(0, i) : []
 })
@@ -544,6 +545,9 @@ watch(() => route.fullPath, () => {
       <section v-if="vuln && !inReport" class="panel card">
         <h2 class="secTitle">{{ t('timeline.title') }}</h2>
         <VulnTimeline :vuln="vuln" />
+        <p v-if="vuln.risk_reason" class="riskReason">
+          <span class="k">{{ t('defense.riskBy', { user: vuln.risk_accepter?.username || '—' }) }}</span><span>{{ vuln.risk_reason }}</span>
+        </p>
       </section>
 
       <section class="panel card">
@@ -723,6 +727,9 @@ input.invalid { border-color: var(--danger); }
 .corrRow { display: flex; gap: 14px; align-items: flex-end; flex-wrap: wrap; }
 .corrRow .grow { flex: 1 1 280px; }
 .corrActions { display: flex; gap: 8px; }
+.riskReason { margin: 14px 0 0; padding-top: 12px; border-top: 1px solid var(--line); font-size: 13px; color: var(--text-2); }
+.riskReason > span:last-child { white-space: pre-wrap; }
+.riskReason .k { display: block; margin-bottom: 4px; font-size: 12px; color: var(--muted); }
 
 @media (max-width: 1100px) {
   .infoGrid, .row2, .layout { grid-template-columns: 1fr; }
