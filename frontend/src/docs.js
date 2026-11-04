@@ -112,7 +112,7 @@ Em vez de corrigir, o time de defesa pode **assumir o risco** de uma vulnerabili
       },
       {
         id: 'rvs', title: 'Fila RVS',
-        md: `A **Fila RVS** lista as vulnerabilidades enviadas que ainda não têm ID de RVS. Informe o ID (ex.: \`RVS-2026-001\`) e use **Registrar RVS**: a vulnerabilidade passa para **Em correção**. O ID não pode ser alterado depois.
+        md: `A **Fila RVS** lista as vulnerabilidades enviadas que ainda não têm ID de RVS. Informe o ID (ex.: \`RVS-2026-001\`) e use **Registrar RVS**: a vulnerabilidade passa para **Em correção**. O ID não pode ser alterado depois, e cada ID pertence a uma única vulnerabilidade (maiúsculas e espaços não contam).
 
 O time de defesa também registra o RVS pela própria conta (papel **Defesa**): primeiro **aceita** a vulnerabilidade, depois informa o ID. Um RVS registrado aqui conta como aceitação no mesmo momento.`,
       },
@@ -486,7 +486,7 @@ Registra o ID de RVS de uma vulnerabilidade enviada, que passa para **Em correç
 **Erros**
 
 - \`409\` se não estiver enviada: \`{"detail": "RVS ID can only be set on a sent vuln (current: fixing)"}\`
-- \`409\` se o ID já foi registrado: \`{"detail": "RVS ID is already set"}\`
+- \`409\` se a vulnerabilidade já tem ID: \`{"detail": "RVS ID is already set"}\`, ou se o ID já é de outra: \`{"detail": "RVS ID … is already used by VULN-…"}\`
 - \`404\`; \`422\` para \`rvs_id\` vazio.
 
 **Exemplo**
@@ -903,7 +903,7 @@ Instead of fixing, the defense team can **accept the risk** of a sent vulnerabil
       },
       {
         id: 'rvs', title: 'RVS Queue',
-        md: `The **RVS Queue** lists sent vulnerabilities that have no RVS ID yet. Enter the ID (e.g. \`RVS-2026-001\`) and use **Record RVS**: the vulnerability moves to **Fixing**. The ID can't be changed afterwards.
+        md: `The **RVS Queue** lists sent vulnerabilities that have no RVS ID yet. Enter the ID (e.g. \`RVS-2026-001\`) and use **Record RVS**: the vulnerability moves to **Fixing**. The ID can't be changed afterwards, and each ID belongs to a single vulnerability (case and spaces don't count).
 
 The defense team can also record the RVS from its own account (**Defense** role): it first **accepts** the vulnerability, then enters the ID. An RVS recorded here counts as the acceptance at the same moment.`,
       },
@@ -1277,7 +1277,7 @@ Records the RVS ID of a sent vulnerability, which moves to **Fixing**. The ID ca
 **Errors**
 
 - \`409\` if it is not sent: \`{"detail": "RVS ID can only be set on a sent vuln (current: fixing)"}\`
-- \`409\` if the ID is already set: \`{"detail": "RVS ID is already set"}\`
+- \`409\` if the vulnerability already has an ID: \`{"detail": "RVS ID is already set"}\`, or if the ID belongs to another one: \`{"detail": "RVS ID … is already used by VULN-…"}\`
 - \`404\`; \`422\` for an empty \`rvs_id\`.
 
 **Example**

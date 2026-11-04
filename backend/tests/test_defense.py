@@ -200,9 +200,24 @@ def test_undo_risk_returns_the_vuln_to_its_queue(writer, defense):
     assert defense.post(f"/defense/vulnerabilities/{taken['id']}/rvs", {"rvs_id": f"RVS-{tag()}"}).status_code == 200
 
 
-def test_one_rvs_id_may_cover_several_vulns(writer, defense):
+def test_each_rvs_id_belongs_to_one_vuln(writer, defense):
+    first, second = sent_vuln(writer), sent_vuln(writer)
     rvs = f"RVS-{tag()}"
-    for v in (sent_vuln(writer), sent_vuln(writer)):
+    for v in (first, second):
         defense.post(f"/defense/vulnerabilities/{v['id']}/accept")
-        r = defense.post(f"/defense/vulnerabilities/{v['id']}/rvs", {"rvs_id": rvs})
-        assert r.status_code == 200 and r.json()["rvs_id"] == rvs
+    assert defense.post(f"/defense/vulnerabilities/{first['id']}/rvs", {"rvs_id": rvs}).status_code == 200
+    for taken in (rvs, f"  {rvs.lower()} "):                          # case and spaces don't make it new
+        r = defense.post(f"/defense/vulnerabilities/{second['id']}/rvs", {"rvs_id": taken})
+        assert r.status_code == 409 and "already used" in r.json()["detail"], r.text
+    # The red team and the integration API follow the same rule.
+    third = sent_vuln(writer)
+    assert writer.post(f"/vulnerabilities/{third['id']}/rvs", {"rvs_id": rvs}).status_code == 409
+    assert defense.get(f"/defense/vulnerabilities/{second['id']}").json()["status"] == "sent"
+
+
+def test_a_removed_rvs_id_can_be_used_again(admin, writer):
+    v, other = sent_vuln(writer), sent_vuln(writer)
+    rvs = f"RVS-{tag()}"
+    writer.post(f"/vulnerabilities/{v['id']}/rvs", {"rvs_id": rvs})
+    admin.post(f"/vulnerabilities/{v['id']}/correction", {"to": "sent", "reason": "RVS errado"})
+    assert writer.post(f"/vulnerabilities/{other['id']}/rvs", {"rvs_id": rvs}).status_code == 200

@@ -132,12 +132,8 @@ const ACTIONS = {
     ask: (n) => confirmDialog(t('defense.confirmBatchAccept', { n })),
     run: (v) => defenseAccept(v.id),
   },
-  rvs: {
-    label: 'rvs.enter', fits: awaitingRvs,
-    ask: (n) => promptDialog(t('defense.rvsPromptBatch', { n }), { ok: t('rvs.enter') }),
-    invalid: (id) => (id.trim() ? '' : 'defense.rvsEmpty'),
-    run: (v, id) => defenseSetRvs(v.id, id.trim()),
-  },
+  // Each vuln gets its own RVS ID, so this one opens a form instead of a single question.
+  rvs: { label: 'rvs.enter', fits: awaitingRvs, form: true },
   acceptRisk: {
     label: 'defense.acceptRisk', fits: (v) => v.status === 'sent',
     ask: (n) => promptDialog(t('defense.riskPromptBatch', { n }), { ok: t('defense.acceptRisk') }),
@@ -157,11 +153,46 @@ async function runAction(key) {
   error.value = ''; notice.value = ''
   const list = selectedRows.value.filter(action.fits)
   if (!list.length) { error.value = t('defense.nothingFor', { action: t(action.label) }); return }
+  if (action.form) { openRvsForm(list); return }
   const value = await action.ask(list.length)
   if (value === null || value === false) return
   const invalid = action.invalid?.(value)
   if (invalid) { error.value = t(invalid); return }
   await runBatch(list, (v) => action.run(v, value), t(action.label))
+}
+
+// --- Batch RVS: one field per vuln --------------------------------------------------
+// A blank field is left for later. Each ID may be used once (the server checks against every
+// vuln; the form catches repeats within itself first). Recorded rows leave the form; rows that
+// failed stay with their reason.
+const rvsForm = ref(null)  // { rows: [{ v, value, error }], busy }
+function openRvsForm(list) {
+  rvsForm.value = { rows: list.map((v) => ({ v, value: '', error: '' })), busy: false }
+}
+const rvsKey = (s) => s.trim().toLowerCase()
+async function submitRvsForm() {
+  const form = rvsForm.value
+  const filled = form.rows.filter((r) => r.value.trim())
+  if (!filled.length) return
+  const seen = new Map()
+  for (const r of form.rows) r.error = ''
+  for (const r of filled) {
+    const k = rvsKey(r.value)
+    if (seen.has(k)) { r.error = seen.get(k).error = t('defense.rvsRepeated') } else seen.set(k, r)
+  }
+  if (filled.some((r) => r.error)) return
+  form.busy = true
+  let done = 0
+  for (const r of filled) {
+    try { await defenseSetRvs(r.v.id, r.value.trim()); done++; r.done = true }
+    catch (e) { r.error = e instanceof ApiError ? e.detail : t('errors.register') }
+  }
+  form.rows = form.rows.filter((r) => !r.done)
+  form.busy = false
+  notice.value = t('defense.rvsFormResult', { done })
+  selected.value = new Set()
+  await load()
+  if (!form.rows.some((r) => r.error)) rvsForm.value = null
 }
 
 onMounted(() => {
@@ -242,6 +273,30 @@ onUnmounted(() => {
         </table>
       </section>
     </div>
+
+    <div v-if="rvsForm" class="modalBack" @click.self="rvsForm = null" @keydown.esc="rvsForm = null">
+      <form class="panel modal rvsModal" role="dialog" aria-modal="true" :aria-label="t('rvs.enter')"
+            @submit.prevent="submitRvsForm">
+        <h2 class="secTitle">{{ t('rvs.enter') }}</h2>
+        <p class="hint">{{ t('defense.rvsFormHint') }}</p>
+        <div class="rvsRows">
+          <label v-for="(r, i) in rvsForm.rows" :key="r.v.id" class="rvsRow">
+            <span class="who" :title="r.v.identifier">
+              <span class="mono">{{ r.v.internal_id }}</span>{{ r.v.identifier || '—' }}
+            </span>
+            <input v-model="r.value" :placeholder="t('rvs.placeholder')" maxlength="200" :class="{ invalid: r.error }"
+                   :autofocus="i === 0" />
+            <small v-if="r.error" class="fieldErr">{{ r.error }}</small>
+          </label>
+        </div>
+        <div class="modalActions">
+          <button type="button" class="btn" @click="rvsForm = null">{{ t('dialog.cancel') }}</button>
+          <button class="btn primary" :disabled="rvsForm.busy || !rvsForm.rows.some((r) => r.value.trim())">
+            {{ t('rvs.enter') }}
+          </button>
+        </div>
+      </form>
+    </div>
   </AppShell>
 </template>
 
@@ -288,4 +343,13 @@ tr.selected td { background: var(--accent-soft); }
 }
 .rowMenuInline button { width: 100%; height: 30px; border: 0; background: transparent; color: var(--text-2); text-align: left; border-radius: var(--radius-sm); padding: 0 10px; font-size: 13px; }
 .rowMenuInline button:hover { background: var(--hover); }
+
+.rvsModal { width: min(720px, 100%); }
+.rvsRows { display: grid; gap: 10px; max-height: 55vh; overflow: auto; padding-right: 4px; }
+.rvsRow { display: grid; grid-template-columns: minmax(0, 1fr) 220px; gap: 4px 12px; align-items: center; }
+.rvsRow .who { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; color: var(--text); }
+.rvsRow .who .mono { margin-right: 8px; color: var(--accent); }
+.rvsRow input { font-family: var(--mono); font-size: 13px; }
+.rvsRow input.invalid { border-color: var(--danger); }
+.rvsRow .fieldErr { grid-column: 2; color: var(--danger); font-size: 12px; }
 </style>

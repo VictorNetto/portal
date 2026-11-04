@@ -121,11 +121,12 @@ def test_set_rvs_through_the_queue(admin, full, writer):
     queue = [x["id"] for x in call(full, "GET", "/rvs-queue").json()]
     assert v["id"] in queue
     rvs_only = make_key(admin, ["rvs:write"])                      # a ticketing system needs nothing else
-    r = call(rvs_only, "POST", f"/vulnerabilities/{v['internal_id']}/rvs", json={"rvs_id": "RVS-pytest-1"})
+    rvs = f"RVS-pytest-{tag()}"
+    r = call(rvs_only, "POST", f"/vulnerabilities/{v['internal_id']}/rvs", json={"rvs_id": rvs})
     assert r.status_code == 200, r.text
-    assert r.json()["status"] == "fixing" and r.json()["rvs_id"] == "RVS-pytest-1"
+    assert r.json()["status"] == "fixing" and r.json()["rvs_id"] == rvs
     assert v["id"] not in [x["id"] for x in call(rvs_only, "GET", "/rvs-queue").json()]
-    again = call(rvs_only, "POST", f"/vulnerabilities/{v['id']}/rvs", json={"rvs_id": "RVS-2"})
+    again = call(rvs_only, "POST", f"/vulnerabilities/{v['id']}/rvs", json={"rvs_id": f"RVS-2-{tag()}"})
     assert again.status_code == 409                                  # immutable once set
     draft = new_vuln(writer)
     assert call(rvs_only, "POST", f"/vulnerabilities/{draft['id']}/rvs", json={"rvs_id": "x"}).status_code == 409

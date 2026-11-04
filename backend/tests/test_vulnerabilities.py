@@ -32,8 +32,9 @@ def test_send_then_rvs_starts_the_fix(writer):
     assert d["status"] == "sent" and d["sent_at"]
     queue = [x["id"] for x in writer.get("/rvs-queue").json()]
     assert v["id"] in queue
-    a = writer.post(f"/vulnerabilities/{v['id']}/rvs", {"rvs_id": "RVS-pytest-1"}).json()
-    assert a["status"] == "fixing" and a["rvs_id"] == "RVS-pytest-1" and a["fixing_at"]
+    rvs = f"RVS-pytest-{tag()}"
+    a = writer.post(f"/vulnerabilities/{v['id']}/rvs", {"rvs_id": rvs}).json()
+    assert a["status"] == "fixing" and a["rvs_id"] == rvs and a["fixing_at"]
     assert v["id"] not in [x["id"] for x in writer.get("/rvs-queue").json()]
 
 
@@ -42,8 +43,8 @@ def test_rvs_id_can_be_set_only_once_and_only_when_sent_vuln(writer):
     assert writer.post(f"/vulnerabilities/{v['id']}/rvs", {"rvs_id": "x"}).status_code == 409  # not sent yet
     writer.post(f"/vulnerabilities/{v['id']}/send")
     assert writer.post(f"/vulnerabilities/{v['id']}/rvs", {"rvs_id": "  "}).status_code == 422
-    assert writer.post(f"/vulnerabilities/{v['id']}/rvs", {"rvs_id": "RVS-A"}).status_code == 200
-    assert writer.post(f"/vulnerabilities/{v['id']}/rvs", {"rvs_id": "RVS-B"}).status_code == 409
+    assert writer.post(f"/vulnerabilities/{v['id']}/rvs", {"rvs_id": f"RVS-A-{tag()}"}).status_code == 200
+    assert writer.post(f"/vulnerabilities/{v['id']}/rvs", {"rvs_id": f"RVS-B-{tag()}"}).status_code == 409
 
 
 def test_cannot_skip_steps(writer):

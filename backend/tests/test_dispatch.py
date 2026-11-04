@@ -54,7 +54,7 @@ def test_dispatch_releases_the_vulns_in_severity_order(writer, reader):
     listed = [x["id"] for x in reader.get("/vulnerabilities").json()]
     queued = [x["id"] for x in reader.get("/rvs-queue").json()]
     assert high["id"] in listed and high["id"] in queued
-    ack = writer.post(f"/vulnerabilities/{high['id']}/rvs", {"rvs_id": "RVS-pytest-9"})
+    ack = writer.post(f"/vulnerabilities/{high['id']}/rvs", {"rvs_id": f"RVS-pytest-{tag()}"})
     assert ack.status_code == 200 and ack.json()["status"] == "fixing"
     move = lambda to: writer.post(f"/vulnerabilities/{high['id']}/transition", {"to": to})
     assert move("retesting").status_code == 200                    # released: it moves on its own

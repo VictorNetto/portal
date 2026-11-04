@@ -29,6 +29,14 @@ async function sentWithEvidence(identifier) {
   return v
 }
 
+// A vuln in fixing, for an RVS id that is already taken.
+async function fixingRvs() {
+  const v = await savedVuln(admin, { identifier: `e2e-used-${tag()}` })
+  vulns.push(v.id)
+  await api(`/vulnerabilities/${v.id}/send`, { token: admin, method: 'POST' })
+  return (await api(`/vulnerabilities/${v.id}/rvs`, { token: admin, body: { rvs_id: `RVS-e2e-${tag()}` } })).data
+}
+
 async function loginDefense(page) {
   await page.goto('/login')
   await page.fill('input[autocomplete=username]', defense.username)
@@ -209,19 +217,34 @@ test('each tab offers only the batch actions its vulns allow', async ({ page }) 
   await okDialog()
   await expect(page.locator('.ok.msg')).toContainText('2')
 
-  // Undone, they were accepted before: back to waiting for the RVS, and one id covers both.
+  // Undone, they were accepted before: back to waiting for their RVS, one id each.
   await page.click('.tab:has-text("Aguardando RVS")')
   await filter()
   await openMenu()
   await menu.filter({ hasText: 'Registrar RVS' }).click()
-  const rvs = `RVS-e2e-${tag()}`
-  await page.locator('.appDialog .modal input').fill(rvs)
-  await okDialog()
+  const form = page.locator('.rvsModal')
+  const fields = form.locator('.rvsRow input')
+  await expect(form.locator('.rvsRow .who')).toHaveText([new RegExp(`e2e-tabs-${u}-[ab]`), new RegExp(`e2e-tabs-${u}-[ab]`)])
+  const used = (await fixingRvs()).rvs_id                                        // an id another vuln already has
+  const rvsA = `RVS-e2e-${tag()}`
+  await fields.nth(0).fill(rvsA)
+  await fields.nth(1).fill(` ${rvsA.toLowerCase()}`)
+  await form.locator('.btn.primary').click()
+  await expect(form.locator('.fieldErr')).toHaveText(['ID repetido nesta lista.', 'ID repetido nesta lista.'])
+  await fields.nth(1).fill(used)
+  await form.locator('.btn.primary').click()
+  await expect(form.locator('.rvsRow')).toHaveCount(1)                            // the first was recorded
+  await expect(form.locator('.fieldErr')).toContainText('already used')
+  const rvsB = `RVS-e2e-${tag()}`
+  await fields.nth(0).fill(rvsB)
+  await form.locator('.btn.primary').click()
+  await expect(form).toHaveCount(0)
+
   await page.click('.tab:has-text("Em andamento")')
   await filter()
-  await expect(page.locator('tbody tr', { hasText: rvs })).toHaveCount(2)
+  await expect(page.locator('tbody tr', { hasText: rvsA })).toHaveCount(1)
+  await expect(page.locator('tbody tr', { hasText: rvsB })).toHaveCount(1)
   await expect(page.locator('tbody .check, thead .check')).toHaveCount(0)       // nothing to do here
-  for (const v of made) expect((await api(`/vulnerabilities/${v.id}`, { token: admin })).data.rvs_id).toBe(rvs)
 
   await page.click('.tab:has-text("Todas")')
   await filter()
