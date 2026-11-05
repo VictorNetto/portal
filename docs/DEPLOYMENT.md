@@ -20,14 +20,14 @@ How the Red Team Operations Platform is deployed. Target: a single self-hosted L
                          │   /api/*  ├────────► api   (FastAPI :8000)     │
                          │   /*      └────────► web   (Vue static :80)    │
                          │                                              │
-                         │        db (PostgreSQL)  minio (S3)            │
+                         │   db (PostgreSQL)   attachments (volume)     │
                          │        ↑ no ports exposed — reached only      │
                          │          internally by api/nginx              │
                          └──────────────────────────────────────────────┘
 ```
 
 - **Reverse proxy:** nginx, **run as a container** in the Compose stack (not host-installed). Config lives in the repo, versioned with the code; same proxy in dev and prod.
-- **Only nginx is exposed** (port 443, + 80 redirecting to 443). `api`, `db`, `minio`, `web` publish no ports to the network; they talk over Docker's private network by service name (`api`, `db`, …).
+- **Only nginx is exposed** (port 443, + 80 redirecting to 443). `api`, `db`, `web` publish no ports to the network; they talk over Docker's private network by service name (`api`, `db`, …).
 - **TLS terminates at nginx.** Internal containers speak plain HTTP.
 
 ---
@@ -39,10 +39,10 @@ How the Red Team Operations Platform is deployed. Target: a single self-hosted L
 | OS | Ubuntu Server 24.04 LTS |
 | CPU | 4 vCPU |
 | RAM | 8 GB |
-| Disk | 80 GB SSD (MinIO attachments are the growth driver — resize if file volume grows) |
+| Disk | 80 GB SSD (uploaded attachments are the growth driver — resize if file volume grows) |
 | Network | Static internal IP |
 
-The VM needs only **Docker + Docker Compose** installed on the host — no Python, Postgres, Node, or WeasyPrint deps on the host; those live inside containers.
+The VM needs only **Docker + Docker Compose** installed on the host — no Python, Postgres or Node on the host; those live inside containers. Step-by-step installation, from the bare VM to the first login: [INSTALL.md](INSTALL.md).
 
 ---
 
@@ -73,7 +73,7 @@ Best case: with the org DNS and PKI, users get `https://portal.redteam.my-organi
 
 LAN/VPN-only removes public-internet hardening (public cert automation, DDoS, aggressive rate-limiting), but **confidential data means internal access is still controlled**: auth, RBAC, and per-read audit logging (D8) all still do real work.
 - Restrict firewall so only the LAN/VPN user subnets can reach port 443 on the VM.
-- Only nginx is network-exposed; db/minio are unreachable from outside the VM.
+- Only nginx is network-exposed; db and api are unreachable from outside the VM.
 - **No external egress except the dispatcher** (email now, ServiceNow later). No OneDrive integration or other side channels — the dispatcher is the single sanctioned, audited way data leaves the system. (Operators may *manually* share a final exported report via OneDrive; that is a human action, not a platform feature.)
 
 ---
@@ -82,11 +82,11 @@ LAN/VPN-only removes public-internet hardening (public cert automation, DDoS, ag
 
 | Responsibility | Plan |
 |---|---|
-| **Backups** | `pg_dump` + MinIO export, **encrypted**, to **org-controlled infrastructure** (primary: second internal machine/NAS; fallback: separate disk on same VM). Highest-value ops task — built early, not last. No OneDrive. |
+| **Backups** | `pg_dump` + the attachments volume (`scripts/backup.sh`), **encrypted**, to **org-controlled infrastructure** (primary: second internal machine/NAS; fallback: separate disk on same VM). Highest-value ops task — built early, not last. No OneDrive. |
 | OS updates | `unattended-upgrades` for security patches + periodic reboots |
 | Restart on crash/reboot | Docker `restart: unless-stopped` on every container |
 | Monitoring | Start simple: health-check endpoint + reachability alert. Full monitoring post-MVP. |
-| Disk filling | Alert on disk usage; MinIO attachments are the growth driver |
+| Disk filling | Alert on disk usage; uploaded attachments are the growth driver |
 
 ---
 

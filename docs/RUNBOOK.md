@@ -14,7 +14,7 @@ alias dc='docker compose -f docker-compose.prod.yml --env-file .env.production'
 
 ## 1. First deployment
 
-**Prerequisites** (see DEPLOYMENT.md §8): Ubuntu 24.04 VM with Docker + Compose, DNS name pointing at it, an org-PKI certificate for that name.
+**Prerequisites** (see DEPLOYMENT.md §8): Ubuntu 24.04 VM with Docker + Compose, DNS name pointing at it, an org-PKI certificate for that name. For a new server, follow [INSTALL.md](INSTALL.md) instead: it covers the OS and Docker too, and ends where this runbook takes over.
 
 1. Get the code: `git clone <repo> && cd portal`.
 2. Create the secrets file and fill in **every** value:

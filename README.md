@@ -75,7 +75,7 @@ docker compose -f docker-compose.prod.yml --env-file .env.production run --rm ap
 docker compose -f docker-compose.prod.yml --env-file .env.production up -d
 ```
 
-Step-by-step procedures (first deployment, updates, certificates, backups and restores, troubleshooting) are in **[docs/RUNBOOK.md](docs/RUNBOOK.md)**. The API refuses to start in production with the development `JWT_SECRET`.
+Installing on a new server, from the hardware and Ubuntu to the first login, is in **[docs/INSTALL.md](docs/INSTALL.md)**. Day-to-day procedures (updates, certificates, backups and restores, troubleshooting) are in **[docs/RUNBOOK.md](docs/RUNBOOK.md)**. The API refuses to start in production with the development `JWT_SECRET`.
 
 The UI has a browser suite too (`e2e/`, Playwright: 37 tests over login and the forced password change, the vulnerability form, the Hub, reports and their lock, sending and exports, the lifecycle and the admin pages). See [e2e/README.md](e2e/README.md) for the one-line command.
 
@@ -96,6 +96,7 @@ docs/
   specs/          Canonical specifications (SPEC.md, FRONTEND_SPEC.md)
   DECISIONS.md    Resolved design decisions D1–D11 with rationale
   BACKLOG.md      Parked features and pending decisions (template management, constraints, …)
+  INSTALL.md      Installing on a new server: hardware, Ubuntu, Docker, the portal, first login
   DEPLOYMENT.md   Deployment & networking plan + IT-request checklist
   RUNBOOK.md      Operating the production stack: deploy, update, certificates, backup/restore
   API.md          Integration API (scoped keys) for other systems
