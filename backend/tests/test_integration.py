@@ -125,6 +125,7 @@ def test_set_rvs_through_the_queue(admin, full, writer):
     r = call(rvs_only, "POST", f"/vulnerabilities/{v['internal_id']}/rvs", json={"rvs_id": rvs})
     assert r.status_code == 200, r.text
     assert r.json()["status"] == "fixing" and r.json()["rvs_id"] == rvs
+    assert r.json()["accepted_at"]                                   # recording it counts as accepting (D17)
     assert v["id"] not in [x["id"] for x in call(rvs_only, "GET", "/rvs-queue").json()]
     again = call(rvs_only, "POST", f"/vulnerabilities/{v['id']}/rvs", json={"rvs_id": f"RVS-2-{tag()}"})
     assert again.status_code == 409                                  # immutable once set

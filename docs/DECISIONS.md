@@ -131,7 +131,7 @@ Files are never exposed directly: the API proxies every read, so authentication 
 **How it works**
 - Per-record lists: `viewers` ("Shared with") on every vulnerability and report, set by anyone who can edit that record. No groups yet — access is granted user by user.
 - A report's vulnerabilities follow the report: whoever reads/edits the report reads/edits them (under the report lock, as before).
-- Enforcement is in one module (`backend/app/access.py`), used by every service: lists and the RVS queue are filtered in SQL; single-record reads, exports (single and batch), attachments and the lifecycle actions check the record.
+- Enforcement is in one module (`backend/app/access.py`), used by every service: lists are filtered in SQL; single-record reads, exports (single and batch), attachments and the lifecycle actions check the record.
 - A record the user may not read answers **404, never 403**, so its existence is not revealed. A readable record the user may not change answers 403.
 - The UI mirrors the same rules (`frontend/src/access.js`) so it only offers what will work; the server never trusts it.
 - The creator always keeps access, so removing yourself as operator cannot strand a record.
@@ -316,3 +316,8 @@ The UUID `id` is the database key; it stays out of the screens and appears in UR
   vulnerability page keeps the section it was opened from lit, and its breadcrumb leads back there.
 - **Filter values end at the first space;** a value with spaces is quoted: `report:"Rede do Data
   Center"`. Applies to every key and to free text, in the Hub and the defense list.
+- **Only the defense team records RVS IDs** (from its pages, or a defense tool through the
+  integration API with an `rvs:write` key). The red team's *Fila RVS* page and its endpoints
+  (`GET /rvs-queue`, `POST /vulnerabilities/{id}/rvs`) are gone; the red team sees the RVS on each
+  vuln's timeline, finds those waiting with the Hub filter `status:sent`, and an admin correction
+  still removes a wrong RVS.

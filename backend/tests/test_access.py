@@ -2,12 +2,12 @@
 
 import pytest
 from conftest import (
+    fixing_vuln,
     make_user,
     new_report,
     new_vuln,
     png_bytes,
     report_vuln,
-    saved_vuln,
     tag,
     upload,
 )
@@ -100,15 +100,10 @@ def test_attachments_follow_the_record(writer, rw, rr):
     assert upload(rr, f"/vulnerabilities/{v['id']}/attachments", "b.png", png_bytes()).status_code == 403
 
 
-def test_rvs_queue_is_filtered_and_lifecycle_needs_write_access(writer, rw):
-    mine = saved_vuln(rw)
-    other = saved_vuln(writer)
-    assert rw.post(f"/vulnerabilities/{mine['id']}/send").status_code == 200
-    assert writer.post(f"/vulnerabilities/{other['id']}/send").status_code == 200
-    queue = {v["id"] for v in rw.get("/rvs-queue").json()}
-    assert mine["id"] in queue and other["id"] not in queue
+def test_lifecycle_needs_write_access(writer, rw):
+    other = fixing_vuln(writer)
     # a restricted writer cannot move someone else's record along
-    assert rw.post(f"/vulnerabilities/{other['id']}/rvs", {"rvs_id": "RVS-x"}).status_code == 404
+    assert rw.post(f"/vulnerabilities/{other['id']}/transition", {"to": "retesting"}).status_code == 404
 
 
 def test_reports_follow_the_same_rules(writer, rw, rw2, rr):

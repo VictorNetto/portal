@@ -10,7 +10,6 @@ const messages = {
       createVuln: 'Criar Vulnerabilidade',
       reports: 'Relatórios',
       createReport: 'Criar Relatório',
-      rvsQueue: 'Fila RVS',
       templates: 'Templates',
       audit: 'Logs de Auditoria',
       users: 'Usuários',
@@ -153,13 +152,9 @@ const messages = {
       empty: 'Nenhum registro.',
     },
     rvs: {
-      title: 'Fila RVS',
-      subtitle: 'Vulnerabilidades enviadas aguardando um ID de RVS.',
       rvsId: 'ID do RVS',
       enter: 'Registrar RVS',
       placeholder: 'ex.: RVS-2026-001',
-      empty: 'Nenhuma vulnerabilidade aguardando RVS.',
-      sentAt: 'Enviada em',
     },
     actions: { send: 'Enviar' },
     apiKeys: {
@@ -527,7 +522,6 @@ const messages = {
       createVuln: 'Create Vulnerability',
       reports: 'Reports',
       createReport: 'Create Report',
-      rvsQueue: 'RVS Queue',
       templates: 'Templates',
       audit: 'Audit Logs',
       users: 'Users',
@@ -657,13 +651,9 @@ const messages = {
       empty: 'No records.',
     },
     rvs: {
-      title: 'RVS Queue',
-      subtitle: 'Sent vulnerabilities waiting for an RVS id.',
       rvsId: 'RVS id',
       enter: 'Record RVS',
       placeholder: 'e.g. RVS-2026-001',
-      empty: 'No vulnerabilities waiting for an RVS id.',
-      sentAt: 'Sent at',
     },
     actions: { send: 'Send' },
     apiKeys: {

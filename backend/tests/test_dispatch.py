@@ -1,7 +1,7 @@
 """Report dispatch (two phases, D2) and the dispatcher."""
 
 import pytest
-from conftest import new_report, png_bytes, report_vuln, tag, upload
+from conftest import new_report, png_bytes, record_rvs, report_vuln, tag, upload
 from sqlalchemy import select
 
 from app import dispatcher
@@ -50,11 +50,10 @@ def test_dispatch_releases_the_vulns_in_severity_order(writer, reader):
     n = lambda v: int(v["internal_id"].split("-")[1])
     assert n(vulns[high["id"]]) < n(vulns[low["id"]])                          # high severity first
 
-    # they now live in the normal list and the RVS queue, and follow the normal lifecycle
+    # they now live in the normal list, reach the defense team, and follow the normal lifecycle
     listed = [x["id"] for x in reader.get("/vulnerabilities").json()]
-    queued = [x["id"] for x in reader.get("/rvs-queue").json()]
-    assert high["id"] in listed and high["id"] in queued
-    ack = writer.post(f"/vulnerabilities/{high['id']}/rvs", {"rvs_id": f"RVS-pytest-{tag()}"})
+    assert high["id"] in listed
+    ack = record_rvs(high["id"])
     assert ack.status_code == 200 and ack.json()["status"] == "fixing"
     move = lambda to: writer.post(f"/vulnerabilities/{high['id']}/transition", {"to": to})
     assert move("retesting").status_code == 200                    # released: it moves on its own
@@ -66,7 +65,7 @@ def test_report_progress_counts_its_fixed_vulnerabilities(writer):
     rep = writer.post(f"/reports/{rid}/send").json()
     assert (rep["vuln_count"], rep["fixed_count"]) == (2, 0)
     for v in (low, high):
-        writer.post(f"/vulnerabilities/{v['id']}/rvs", {"rvs_id": f"RVS-pytest-{tag()}"})
+        record_rvs(v["id"])
         writer.post(f"/vulnerabilities/{v['id']}/transition", {"to": "retesting"})
         writer.post(f"/vulnerabilities/{v['id']}/transition", {"to": "fixed"})
     rep = writer.get(f"/reports/{rid}").json()

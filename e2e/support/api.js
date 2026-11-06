@@ -59,11 +59,28 @@ export async function savedVuln(token, fields = {}) {
   return data
 }
 
+// Only the defense team records RVS ids (D17): one defense account, made on first use.
+let defenseToken = null
+async function defenseTok() {
+  if (!defenseToken) {
+    const u = await createUser(await adminToken(), 'defense')
+    defenseToken = await login(u.username, u.password)
+  }
+  return defenseToken
+}
+
+/** What the defense team does with a sent vulnerability: accept it, then record its RVS id. */
+export async function recordRvs(vulnId, rvsId = `RVS-e2e-${tag()}`) {
+  const token = await defenseTok()
+  await api(`/defense/vulnerabilities/${vulnId}/accept`, { token, method: 'POST' })
+  return api(`/defense/vulnerabilities/${vulnId}/rvs`, { token, body: { rvs_id: rvsId } })
+}
+
 export async function fixingVuln(token, fields = {}) {
   const v = await savedVuln(token, fields)
   await api(`/vulnerabilities/${v.id}/send`, { token, method: 'POST' })
-  const { data } = await api(`/vulnerabilities/${v.id}/rvs`, { token, body: { rvs_id: `RVS-e2e-${tag()}` } })
-  return data
+  await recordRvs(v.id)
+  return (await api(`/vulnerabilities/${v.id}`, { token })).data
 }
 
 export async function newReport(token, fields = {}) {

@@ -136,12 +136,30 @@ def saved_vuln(c: Client, **fields) -> dict:
     return r.json()
 
 
+_defense: list[Client] = []
+
+
+def defense_client() -> Client:
+    """A defense account (D17), made once per run: only that team records RVS IDs."""
+    if not _defense:
+        r = login(ADMIN_USER, ADMIN_PASSWORD)
+        _defense.append(make_user(Client(r.json()["access_token"]), "defense"))
+    return _defense[0]
+
+
+def record_rvs(vuln_id: str, rvs_id: str | None = None) -> httpx.Response:
+    """What the defense team does with a sent vuln: accept it, then record its RVS ID."""
+    team = defense_client()
+    team.post(f"/defense/vulnerabilities/{vuln_id}/accept")
+    return team.post(f"/defense/vulnerabilities/{vuln_id}/rvs", {"rvs_id": rvs_id or f"RVS-pytest-{tag()}"})
+
+
 def fixing_vuln(c: Client, **fields) -> dict:
     v = saved_vuln(c, **fields)
     assert c.post(f"/vulnerabilities/{v['id']}/send").status_code == 200
-    r = c.post(f"/vulnerabilities/{v['id']}/rvs", {"rvs_id": f"RVS-pytest-{tag()}"})
+    r = record_rvs(v["id"])
     assert r.status_code == 200, r.text
-    return r.json()
+    return c.get(f"/vulnerabilities/{v['id']}").json()
 
 
 def new_report(c: Client, **fields) -> dict:

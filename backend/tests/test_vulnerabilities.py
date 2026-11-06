@@ -3,7 +3,7 @@
 from concurrent.futures import ThreadPoolExecutor
 
 import httpx
-from conftest import BASE_URL, fixing_vuln, new_vuln, saved_vuln, tag
+from conftest import BASE_URL, defense_client, fixing_vuln, new_vuln, record_rvs, saved_vuln, tag
 
 
 def test_send_requires_the_mandatory_fields(writer):
@@ -30,21 +30,29 @@ def test_send_then_rvs_starts_the_fix(writer):
     v = saved_vuln(writer)
     d = writer.post(f"/vulnerabilities/{v['id']}/send").json()
     assert d["status"] == "sent" and d["sent_at"]
-    queue = [x["id"] for x in writer.get("/rvs-queue").json()]
-    assert v["id"] in queue
     rvs = f"RVS-pytest-{tag()}"
-    a = writer.post(f"/vulnerabilities/{v['id']}/rvs", {"rvs_id": rvs}).json()
+    assert record_rvs(v["id"], rvs).status_code == 200
+    a = writer.get(f"/vulnerabilities/{v['id']}").json()
     assert a["status"] == "fixing" and a["rvs_id"] == rvs and a["fixing_at"]
-    assert v["id"] not in [x["id"] for x in writer.get("/rvs-queue").json()]
+
+
+def test_the_red_team_no_longer_records_rvs_ids(writer):
+    v = saved_vuln(writer)
+    writer.post(f"/vulnerabilities/{v['id']}/send")
+    assert writer.post(f"/vulnerabilities/{v['id']}/rvs", {"rvs_id": "RVS-x"}).status_code in (404, 405)
+    assert writer.get("/rvs-queue").status_code == 404
 
 
 def test_rvs_id_can_be_set_only_once_and_only_when_sent_vuln(writer):
     v = saved_vuln(writer)
-    assert writer.post(f"/vulnerabilities/{v['id']}/rvs", {"rvs_id": "x"}).status_code == 409  # not sent yet
+    team = defense_client()
+    path = f"/defense/vulnerabilities/{v['id']}/rvs"
+    assert team.post(path, {"rvs_id": "x"}).status_code == 404                 # not sent: not the team's yet
     writer.post(f"/vulnerabilities/{v['id']}/send")
-    assert writer.post(f"/vulnerabilities/{v['id']}/rvs", {"rvs_id": "  "}).status_code == 422
-    assert writer.post(f"/vulnerabilities/{v['id']}/rvs", {"rvs_id": f"RVS-A-{tag()}"}).status_code == 200
-    assert writer.post(f"/vulnerabilities/{v['id']}/rvs", {"rvs_id": f"RVS-B-{tag()}"}).status_code == 409
+    team.post(f"/defense/vulnerabilities/{v['id']}/accept")
+    assert team.post(path, {"rvs_id": "  "}).status_code == 422
+    assert team.post(path, {"rvs_id": f"RVS-A-{tag()}"}).status_code == 200
+    assert team.post(path, {"rvs_id": f"RVS-B-{tag()}"}).status_code == 409
 
 
 def test_cannot_skip_steps(writer):
@@ -93,8 +101,7 @@ def test_admin_correction(admin, writer):
     r = admin.post(f"/vulnerabilities/{v['id']}/correction", body).json()
     assert r["status"] == "sent" and r["rvs_id"] is None
     assert r["fixing_at"] is None and r["retesting_at"] is None
-    assert v["id"] in [x["id"] for x in admin.get("/rvs-queue").json()]        # back in the queue
-    assert admin.post(f"/vulnerabilities/{v['id']}/rvs", {"rvs_id": "RVS-right"}).status_code == 200
+    assert record_rvs(v["id"], f"RVS-right-{tag()}").status_code == 200        # the team can record it again
 
     log = admin.get("/audit-logs", params={"action": "correction", "page_size": 200}).json()["items"]
     mine = [e for e in log if e["entity_id"] == v["id"]]

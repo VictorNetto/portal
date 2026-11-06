@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test'
-import { adminToken, api, cleanup, createUser, newReport, pngBuffer, reportVuln, savedVuln, tag } from '../support/api.js'
+import { adminToken, api, cleanup, createUser, newReport, pngBuffer, recordRvs, reportVuln, savedVuln, tag } from '../support/api.js'
 
 let admin
 let defense
@@ -34,7 +34,7 @@ async function fixingRvs() {
   const v = await savedVuln(admin, { identifier: `e2e-used-${tag()}` })
   vulns.push(v.id)
   await api(`/vulnerabilities/${v.id}/send`, { token: admin, method: 'POST' })
-  return (await api(`/vulnerabilities/${v.id}/rvs`, { token: admin, body: { rvs_id: `RVS-e2e-${tag()}` } })).data
+  return (await recordRvs(v.id)).data
 }
 
 // Opens a section from the left rail.
@@ -95,7 +95,7 @@ test('the defense team accepts a received vuln and records its RVS id', async ({
 
 test('red-team pages are out of reach for a defense account', async ({ page }) => {
   await loginDefense(page)
-  for (const path of ['/hub', '/rvs-queue', '/users', '/reports/new']) {
+  for (const path of ['/hub', '/users', '/reports/new']) {
     await page.goto(path)
     await expect(page).toHaveURL(/\/defense\/new$/)
   }

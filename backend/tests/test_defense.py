@@ -52,10 +52,10 @@ def test_detail_leaves_out_red_team_internals(writer, defense):
 
 def test_reaches_nothing_of_the_red_team(writer, defense):
     v = sent_vuln(writer)
-    for path in ("/vulnerabilities", f"/vulnerabilities/{v['id']}", "/reports", "/rvs-queue",
+    for path in ("/vulnerabilities", f"/vulnerabilities/{v['id']}", "/reports",
                  "/report-templates", "/users", f"/vulnerabilities/{v['id']}/attachments"):
         assert defense.get(path).status_code == 403, path
-    assert defense.post(f"/vulnerabilities/{v['id']}/rvs", {"rvs_id": "X"}).status_code == 403
+    assert defense.post(f"/vulnerabilities/{v['id']}/transition", {"to": "retesting"}).status_code == 403
     assert defense.post("/vulnerabilities", {"identifier": "pytest-x"}).status_code == 403
     assert defense.get("/auth/me").status_code == 200
 
@@ -81,10 +81,9 @@ def test_accept_then_rvs(writer, defense):
     assert r.json()["status"] == "fixing" and r.json()["rvs_id"] == rvs
     assert defense.post(f"{path}/rvs", {"rvs_id": "again"}).status_code == 409
 
-    # The red team sees who accepted it, and the vuln left their RVS queue.
+    # The red team sees who accepted it.
     mine = writer.get(f"/vulnerabilities/{v['id']}").json()
     assert mine["accepted_at"] and mine["accepter"]["username"] == defense.user["username"]
-    assert v["id"] not in {x["id"] for x in writer.get("/rvs-queue").json()}
     # Still on the defense list as it moves on.
     assert defense.get(path).json()["status"] == "fixing"
 
@@ -129,14 +128,6 @@ def test_admin_sees_defense_scope(admin, defense):
     assert admin.get(f"/users/{defense.user['id']}/access").json()["scope"] == "sent"
 
 
-def test_rvs_by_the_red_team_counts_as_accepted(writer):
-    v = sent_vuln(writer)
-    r = writer.post(f"/vulnerabilities/{v['id']}/rvs", {"rvs_id": f"RVS-{tag()}"})
-    assert r.status_code == 200, r.text
-    assert r.json()["accepted_at"] == r.json()["fixing_at"]
-    assert r.json()["accepter"]["username"] == writer.user["username"]
-
-
 def test_risk_accepted_instead_of_fixing(writer, defense):
     v = sent_vuln(writer)
     path = f"/defense/vulnerabilities/{v['id']}"
@@ -176,7 +167,8 @@ def test_a_report_with_fixed_and_risk_accepted_vulns_is_closed(writer, defense):
     rid, a, b, _ = build_report(writer)
     assert writer.post(f"/reports/{rid}/send").status_code == 200
     defense.post(f"/defense/vulnerabilities/{a['id']}/risk-accept", {"reason": "Ambiente descontinuado"})
-    writer.post(f"/vulnerabilities/{b['id']}/rvs", {"rvs_id": f"RVS-{tag()}"})
+    defense.post(f"/defense/vulnerabilities/{b['id']}/accept")
+    defense.post(f"/defense/vulnerabilities/{b['id']}/rvs", {"rvs_id": f"RVS-{tag()}"})
     writer.post(f"/vulnerabilities/{b['id']}/transition", {"to": "retesting"})
     writer.post(f"/vulnerabilities/{b['id']}/transition", {"to": "fixed"})
     r = writer.get(f"/reports/{rid}").json()
@@ -209,15 +201,14 @@ def test_each_rvs_id_belongs_to_one_vuln(writer, defense):
     for taken in (rvs, f"  {rvs.lower()} "):                          # case and spaces don't make it new
         r = defense.post(f"/defense/vulnerabilities/{second['id']}/rvs", {"rvs_id": taken})
         assert r.status_code == 409 and "already used" in r.json()["detail"], r.text
-    # The red team and the integration API follow the same rule.
-    third = sent_vuln(writer)
-    assert writer.post(f"/vulnerabilities/{third['id']}/rvs", {"rvs_id": rvs}).status_code == 409
     assert defense.get(f"/defense/vulnerabilities/{second['id']}").json()["status"] == "sent"
 
 
-def test_a_removed_rvs_id_can_be_used_again(admin, writer):
+def test_a_removed_rvs_id_can_be_used_again(admin, writer, defense):
     v, other = sent_vuln(writer), sent_vuln(writer)
     rvs = f"RVS-{tag()}"
-    writer.post(f"/vulnerabilities/{v['id']}/rvs", {"rvs_id": rvs})
+    for x in (v, other):
+        defense.post(f"/defense/vulnerabilities/{x['id']}/accept")
+    defense.post(f"/defense/vulnerabilities/{v['id']}/rvs", {"rvs_id": rvs})
     admin.post(f"/vulnerabilities/{v['id']}/correction", {"to": "sent", "reason": "RVS errado"})
-    assert writer.post(f"/vulnerabilities/{other['id']}/rvs", {"rvs_id": rvs}).status_code == 200
+    assert defense.post(f"/defense/vulnerabilities/{other['id']}/rvs", {"rvs_id": rvs}).status_code == 200

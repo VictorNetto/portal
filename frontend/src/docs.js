@@ -98,7 +98,7 @@ O valor vai até o primeiro espaço. Para incluir espaços, use aspas: \`report:
         id: 'vuln-ciclo', title: 'Ciclo de vida',
         md: `1. **Rascunho:** em edição. *Salvar rascunho* guarda sem validar tudo. *Concluir* exige os campos obrigatórios e atribui o ID interno \`VULN-xxxx\`.
 2. **Pronta:** completa, ainda não enviada. *Enviar* entrega ao time responsável.
-3. **Enviada:** entregue e aguardando o ID de RVS. O conteúdo passa a ficar fechado para edição. *Registrar RVS* (na *Fila RVS*) inicia a correção.
+3. **Enviada:** entregue e aguardando o ID de RVS. O conteúdo passa a ficar fechado para edição. O time de defesa aceita a vulnerabilidade e registra o ID de RVS, o que inicia a correção; ou assume o risco de não corrigir.
 4. **Em correção:** o time responsável está corrigindo. *Solicitar reteste* pede a verificação do Red Team.
 5. **Em reteste:** o Red Team verifica a correção. *Aprovar reteste* conclui; *Reprovar reteste* volta para *Em correção*.
 6. **Corrigida:** correção confirmada; fim do fluxo.
@@ -114,10 +114,10 @@ Em vez de corrigir, o time de defesa pode **assumir o risco** de uma vulnerabili
         md: `Se outra pessoa salvou a mesma vulnerabilidade enquanto você editava, o portal avisa e mostra a versão mais recente, sem sobrescrever o trabalho dela.`,
       },
       {
-        id: 'rvs', title: 'Fila RVS',
-        md: `A **Fila RVS** lista as vulnerabilidades enviadas que ainda não têm ID de RVS. Informe o ID (ex.: \`RVS-2026-001\`) e use **Registrar RVS**: a vulnerabilidade passa para **Em correção**. O ID não pode ser alterado depois, e cada ID pertence a uma única vulnerabilidade (maiúsculas e espaços não contam).
+        id: 'rvs', title: 'RVS',
+        md: `O **ID de RVS** é registrado pelo **time de defesa**, pela própria conta no portal (papel **Defesa**): ele aceita a vulnerabilidade enviada e informa o ID, e ela passa para **Em correção**. Cada ID pertence a uma única vulnerabilidade e não muda depois de registrado. Em vez disso, a defesa pode **assumir o risco**, com justificativa.
 
-O time de defesa também registra o RVS pela própria conta (papel **Defesa**): primeiro **aceita** a vulnerabilidade, depois informa o ID. Um RVS registrado aqui conta como aceitação no mesmo momento.`,
+Para o Red Team, a linha do tempo de cada vulnerabilidade mostra o RVS (ou a justificativa do risco assumido). Para ver as que ainda aguardam a defesa, filtre as Operações por \`status:sent\`. Se um RVS foi registrado errado, um administrador usa **Ajustar status** para voltar a vulnerabilidade a *Enviada*, e a defesa registra o ID certo.`,
       },
     ],
   },
@@ -999,7 +999,7 @@ A value ends at the first space. To include spaces, quote it: \`report:"Rede do 
         id: 'vuln-ciclo', title: 'Lifecycle',
         md: `1. **Draft:** being written. *Save draft* keeps it without full validation. *Complete* needs the required fields and assigns the \`VULN-xxxx\` internal ID.
 2. **Ready:** complete, not sent yet. *Send* delivers it to the responsible team.
-3. **Sent:** delivered, waiting for the RVS ID. Its content is now closed for editing. *Record RVS* (in the *RVS Queue*) starts the fix.
+3. **Sent:** delivered, waiting for the RVS ID. Its content is now closed for editing. The defense team accepts it and records the RVS ID, which starts the fix; or it accepts the risk of not fixing it.
 4. **Fixing:** the responsible team is fixing it. *Request retest* asks the Red Team to verify.
 5. **Retesting:** the Red Team checks the fix. *Pass retest* finishes it; *Fail retest* goes back to *Fixing*.
 6. **Fixed:** fix confirmed; end of the flow.
@@ -1015,10 +1015,10 @@ Instead of fixing, the defense team can **accept the risk** of a sent vulnerabil
         md: `If someone else saved the same vulnerability while you were editing, the portal tells you and shows the latest version instead of overwriting their work.`,
       },
       {
-        id: 'rvs', title: 'RVS Queue',
-        md: `The **RVS Queue** lists sent vulnerabilities that have no RVS ID yet. Enter the ID (e.g. \`RVS-2026-001\`) and use **Record RVS**: the vulnerability moves to **Fixing**. The ID can't be changed afterwards, and each ID belongs to a single vulnerability (case and spaces don't count).
+        id: 'rvs', title: 'RVS',
+        md: `The **RVS ID** is recorded by the **defense team**, from its own account in the portal (**Defense** role): it accepts the sent vulnerability and enters the ID, and it moves to **Fixing**. Each ID belongs to a single vulnerability and can't change once recorded. Instead, the defense team may **accept the risk**, with a reason.
 
-The defense team can also record the RVS from its own account (**Defense** role): it first **accepts** the vulnerability, then enters the ID. An RVS recorded here counts as the acceptance at the same moment.`,
+For the Red Team, each vulnerability's timeline shows the RVS (or the reason for the accepted risk). To see those still waiting for the defense team, filter Operations by \`status:sent\`. If an RVS was recorded wrongly, an administrator uses **Adjust status** to move the vulnerability back to *Sent*, and the defense team records the right ID.`,
       },
     ],
   },

@@ -13,7 +13,6 @@ from app.models.user import User
 from app.schemas.vulnerability import (
     BatchExport,
     CorrectionRequest,
-    RvsSet,
     TransitionRequest,
     VulnCreate,
     VulnListItem,
@@ -25,20 +24,9 @@ from app.services import vulnerability as svc
 
 router = APIRouter(prefix="/vulnerabilities", tags=["vulnerabilities"])
 
-# A separate router for the RVS queue (its own top-level path).
-rvs_router = APIRouter(prefix="/rvs-queue", tags=["rvs"])
-
 # Anyone who can write somewhere may try; the record-level rules (app/access.py) decide where.
 _writer = require_roles(UserRole.admin, UserRole.write_all, UserRole.write_restricted)
 _admin = require_roles(UserRole.admin)
-
-
-@rvs_router.get("", response_model=list[VulnOut])
-def rvs_queue(
-    user: User = Depends(get_current_user),
-    session: Session = Depends(get_session),
-) -> list:
-    return svc.rvs_queue(session, user)
 
 
 @router.get("", response_model=list[VulnListItem])
@@ -121,17 +109,6 @@ def send_vuln(
     session: Session = Depends(get_session),
 ) -> VulnOut:
     return svc.send(session, vuln_id, user, request)
-
-
-@router.post("/{vuln_id}/rvs", response_model=VulnOut)
-def set_rvs(
-    vuln_id: uuid.UUID,
-    body: RvsSet,
-    request: Request,
-    user: User = Depends(_writer),
-    session: Session = Depends(get_session),
-) -> VulnOut:
-    return svc.set_rvs(session, vuln_id, body.rvs_id, user, request)
 
 
 @router.post("/{vuln_id}/transition", response_model=VulnOut)

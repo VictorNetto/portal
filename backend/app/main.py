@@ -57,7 +57,6 @@ app = FastAPI(
 app.include_router(auth.router)
 app.include_router(users.router)
 app.include_router(vulnerabilities.router)
-app.include_router(vulnerabilities.rvs_router)
 app.include_router(api_keys.router)
 app.include_router(audit.router)
 app.include_router(attachments.router)

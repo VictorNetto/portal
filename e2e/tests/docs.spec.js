@@ -18,12 +18,12 @@ test.describe('documentation', () => {
     await expect(subTitles(page, 'geral')).toContainText(['Primeiros passos', 'Sessão'])
     await expect(subTitles(page, 'geral')).not.toContainText(['Logs de auditoria'])                  // admins read it under Gerenciamento
     await expect(subTitles(page, 'gerenciamento')).toHaveText(['Usuários', 'Acesso de cada usuário', 'Chaves de API', 'Aprovação de templates', 'Reservas de relatório', 'Logs de auditoria'])
-    await expect(subTitles(page, 'vulnerabilidades')).toHaveText(['Criar uma vulnerabilidade', 'Ciclo de vida', 'Depois do envio', 'Edições simultâneas', 'Fila RVS'])
+    await expect(subTitles(page, 'vulnerabilidades')).toHaveText(['Criar uma vulnerabilidade', 'Ciclo de vida', 'Depois do envio', 'Edições simultâneas', 'RVS'])
 
-    await page.click('.toc .tocItem:has-text("Fila RVS")')
+    await page.click('.toc .tocItem:text-is("RVS")')
     await expect(page).toHaveURL(/\/docs#rvs$/)
     await expect(page.locator('#doc-rvs')).toBeInViewport()
-    await expect(page.locator('.toc .tocItem.current')).toHaveText('Fila RVS')
+    await expect(page.locator('.toc .tocItem.current')).toHaveText('RVS')
 
     await page.click('.toc .tocSection:has-text("Relatórios e Templates")')                // a section jumps to its first topic
     await expect(page).toHaveURL(/\/docs#relatorios$/)

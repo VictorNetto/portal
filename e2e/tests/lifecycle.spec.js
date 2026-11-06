@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test'
-import { adminToken, api, cleanup, createUser, fixingVuln, newReport, reportVuln, savedVuln, tag } from '../support/api.js'
+import { adminToken, api, cleanup, createUser, fixingVuln, newReport, recordRvs, reportVuln, tag } from '../support/api.js'
 import { autoDialogs, loginUI } from '../support/ui.js'
 
 let admin
@@ -24,7 +24,7 @@ test.describe('vulnerability lifecycle', () => {
     const sent = await api(`/reports/${r.id}/send`, { token: admin, method: 'POST' })
     expect(sent.status).toBe(200)
     const fix = async (v) => {
-      await api(`/vulnerabilities/${v.id}/rvs`, { token: admin, body: { rvs_id: `RVS-e2e-${tag()}` } })
+      await recordRvs(v.id)
       await api(`/vulnerabilities/${v.id}/transition`, { token: admin, body: { to: 'retesting' } })
       await api(`/vulnerabilities/${v.id}/transition`, { token: admin, body: { to: 'fixed' } })
     }
@@ -37,26 +37,6 @@ test.describe('vulnerability lifecycle', () => {
     await page.reload()
     await expect(page.locator('.subline .pill')).toHaveText('Concluído')
     await expect(page.locator('.subline')).not.toContainText('encerradas')
-  })
-
-  test('RVS queue: registering an id starts the fix', async ({ page }) => {
-    const v = await savedVuln(admin, { identifier: `e2e-rvs-${tag()}` })
-    vulns.push(v.id)
-    await (await fetch(`${process.env.E2E_BASE_URL || 'http://nginx:80'}/api/vulnerabilities/${v.id}/send`, {
-      method: 'POST', headers: { Authorization: `Bearer ${admin}` },
-    })).text()
-
-    await loginUI(page, writer.username, writer.password)
-    await page.locator('.sidebar .navItem[aria-label="Fila RVS"]').click()
-    const row = page.locator(`tbody tr:has-text("${v.internal_id}")`)
-    await expect(row).toBeVisible()
-    await row.locator('input').fill('RVS-e2e-777')
-    await row.locator('button').click()
-    await expect(row).toHaveCount(0)                                   // it left the queue
-
-    await page.goto(`/vulnerabilities/${v.id}`)
-    await expect(status(page)).toContainText('Em correção')
-    await expect(page.locator('.timeline .rvs')).toHaveText('RVS-e2e-777')
   })
 
   test('fixing -> retesting (fail, then pass) -> fixed', async ({ page }) => {
@@ -97,8 +77,7 @@ test.describe('vulnerability lifecycle', () => {
     await expect(page.locator('.timeline .rvs')).toHaveCount(0)
     await expect(page.locator('.timeline .step.reached')).toHaveCount(3)
 
-    // it is back in the RVS queue
-    await page.locator('.sidebar .navItem[aria-label="Fila RVS"]').click()
-    await expect(page.locator(`tbody tr:has-text("${v.internal_id}")`)).toBeVisible()
+    // it is back with the defense team, waiting for its RVS id
+    expect((await recordRvs(v.id)).status).toBe(200)
   })
 })
