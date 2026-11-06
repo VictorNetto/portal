@@ -226,6 +226,8 @@ Read the first administrator's password (only if you left `FIRST_ADMIN_PASSWORD`
 dc logs api | grep -i -A2 password
 ```
 
+**If the build fails** while downloading (`pip install` or `npm ci` in the message), it is usually the network or the proxy: run `dc build` again.
+
 **If something fails:** `dc logs api` and `dc logs nginx` show why. The most common causes are in RUNBOOK §6 (missing `JWT_SECRET`, certificate files, a wrong database password).
 
 ---
