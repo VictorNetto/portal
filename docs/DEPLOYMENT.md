@@ -36,7 +36,7 @@ How the Red Team Operations Platform is deployed. Target: a single self-hosted L
 
 | Resource | Spec |
 |---|---|
-| OS | Ubuntu Server 24.04 LTS |
+| OS | Ubuntu Server 24.04 LTS (also documented: Oracle Linux 9, SLES 15 SP7) |
 | CPU | 4 vCPU |
 | RAM | 8 GB |
 | Disk | 80 GB SSD (uploaded attachments are the growth driver — resize if file volume grows) |
@@ -113,7 +113,7 @@ The exact commands are in [RUNBOOK.md](RUNBOOK.md).
 
 ## 8. Checklist of asks for IT / infra
 
-1. **Ubuntu 24.04 VM** — 4 vCPU / 8 GB / 80 GB — with a **static internal IP**.
+1. **VM with Ubuntu 24.04, Oracle Linux 9 or SLES 15 SP7** — 4 vCPU / 8 GB / 80 GB — with a **static internal IP**.
 2. **DNS A record**: `portal.redteam.my-organization.com` → that IP.
 3. **PKI TLS server certificate** for that FQDN (in **SAN**); confirm **validity period** and whether **ACME/SCEP/EST auto-enrollment** exists.
 4. Confirm **port 443 reachable** to the VM from LAN/VPN user networks (firewall/segmentation).

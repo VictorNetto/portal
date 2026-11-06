@@ -56,8 +56,8 @@ services:
       PORTAL_PORT_SUFFIX: ${PORTAL_PORT_SUFFIX:-}
       NGINX_ENVSUBST_FILTER: PORTAL_
     volumes:
-      - ./nginx/prod.conf.template:/etc/nginx/templates/default.conf.template:ro
-      - ${PORTAL_CERT_DIR:-./certs}:/etc/nginx/certs:ro   # fullchain.pem + privkey.pem
+      - ./nginx/prod.conf.template:/etc/nginx/templates/default.conf.template:ro,z   # z: SELinux label (Oracle Linux); ignored elsewhere
+      - ${PORTAL_CERT_DIR:-./certs}:/etc/nginx/certs:ro,z   # fullchain.pem + privkey.pem
     depends_on:
       - api
       - web
