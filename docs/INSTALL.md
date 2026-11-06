@@ -2,7 +2,7 @@
 
 From an empty virtual machine to the first login: the hardware, the operating system, Docker, and the portal itself. Do the steps in order; each one ends with a check.
 
-The portal can be installed on **Ubuntu Server 24.04**, **Oracle Linux 9** or **SUSE Linux Enterprise Server 15 SP7**. Only sections 2 to 4 differ; each system has its own guide for them.
+The portal can be installed on **Ubuntu Server 24.04**, **Oracle Linux 9** or **SUSE Linux Enterprise Server 16 or 15 SP7**. Only sections 2 to 4 differ; each system has its own guide for them.
 
 The reasons behind these choices are in [DEPLOYMENT.md](DEPLOYMENT.md). After installation, day-to-day work (updates, certificate renewal, backups, restores, troubleshooting) is in [RUNBOOK.md](RUNBOOK.md).
 
@@ -32,7 +32,7 @@ For about 20 users. The portal itself is light; the disk grows with uploaded evi
 
 | Resource | Minimum |
 |---|---|
-| Operating system | One of: Ubuntu Server 24.04 LTS, Oracle Linux 9, SUSE Linux Enterprise Server 15 SP7. 64-bit (x86_64) |
+| Operating system | One of: Ubuntu Server 24.04 LTS, Oracle Linux 9, SUSE Linux Enterprise Server 16 or 15 SP7. 64-bit (x86_64) |
 | CPU | 4 vCPU |
 | Memory | 8 GB |
 | Disk | 80 GB SSD (uploaded files are what grows; add space when they do) |
@@ -73,13 +73,13 @@ The server downloads software only while installing and updating. It must reach:
 | `registry-1.docker.io`, `auth.docker.io`, `production.cloudflare.docker.com` | Container images (`postgres`, `nginx`, `python`, `node`) |
 | `pypi.org`, `files.pythonhosted.org` | Python libraries (built into the API image) |
 | `registry.npmjs.org` | JavaScript libraries (built into the web image) |
-| `github.com`, `objects.githubusercontent.com`, `release-assets.githubusercontent.com` | The portal code (or copy it another way, section 5); on SLES, also the Compose plugin |
+| `github.com`, `objects.githubusercontent.com`, `release-assets.githubusercontent.com` | The portal code (or copy it another way, section 5); on SLES 15, also the Compose plugin |
 
 Once running, the portal makes **no outgoing connections** except to the SMTP server.
 
 ### 1.4 Information to have at hand
 
-- The installation image, attached to the VM: `ubuntu-24.04.x-live-server-amd64.iso` (ubuntu.com), `OracleLinux-R9-Ux-x86_64-dvd.iso` (yum.oracle.com/oracle-linux-isos.html), or `SLE-15-SP7-Full-x86_64-GM-Media1.iso` (suse.com, with the organization's account).
+- The installation image, attached to the VM: `ubuntu-24.04.x-live-server-amd64.iso` (ubuntu.com), `OracleLinux-R9-Ux-x86_64-dvd.iso` (yum.oracle.com/oracle-linux-isos.html), or the SLES 16 / `SLE-15-SP7-Full-x86_64-GM-Media1.iso` image (suse.com, with the organization's account).
 - The IP address, subnet (for example `10.20.30.0/24`), gateway and DNS servers for the VM.
 - A name for the server (for example `portal-01`) and for the administrator account (for example `portaladm`).
 - An SSH key pair on your own machine (`ssh-keygen -t ed25519` if you don't have one).
@@ -93,7 +93,7 @@ Sections 2 to 4 (installing the system, preparing it, installing Docker) depend 
 
 - [Ubuntu Server 24.04 LTS](install/ubuntu.md)
 - [Oracle Linux 9](install/oracle-linux.md)
-- [SUSE Linux Enterprise Server 15 SP7](install/sles.md)
+- [SUSE Linux Enterprise Server 16 or 15 SP7](install/sles.md)
 
 Everything from section 5 on is the same on all three: the portal runs in containers, so the system only has to provide Docker.
 
@@ -101,7 +101,7 @@ Everything from section 5 on is the same on all three: the portal runs in contai
 
 - **Ubuntu** is what the portal was developed and tested on.
 - **Oracle Linux** gets Docker straight from Docker's own repository, like Ubuntu, and its updates are free. SELinux is on, which the guide handles.
-- **SLES** uses SUSE's own Docker package (supported by SUSE through the subscription); the Compose plugin is installed by hand, and updated by hand.
+- **SLES** uses SUSE's own Docker packages, supported through the subscription. Prefer **SLES 16**: it also packages Compose, while on 15 Compose is installed and updated by hand. Both pass the install test in `scripts/install-test/`.
 
 ---
 
@@ -289,7 +289,7 @@ Set them up **before** the portal holds real findings. The full procedure, inclu
 - [ ] SSH works with keys only; password and root logins are refused.
 - [ ] The clock is synchronized; automatic security updates are enabled.
 - [ ] The firewall (`ufw` or `firewalld`) allows 22 from administrators only, and 80/443.
-- [ ] Oracle Linux: SELinux is *Enforcing* and `docker info` lists `selinux`.
+- [ ] Oracle Linux and SLES 16: SELinux is *Enforcing* and `docker info` lists `selinux`.
 - [ ] Docker comes from `download.docker.com` (SLES: the Containers Module); `docker compose version` works; log size is limited.
 - [ ] `.env.production` has real secrets, mode `600`, and they are in the password manager.
 - [ ] The certificate has the portal's name in its SAN, the full chain, and its expiry date in the calendar.

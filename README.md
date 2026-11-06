@@ -91,13 +91,14 @@ e2e/              Playwright browser tests (run in the official Playwright conta
 frontend/
   src/            views/, components/ (Markdown editor, timeline, ...), i18n.js, api.js, router.js
 nginx/            Reverse proxy config (nginx.conf = dev, prod.conf.template = production/TLS)
-scripts/          backup.sh / restore.sh (database + attachments, optionally encrypted)
+scripts/          backup.sh / restore.sh (database + attachments, optionally encrypted);
+                  install-test/ (installs and runs the portal on SLES 15 and 16, in containers)
 docs/
   specs/          Canonical specifications (SPEC.md, FRONTEND_SPEC.md)
   DECISIONS.md    Resolved design decisions D1–D11 with rationale
   BACKLOG.md      Parked features and pending decisions (template management, constraints, …)
   INSTALL.md      Installing on a new server: hardware, OS, Docker, the portal, first login
-  install/        The OS and Docker steps: ubuntu.md, oracle-linux.md, sles.md
+  install/        The OS and Docker steps: ubuntu.md, oracle-linux.md, sles.md (SLES 16 and 15)
   DEPLOYMENT.md   Deployment & networking plan + IT-request checklist
   RUNBOOK.md      Operating the production stack: deploy, update, certificates, backup/restore
   API.md          Integration API (scoped keys) for other systems
