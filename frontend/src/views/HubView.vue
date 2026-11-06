@@ -344,7 +344,8 @@ onMounted(load)
       <FilterBar ref="filterBar" class="hubFilter" v-model="query"
                  :dynamic-values="dynamicFilterValues" />
 
-      <div class="toolbar">
+      <!-- Only when it has something to show, so the filter reaches the right edge otherwise. -->
+      <div v-if="selected.size || isWriter" class="toolbar">
         <span v-if="selected.size" class="selectionHint mono">
           {{ selected.size }} {{ t('hub.selected') }}
         </span>

@@ -221,9 +221,10 @@ onUnmounted(() => {
       </div>
       <div class="top">
         <FilterBar ref="filterBar" v-model="query" class="filter" :keys="DEFENSE_FILTER_KEYS" help="filter.defenseHelp" />
-        <div class="toolbar">
-          <span v-if="selected.size" class="selectionHint mono">{{ selected.size }} {{ t('hub.selected') }}</span>
-          <div v-if="selected.size" class="batchWrap">
+        <!-- Only while something is selected, so the filter reaches the right edge otherwise. -->
+        <div v-if="selected.size" class="toolbar">
+          <span class="selectionHint mono">{{ selected.size }} {{ t('hub.selected') }}</span>
+          <div class="batchWrap">
             <button class="btn" @click="toggleBatch($event)">{{ t('hub.actions') }}</button>
             <div v-if="batchOpen" class="rowMenuInline" :style="batchPos">
               <button v-for="a in tabActions" :key="a" @click="runAction(a)">{{ t(ACTIONS[a].label) }}</button>
