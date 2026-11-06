@@ -17,6 +17,7 @@ import { useAuthStore } from '../stores/auth'
 import AppShell from '../components/AppShell.vue'
 import MarkdownEditor from '../components/MarkdownEditor.vue'
 import CvssInput from '../components/CvssInput.vue'
+import CvssCalculator from '../components/CvssCalculator.vue'
 import MultiValueInput from '../components/MultiValueInput.vue'
 import AttachmentsPanel from '../components/AttachmentsPanel.vue'
 import OperatorPicker from '../components/OperatorPicker.vue'
@@ -179,6 +180,14 @@ async function load() {
     await loadReportCtx()
   } catch (e) { error.value = e instanceof ApiError ? e.detail : t('errors.load') }
   finally { loading.value = false }
+}
+
+// CVSS calculator: fills both the score and the vector.
+const calcOpen = ref(false)
+function applyCvss({ score, vector }) {
+  form.value.cvss_score = score
+  form.value.cvss_vector = vector
+  calcOpen.value = false
 }
 
 // CWE is always shown as CWE-<digits> (up to 6), as in the prototype.
@@ -576,7 +585,10 @@ watch(() => route.fullPath, () => {
           </div>
           <div class="f">
             <label>{{ t('vform.cvssVector') }}</label>
-            <input v-if="canEdit('cvss_vector')" v-field v-model="form.cvss_vector" placeholder="CVSS:3.1/AV:N/AC:L/…" />
+            <div v-if="canEdit('cvss_vector')" class="vecRow">
+              <input v-field v-model="form.cvss_vector" placeholder="CVSS:3.1/AV:N/AC:L/…" />
+              <button type="button" class="btn" @click="calcOpen = true">{{ t('cvssCalc.open') }}</button>
+            </div>
             <div v-else class="roVal mono">{{ form.cvss_vector || '—' }}</div>
           </div>
 
@@ -679,6 +691,7 @@ watch(() => route.fullPath, () => {
         </div>
       </div>
     </template>
+    <CvssCalculator v-if="calcOpen" :vector="form.cvss_vector" @apply="applyCvss" @close="calcOpen = false" />
   </AppShell>
 </template>
 
@@ -701,6 +714,8 @@ watch(() => route.fullPath, () => {
 .f { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
 .f label { font-size: 12px; color: var(--muted); }
 .f input { width: 100%; }
+.vecRow { display: flex; gap: 8px; }
+.vecRow input { flex: 1; min-width: 0; }
 input.invalid { border-color: var(--danger); }
 .fieldErr { color: var(--danger); font-size: 12px; margin-top: 4px; display: block; }
 

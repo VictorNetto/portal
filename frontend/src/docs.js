@@ -92,7 +92,9 @@ O valor vai até o primeiro espaço. Para incluir espaços, use aspas: \`report:
     subs: [
       {
         id: 'vuln-criar', title: 'Criar uma vulnerabilidade',
-        md: `Menu ➝ *Criar Vulnerabilidade*. Identificador, Descrição, Detalhes do Achado e Mitigação são obrigatórios para concluir. Você é o operador padrão; use **+** para adicionar outros operadores ou pessoas em *Compartilhado com*. Clique em um nome para removê-lo.`,
+        md: `Menu ➝ *Criar Vulnerabilidade*. Identificador, Descrição, Detalhes do Achado e Mitigação são obrigatórios para concluir. Você é o operador padrão; use **+** para adicionar outros operadores ou pessoas em *Compartilhado com*. Clique em um nome para removê-lo.
+
+**CVSS:** digite a nota e o vetor, ou use **Calculadora** ao lado do *Vetor CVSS*: escolha as oito métricas base da CVSS v3.1 (vetor de ataque, complexidade, privilégios, interação, escopo e os três impactos), e a nota, a severidade e o vetor são calculados como na calculadora oficial da FIRST. **Aplicar** preenche a nota e o vetor; se já houver um vetor, a calculadora abre com ele.`,
       },
       {
         id: 'vuln-ciclo', title: 'Ciclo de vida',
@@ -994,7 +996,9 @@ A value ends at the first space. To include spaces, quote it: \`report:"Rede do 
     subs: [
       {
         id: 'vuln-criar', title: 'Create a vulnerability',
-        md: `Menu ➝ *Create Vulnerability*. Identifier, Description, Finding Details and Mitigation are required to complete it. You are the default operator; use **+** to add operators or people in *Shared with*. Click a name to remove it.`,
+        md: `Menu ➝ *Create Vulnerability*. Identifier, Description, Finding Details and Mitigation are required to complete it. You are the default operator; use **+** to add operators or people in *Shared with*. Click a name to remove it.
+
+**CVSS:** type the score and vector, or use **Calculator** next to *CVSS Vector*: choose the eight CVSS v3.1 base metrics (attack vector, complexity, privileges, interaction, scope and the three impacts), and the score, severity and vector are computed as in FIRST's official calculator. **Apply** fills the score and the vector; if there is a vector already, the calculator opens with it.`,
       },
       {
         id: 'vuln-ciclo', title: 'Lifecycle',
