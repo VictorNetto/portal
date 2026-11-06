@@ -3,7 +3,7 @@
 A defense account sees only vulnerabilities that were sent to it: status sent or later,
 never a draft, a ready vuln or anything inside a draft report. It accepts a sent vuln and
 then records its RVS ID, which moves it to fixing; or it assumes the risk instead
-(risk_accepted). Reports, internal notes, operators and sharing are the red team's and
+(risk_accepted). Once fixed, it asks for the retest or closes the vuln without one. Reports, internal notes, operators and sharing are the red team's and
 are never shown.
 """
 
@@ -119,6 +119,13 @@ def undo_risk(session: Session, vuln_id: uuid.UUID, user: User, request: Request
     session.commit()
     session.refresh(vuln)
     return vuln
+
+
+def transition(session: Session, vuln_id: uuid.UUID, to: VulnStatus, user: User, request: Request) -> Vulnerability:
+    """fixing -> retesting (the fix is ready, the red team checks it) or fixing -> fixed (the team
+    closes it without a retest). The retest's outcome stays with the red team."""
+    vuln = get_vuln(session, vuln_id, for_update=True)
+    return vuln_svc.apply_transition(session, vuln, to, user, request, vuln_svc.DEFENSE_TRANSITIONS)
 
 
 def set_rvs(session: Session, vuln_id: uuid.UUID, rvs_id: str, user: User, request: Request) -> Vulnerability:

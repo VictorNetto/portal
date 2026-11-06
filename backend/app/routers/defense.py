@@ -10,12 +10,13 @@ from sqlalchemy.orm import Session
 from app import audit
 from app.db import get_session
 from app.deps import get_defense_user
-from app.models.enums import AuditAction
+from app.models.enums import AuditAction, VulnStatus
 from app.models.user import User
 from app.schemas.defense import (
     DefenseAttachment,
     DefenseRiskAccept,
     DefenseRvs,
+    DefenseTransition,
     DefenseVuln,
     DefenseVulnItem,
 )
@@ -89,6 +90,17 @@ def set_rvs(
     session: Session = Depends(get_session),
 ):
     return svc.set_rvs(session, vuln_id, body.rvs_id, user, request)
+
+
+@router.post("/vulnerabilities/{vuln_id}/transition", response_model=DefenseVuln)
+def transition(
+    vuln_id: uuid.UUID,
+    body: DefenseTransition,
+    request: Request,
+    user: User = Depends(get_defense_user),
+    session: Session = Depends(get_session),
+):
+    return svc.transition(session, vuln_id, VulnStatus(body.to), user, request)
 
 
 @router.get("/vulnerabilities/{vuln_id}/attachments", response_model=list[DefenseAttachment])

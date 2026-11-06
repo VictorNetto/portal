@@ -4,7 +4,7 @@
 // Each section is its own page in the left rail (defenseSections.js).
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { defenseVulns, defenseAccept, defenseAcceptRisk, defenseSetRvs, defenseUndoRisk, ApiError } from '../api'
+import { defenseVulns, defenseAccept, defenseAcceptRisk, defenseSetRvs, defenseTransition, defenseUndoRisk, ApiError } from '../api'
 import { t } from '../i18n'
 import { fmtDate, fmtDateTime } from '../dates'
 import { confirmDialog, promptDialog } from '../dialog'
@@ -24,12 +24,12 @@ const byKey = Object.fromEntries(SECTIONS.map((s) => [s.key, s]))
 const isNew = byKey.new.test
 const awaitingRvs = byKey.awaitingRvs.test
 const riskAccepted = byKey.riskAccepted.test
-// Each section offers only what its vulns allow. Fixing, retesting and fixed belong to the
-// red team now, so those sections have no actions (and no selection).
+// Each section offers only what its vulns allow. A retest and its outcome belong to the red
+// team, and fixed is the end, so only "being fixed" has actions in Em andamento.
 const SECTION_ACTIONS = {
   new: ['accept', 'acceptRisk'],
   awaitingRvs: ['rvs', 'acceptRisk'],
-  inProgress: [],
+  inProgress: ['retest', 'markFixed'],
   fixed: [],
   riskAccepted: ['undoRisk'],
 }
@@ -142,6 +142,16 @@ const ACTIONS = {
     ask: (n) => promptDialog(t('defense.riskPromptBatch', { n }), { ok: t('defense.acceptRisk') }),
     invalid: (reason) => (reason.trim().length >= 5 ? '' : 'defense.riskShort'),
     run: (v, reason) => defenseAcceptRisk(v.id, reason.trim()),
+  },
+  retest: {
+    label: 'defense.requestRetest', fits: (v) => v.status === 'fixing',
+    ask: (n) => confirmDialog(t('defense.confirmBatchRetest', { n })),
+    run: (v) => defenseTransition(v.id, 'retesting'),
+  },
+  markFixed: {
+    label: 'defense.markFixed', fits: (v) => v.status === 'fixing',
+    ask: (n) => confirmDialog(t('defense.confirmBatchFixed', { n })),
+    run: (v) => defenseTransition(v.id, 'fixed'),
   },
   undoRisk: {
     label: 'defense.undoRisk', fits: riskAccepted,

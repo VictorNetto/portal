@@ -99,7 +99,7 @@ O valor vai até o primeiro espaço. Para incluir espaços, use aspas: \`report:
         md: `1. **Rascunho:** em edição. *Salvar rascunho* guarda sem validar tudo. *Concluir* exige os campos obrigatórios e atribui o ID interno \`VULN-xxxx\`.
 2. **Pronta:** completa, ainda não enviada. *Enviar* entrega ao time responsável.
 3. **Enviada:** entregue e aguardando o ID de RVS. O conteúdo passa a ficar fechado para edição. O time de defesa aceita a vulnerabilidade e registra o ID de RVS, o que inicia a correção; ou assume o risco de não corrigir.
-4. **Em correção:** o time responsável está corrigindo. *Solicitar reteste* pede a verificação do Red Team.
+4. **Em correção:** o time responsável está corrigindo. Quando termina, o time de defesa usa *Solicitar reteste*, ou *Marcar como corrigida* se dispensar o reteste (a vulnerabilidade vai direto para *Corrigida*). O Red Team também pode usar *Solicitar reteste*.
 5. **Em reteste:** o Red Team verifica a correção. *Aprovar reteste* conclui; *Reprovar reteste* volta para *Em correção*.
 6. **Corrigida:** correção confirmada; fim do fluxo.
 
@@ -773,7 +773,7 @@ curl -sS https://<portal>/api/health
 
 - **Novas:** enviadas pelo Red Team e ainda não aceitas. Você pode **aceitar** ou **assumir o risco**.
 - **Aguardando RVS:** aceitas, ainda sem ID de RVS. Você pode **registrar o RVS** ou **assumir o risco**.
-- **Em andamento:** com RVS, em correção ou em reteste pelo Red Team. Apenas acompanhamento.
+- **Em andamento:** com RVS, em correção ou em reteste pelo Red Team. Em correção, você pode **solicitar o reteste** ou **marcar como corrigida**.
 - **Corrigidas:** correção confirmada pelo reteste. Apenas consulta.
 - **Risco assumido:** o time de defesa decidiu não corrigir. Você pode **desfazer** a decisão.
 
@@ -812,7 +812,7 @@ Regras do ID do RVS:
       },
       {
         id: 'def-lote', title: 'Várias vulnerabilidades de uma vez',
-        md: `Nas seções com ações (*Novas*, *Aguardando RVS* e *Risco assumido*):
+        md: `Nas seções com ações (*Novas*, *Aguardando RVS*, *Em andamento* e *Risco assumido*):
 
 1. **Selecione** com as caixas à esquerda. A caixa do cabeçalho seleciona a página inteira.
 2. Ou clique no **nome de um relatório**: todas as vulnerabilidades desse relatório na seção são selecionadas, em todas as páginas e dentro do filtro atual. Um segundo clique desfaz a seleção.
@@ -823,6 +823,7 @@ O que cada ação pede:
 - **Aceitar:** uma confirmação.
 - **Assumir risco:** uma justificativa, que vale para todas as selecionadas.
 - **Registrar RVS:** abre um formulário com **uma linha por vulnerabilidade** (ID interno, título e um campo para o ID do RVS). Campos em branco ficam para depois. IDs repetidos no formulário, ou já usados em outra vulnerabilidade, são apontados na própria linha; as linhas registradas saem do formulário.
+- **Solicitar reteste** e **Marcar como corrigida:** uma confirmação. Valem só para as que estão em correção; as em reteste são ignoradas.
 - **Desfazer risco assumido:** uma confirmação.
 
 Ao final, o portal mostra quantas foram feitas, quantas foram ignoradas (não se aplicavam) e quantas falharam, com o motivo.`,
@@ -844,15 +845,15 @@ O valor vai até o primeiro espaço. Para incluir espaços, use aspas: \`report:
         id: 'def-depois', title: 'Depois do RVS',
         md: `Com o RVS registrado, a vulnerabilidade fica em **Em andamento**:
 
-1. **Em correção:** a área responsável corrige. Quando a correção estiver pronta, avise o Red Team pelo canal combinado, informando o ID interno e o RVS.
+1. **Em correção:** a área responsável corrige. Quando a correção estiver pronta, abra a vulnerabilidade e escolha **Solicitar reteste**, para o Red Team verificar a correção; ou **Marcar como corrigida**, se o reteste não for necessário. Ela vai direto para *Corrigidas*, sem verificação do Red Team, e isso fica registrado.
 2. **Em reteste:** o Red Team verifica a correção.
-3. Se o reteste for aprovado, ela vai para **Corrigidas**. Se não, volta para *Em correção*.
+3. Se o reteste for aprovado, o Red Team a move para **Corrigidas**. Se não, ela volta para *Em correção*, e você solicita um novo reteste quando corrigir.
 
-Essas etapas são registradas pelo Red Team; a linha do tempo de cada vulnerabilidade mostra quando aconteceram.`,
+A linha do tempo de cada vulnerabilidade mostra quando cada etapa aconteceu.`,
       },
       {
         id: 'def-registro', title: 'Registro das ações',
-        md: `O portal guarda um registro de auditoria com quem fez o quê e quando: logins, vulnerabilidades e anexos abertos, aceitações, RVS registrados, riscos assumidos e desfeitos. O Red Team e os auditores consultam esse registro.
+        md: `O portal guarda um registro de auditoria com quem fez o quê e quando: logins, vulnerabilidades e anexos abertos, aceitações, RVS registrados, retestes solicitados, vulnerabilidades marcadas como corrigidas, riscos assumidos e desfeitos. O Red Team e os auditores consultam esse registro.
 
 As vulnerabilidades e as evidências são **confidenciais**. Não as copie para canais fora dos sistemas autorizados da organização.`,
       },
@@ -1000,7 +1001,7 @@ A value ends at the first space. To include spaces, quote it: \`report:"Rede do 
         md: `1. **Draft:** being written. *Save draft* keeps it without full validation. *Complete* needs the required fields and assigns the \`VULN-xxxx\` internal ID.
 2. **Ready:** complete, not sent yet. *Send* delivers it to the responsible team.
 3. **Sent:** delivered, waiting for the RVS ID. Its content is now closed for editing. The defense team accepts it and records the RVS ID, which starts the fix; or it accepts the risk of not fixing it.
-4. **Fixing:** the responsible team is fixing it. *Request retest* asks the Red Team to verify.
+4. **Fixing:** the responsible team is fixing it. When done, the defense team uses *Request retest*, or *Mark as fixed* if it waives the retest (the vulnerability goes straight to *Fixed*). The Red Team can also use *Request retest*.
 5. **Retesting:** the Red Team checks the fix. *Pass retest* finishes it; *Fail retest* goes back to *Fixing*.
 6. **Fixed:** fix confirmed; end of the flow.
 
@@ -1674,7 +1675,7 @@ curl -sS https://<portal>/api/health
 
 - **New:** sent by the Red Team, not accepted yet. You can **accept** it or **accept the risk**.
 - **Awaiting RVS:** accepted, no RVS id yet. You can **record the RVS** or **accept the risk**.
-- **In progress:** with an RVS, being fixed or being retested by the Red Team. Follow-up only.
+- **In progress:** with an RVS, being fixed or being retested by the Red Team. While being fixed, you can **request the retest** or **mark it as fixed**.
 - **Fixed:** fix confirmed by the retest. Look-up only.
 - **Risk accepted:** the defense team decided not to fix it. You can **undo** the decision.
 
@@ -1713,7 +1714,7 @@ RVS id rules:
       },
       {
         id: 'def-lote', title: 'Several vulnerabilities at once',
-        md: `In the sections with actions (*New*, *Awaiting RVS* and *Risk accepted*):
+        md: `In the sections with actions (*New*, *Awaiting RVS*, *In progress* and *Risk accepted*):
 
 1. **Select** with the boxes on the left. The header box selects the whole page.
 2. Or click a **report name**: every vulnerability of that report in the section is selected, on every page and within the current filter. A second click clears the selection.
@@ -1724,6 +1725,7 @@ What each action asks for:
 - **Accept:** a confirmation.
 - **Accept risk:** one reason, which applies to all the selected.
 - **Record RVS:** opens a form with **one line per vulnerability** (internal ID, title and a field for the RVS id). Blank fields are left for later. Ids repeated in the form, or already used on another vulnerability, are flagged on their line; recorded lines leave the form.
+- **Request retest** and **Mark as fixed:** a confirmation. They apply only to those being fixed; those being retested are skipped.
 - **Undo accepted risk:** a confirmation.
 
 At the end the portal shows how many were done, how many were skipped (they didn't apply) and how many failed, with the reason.`,
@@ -1745,15 +1747,15 @@ A value ends at the first space. To include spaces, quote it: \`report:"Rede do 
         id: 'def-depois', title: 'After the RVS',
         md: `With the RVS recorded, the vulnerability is **In progress**:
 
-1. **Fixing:** the responsible area fixes it. When the fix is ready, tell the Red Team through the agreed channel, with the internal ID and the RVS.
+1. **Fixing:** the responsible area fixes it. When the fix is ready, open the vulnerability and choose **Request retest**, for the Red Team to check the fix; or **Mark as fixed**, if no retest is needed. It goes straight to *Fixed*, without a Red Team check, and that is recorded.
 2. **Retesting:** the Red Team checks the fix.
-3. If the retest passes, it moves to **Fixed**. If not, it goes back to *Fixing*.
+3. If the retest passes, the Red Team moves it to **Fixed**. If not, it goes back to *Fixing*, and you request a new retest once it is fixed.
 
-These stages are recorded by the Red Team; each vulnerability's timeline shows when they happened.`,
+Each vulnerability's timeline shows when each stage happened.`,
       },
       {
         id: 'def-registro', title: 'Record of actions',
-        md: `The portal keeps an audit log of who did what and when: sign-ins, vulnerabilities and attachments opened, acceptances, RVS ids recorded, risks accepted and undone. The Red Team and auditors consult it.
+        md: `The portal keeps an audit log of who did what and when: sign-ins, vulnerabilities and attachments opened, acceptances, RVS ids recorded, retests requested, vulnerabilities marked as fixed, risks accepted and undone. The Red Team and auditors consult it.
 
 Vulnerabilities and evidence are **confidential**. Don't copy them to channels outside the organization's authorized systems.`,
       },

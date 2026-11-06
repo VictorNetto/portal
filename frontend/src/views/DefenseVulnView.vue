@@ -4,7 +4,7 @@
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
-  defenseVuln, defenseAttachments, defenseAccept, defenseAcceptRisk, defenseSetRvs, defenseUndoRisk,
+  defenseVuln, defenseAttachments, defenseAccept, defenseAcceptRisk, defenseSetRvs, defenseTransition, defenseUndoRisk,
   fetchAttachmentBlob, ApiError,
 } from '../api'
 import { confirmDialog, promptDialog } from '../dialog'
@@ -39,6 +39,8 @@ const mayAccept = computed(() => vuln.value?.status === 'sent' && !vuln.value.ac
 const mayRecordRvs = computed(() => vuln.value?.status === 'sent' && !!vuln.value.accepted_at)
 // Instead of fixing it, the team may assume the risk, with a reason (accepted or not).
 const mayAcceptRisk = computed(() => vuln.value?.status === 'sent')
+// Once fixed: ask the red team to retest it, or close it without a retest.
+const isFixing = computed(() => vuln.value?.status === 'fixing')
 // The breadcrumb leads back to the section it was opened from (or the one it is in now).
 const crumbSection = computed(() => SECTIONS.find((s) => s.key === route.query.from) || (vuln.value ? sectionOf(vuln.value) : SECTIONS[0]))
 const sevClass = (s) => { const n = Number(s); return n >= 7 ? 'hi' : n >= 4 ? 'me' : 'lo' }
@@ -67,6 +69,17 @@ async function acceptRisk() {
   busy.value = true
   try { vuln.value = await defenseAcceptRisk(vuln.value.id, reason.trim()); notice.value = t('defense.riskOk') }
   catch (e) { error.value = e instanceof ApiError ? e.detail : t('errors.update'); await load() }
+  finally { busy.value = false }
+}
+
+async function moveOn(to) {
+  const ask = to === 'fixed' ? 'defense.confirmFixed' : 'defense.confirmRetest'
+  if (!(await confirmDialog(t(ask)))) return
+  busy.value = true; error.value = ''; notice.value = ''
+  try {
+    vuln.value = await defenseTransition(vuln.value.id, to)
+    notice.value = t(to === 'fixed' ? 'defense.fixedOk' : 'defense.retestOk')
+  } catch (e) { error.value = e instanceof ApiError ? e.detail : t('errors.update'); await load() }
   finally { busy.value = false }
 }
 
@@ -123,6 +136,8 @@ watch(() => route.params.id, (id) => { if (id) load() })
           </p>
         </div>
         <div class="pageActions">
+          <button v-if="isFixing" class="btn" :disabled="busy" @click="moveOn('fixed')">{{ t('defense.markFixed') }}</button>
+          <button v-if="isFixing" class="btn primary" :disabled="busy" @click="moveOn('retesting')">{{ t('defense.requestRetest') }}</button>
           <button v-if="vuln?.status === 'risk_accepted'" class="btn" :disabled="busy" @click="undoRisk">{{ t('defense.undoRisk') }}</button>
           <button v-if="mayAcceptRisk" class="btn" :disabled="busy" @click="acceptRisk">{{ t('defense.acceptRisk') }}</button>
           <button v-if="mayAccept" class="btn primary" :disabled="busy" @click="accept">{{ t('defense.accept') }}</button>

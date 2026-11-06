@@ -7,6 +7,7 @@ sharing, the creator or anything about the report beyond its name.
 import uuid
 from datetime import datetime
 from decimal import Decimal
+from typing import Literal
 
 from pydantic import BaseModel, Field
 
@@ -70,6 +71,10 @@ class DefenseAttachment(BaseModel):
 
 class DefenseRiskAccept(BaseModel):
     reason: str = Field(min_length=5, max_length=2000)
+
+
+class DefenseTransition(BaseModel):
+    to: Literal["retesting", "fixed"]
 
 
 class DefenseRvs(BaseModel):

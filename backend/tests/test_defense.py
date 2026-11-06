@@ -212,3 +212,29 @@ def test_a_removed_rvs_id_can_be_used_again(admin, writer, defense):
     defense.post(f"/defense/vulnerabilities/{v['id']}/rvs", {"rvs_id": rvs})
     admin.post(f"/vulnerabilities/{v['id']}/correction", {"to": "sent", "reason": "RVS errado"})
     assert defense.post(f"/defense/vulnerabilities/{other['id']}/rvs", {"rvs_id": rvs}).status_code == 200
+
+
+def test_the_team_asks_for_the_retest_or_closes_without_one(admin, writer, defense):
+    from tests.conftest import fixing_vuln
+
+    retest, direct = fixing_vuln(writer), fixing_vuln(writer)
+    move = lambda v, to: defense.post(f"/defense/vulnerabilities/{v['id']}/transition", {"to": to})  # noqa: E731
+
+    r = move(retest, "retesting")
+    assert r.status_code == 200 and r.json()["status"] == "retesting" and r.json()["retesting_at"]
+    # The retest's outcome is the red team's.
+    assert move(retest, "fixed").status_code == 409
+    assert move(retest, "fixing").status_code == 422
+    assert writer.post(f"/vulnerabilities/{retest['id']}/transition", {"to": "fixed"}).status_code == 200
+
+    r = move(direct, "fixed")
+    assert r.status_code == 200 and r.json()["status"] == "fixed"
+    assert r.json()["fixed_at"] and r.json()["retesting_at"] is None
+    rows = admin.get("/audit-logs", params={"action": "status_change", "page_size": 200}).json()["items"]
+    mine = [x for x in rows if x["entity_id"] == direct["id"] and x["actor"] == defense.user["username"]]
+    assert mine and mine[0]["detail"]["retest"] == "skipped"
+
+
+def test_only_a_vuln_being_fixed_can_move_on(writer, defense):
+    v = sent_vuln(writer)
+    assert defense.post(f"/defense/vulnerabilities/{v['id']}/transition", {"to": "retesting"}).status_code == 409

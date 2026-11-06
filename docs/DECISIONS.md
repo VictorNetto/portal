@@ -310,8 +310,9 @@ The UUID `id` is the database key; it stays out of the screens and appears in UR
   Em andamento, Corrigidas, Risco assumido (`frontend/src/defenseSections.js`). There is no "all"
   page. Each page works like the Hub: the filter bar with its own keys (status, cvss, id, report),
   pagination, and a batch menu with what the section allows: Novas — Aceitar, Assumir risco;
-  Aguardando RVS — Registrar RVS (a form with one field per vuln), Assumir risco; Risco assumido —
-  Desfazer. Em andamento and Corrigidas belong to the red team: no actions, no selection. Where
+  Aguardando RVS — Registrar RVS (a form with one field per vuln), Assumir risco; Em andamento —
+  Solicitar reteste, Marcar como corrigida; Risco assumido — Desfazer. Corrigidas has no actions
+  and no selection. Where
   there are actions, a report name selects that report's vulns (a second click clears them). A
   vulnerability page keeps the section it was opened from lit, and its breadcrumb leads back there.
 - **Filter values end at the first space;** a value with spaces is quoted: `report:"Rede do Data
@@ -321,3 +322,7 @@ The UUID `id` is the database key; it stays out of the screens and appears in UR
   (`GET /rvs-queue`, `POST /vulnerabilities/{id}/rvs`) are gone; the red team sees the RVS on each
   vuln's timeline, finds those waiting with the Hub filter `status:sent`, and an admin correction
   still removes a wrong RVS.
+- **The defense team ends the fix:** on a vuln in *Em correção* it uses *Solicitar reteste*
+  (→ *Em reteste*) or *Marcar como corrigida* (→ *Corrigida* with no retest; audited with
+  `retest: skipped`, and the timeline leaves *Em reteste* empty). The retest's outcome (approve /
+  fail) stays with the red team, which can also still request a retest.

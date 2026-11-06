@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test'
-import { adminToken, api, cleanup, createUser, newReport, pngBuffer, recordRvs, reportVuln, savedVuln, tag } from '../support/api.js'
+import { adminToken, api, cleanup, createUser, fixingVuln, newReport, pngBuffer, recordRvs, reportVuln, savedVuln, tag } from '../support/api.js'
 
 let admin
 let defense
@@ -185,7 +185,7 @@ test('a report name selects its vulns, and a quoted filter keeps spaces', async 
   await expect(page.locator('.selectionHint')).toHaveCount(0)
 
   // Not a link where nothing can be done with the selection.
-  await section(page, 'Em andamento')
+  await section(page, 'Corrigidas')
   await expect(page.locator('tbody .repLink')).toHaveCount(0)
 })
 
@@ -253,6 +253,7 @@ test('each tab offers only the batch actions its vulns allow', async ({ page }) 
   await filter()
   await expect(page.locator('tbody tr', { hasText: rvsA })).toHaveCount(1)
   await expect(page.locator('tbody tr', { hasText: rvsB })).toHaveCount(1)
+  await section(page, 'Corrigidas')
   await expect(page.locator('tbody .check, thead .check')).toHaveCount(0)       // nothing to do here
 })
 
@@ -270,4 +271,39 @@ test('the documentation shows the defense team only its own guide', async ({ pag
   await expect(page.locator('#doc-def-filtros code').first()).toHaveText('/')
   await page.click('.toc .tocItem:has-text("Assumir o risco")')
   await expect(page.locator('#doc-def-risco')).toBeInViewport()
+})
+
+test('a fix is handed back: retest requested, or closed without one', async ({ page }) => {
+  const u = tag()
+  const retest = await fixingVuln(admin, { identifier: `e2e-fix-${u}-retest` })
+  const direct = await fixingVuln(admin, { identifier: `e2e-fix-${u}-direct` })
+  const batch = [await fixingVuln(admin, { identifier: `e2e-fix-${u}-b1` }), await fixingVuln(admin, { identifier: `e2e-fix-${u}-b2` })]
+  vulns.push(retest.id, direct.id, ...batch.map((v) => v.id))
+  const okDialog = () => page.locator('.appDialog .modal .modalActions .btn').last().click()
+  await loginDefense(page)
+
+  await page.goto(`/defense/vulnerabilities/${retest.id}`)
+  await expect(page.locator('.pageActions .btn')).toHaveText(['Marcar como corrigida', 'Solicitar reteste'])
+  await page.click('.pageActions .btn:has-text("Solicitar reteste")')
+  await okDialog()
+  await expect(page.locator('.ok.msg')).toContainText('Reteste solicitado')
+  await expect(page.locator('.titleBlock p')).toContainText('Em reteste')
+  await expect(page.locator('.pageActions .btn')).toHaveCount(0)                 // the outcome is the red team's
+
+  await page.goto(`/defense/vulnerabilities/${direct.id}`)
+  await page.click('.pageActions .btn:has-text("Marcar como corrigida")')
+  await okDialog()
+  await expect(page.locator('.titleBlock p')).toContainText('Corrigida')
+  await expect(page.locator('.timeline .step', { hasText: 'Em reteste' })).not.toHaveClass(/reached/)
+
+  // In batch, from "Em andamento".
+  await section(page, 'Em andamento')
+  await page.fill('.filterbar input', `e2e-fix-${u}-b`)
+  await page.click('thead .check')
+  await page.click('.batchWrap .btn')
+  await expect(page.locator('.rowMenuInline button')).toHaveText(['Solicitar reteste', 'Marcar como corrigida'])
+  await page.click('.rowMenuInline button:has-text("Solicitar reteste")')
+  await okDialog()
+  await expect(page.locator('.ok.msg')).toContainText('2')
+  for (const v of batch) expect((await api(`/vulnerabilities/${v.id}`, { token: admin })).data.status).toBe('retesting')
 })
