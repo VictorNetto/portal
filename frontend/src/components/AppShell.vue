@@ -152,7 +152,7 @@ async function signOut() {
           {{ l.label }}
         </button>
         <div class="sep"></div>
-        <button v-if="!isDefense" class="menuItem" @click="goDocs">{{ t('docs.menu') }}</button>
+        <button class="menuItem" @click="goDocs">{{ t('docs.menu') }}</button>
         <button class="menuItem" @click="goProfile">{{ t('profile.menu') }}</button>
         <div class="sep"></div>
         <button class="menuItem" @click="signOut">{{ t('signOut') }}</button>

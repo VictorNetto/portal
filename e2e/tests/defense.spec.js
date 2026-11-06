@@ -57,7 +57,7 @@ test('the defense team accepts a received vuln and records its RVS id', async ({
   // Its own rail: one item per section, nothing of the red team's.
   await expect(page.locator('.sidebar .navItem .navLabel')).toHaveText(['Novas', 'Aguardando RVS', 'Em andamento', 'Corrigidas', 'Risco assumido'])
   await page.click('.profileBtn')
-  await expect(page.locator('.menuItem', { hasText: 'Documentação' })).toHaveCount(0)
+  await expect(page.locator('.menuItem', { hasText: 'Documentação' })).toHaveCount(1)       // its own guide
   await page.click('.profileBtn')
 
   const row = page.locator('tbody tr', { hasText: id })
@@ -95,7 +95,7 @@ test('the defense team accepts a received vuln and records its RVS id', async ({
 
 test('red-team pages are out of reach for a defense account', async ({ page }) => {
   await loginDefense(page)
-  for (const path of ['/hub', '/rvs-queue', '/users', '/reports/new', '/docs']) {
+  for (const path of ['/hub', '/rvs-queue', '/users', '/reports/new']) {
     await page.goto(path)
     await expect(page).toHaveURL(/\/defense\/new$/)
   }
@@ -254,4 +254,20 @@ test('each tab offers only the batch actions its vulns allow', async ({ page }) 
   await expect(page.locator('tbody tr', { hasText: rvsA })).toHaveCount(1)
   await expect(page.locator('tbody tr', { hasText: rvsB })).toHaveCount(1)
   await expect(page.locator('tbody .check, thead .check')).toHaveCount(0)       // nothing to do here
+})
+
+test('the documentation shows the defense team only its own guide', async ({ page }) => {
+  await loginDefense(page)
+  await page.click('.profileBtn')
+  await page.click('.profileMenu .menuItem:has-text("Documentação")')
+  await expect(page).toHaveURL(/\/docs$/)
+  await expect(page.locator('.docSection .secHead')).toHaveText(['Time de defesa'])
+  await expect(page.locator('#doc-defesa .docCard h3')).toHaveText([
+    'Primeiros passos', 'Sessão', 'As seções', 'Uma vulnerabilidade', 'Aceitar e registrar o RVS',
+    'Assumir o risco', 'Várias vulnerabilidades de uma vez', 'Filtros', 'Depois do RVS', 'Registro das ações',
+  ])
+  await expect(page.locator('#doc-def-secoes li')).toHaveCount(5)
+  await expect(page.locator('#doc-def-filtros code').first()).toHaveText('/')
+  await page.click('.toc .tocItem:has-text("Assumir o risco")')
+  await expect(page.locator('#doc-def-risco')).toBeInViewport()
 })

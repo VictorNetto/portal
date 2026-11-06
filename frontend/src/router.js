@@ -41,7 +41,7 @@ const routes = [
 ]
 
 // D17: a defense account has its own pages and the profile, nothing else.
-const DEFENSE_ROUTES = ['defense', 'defense-vuln', 'profile', ...SECTIONS.map((s) => `defense-${s.key}`)]
+const DEFENSE_ROUTES = ['defense', 'defense-vuln', 'profile', 'docs', ...SECTIONS.map((s) => `defense-${s.key}`)]
 
 const router = createRouter({
   history: createWebHistory(),

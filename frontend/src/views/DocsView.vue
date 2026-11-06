@@ -14,10 +14,15 @@ const auth = useAuthStore()
 const route = useRoute()
 const router = useRouter()
 
-const allowed = (x) => !x.roles || x.roles.includes(auth.user?.role)
+// A topic takes its section's `roles` when it has none of its own. Without any, it is for the
+// red team, so a defense account (D17) doesn't see it.
+const allowed = (x, inherited) => {
+  const roles = x.roles || inherited
+  return roles ? roles.includes(auth.user?.role) : auth.user?.role !== 'defense'
+}
 const sections = computed(() => (DOCS[locale.value] || DOCS['pt-BR'])
-  .filter(allowed)
-  .map((s) => ({ ...s, subs: s.subs.filter(allowed) }))
+  .filter((s) => allowed(s))
+  .map((s) => ({ ...s, subs: s.subs.filter((sub) => allowed(sub, s.roles)) }))
   .filter((s) => s.subs.length))
 const current = ref('')
 

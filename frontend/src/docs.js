@@ -3,8 +3,11 @@
 // `roles` (on a section or a subsection) limits it to the roles that can use what
 // it describes — the page hides the rest, like the nav. A section whose
 // subsections are all hidden is hidden too.
+// A defense account (D17) sees only what names its role: everything else is the red team's.
 
 const CREATORS = ['admin', 'write_all', 'write_restricted']
+// The defense team's guide; admins see it too, to know what that team sees.
+const DEFENSE = ['defense', 'admin']
 
 const pt = [
   {
@@ -742,6 +745,116 @@ curl -sS https://<portal>/api/health
 - Para sincronizar, use \`updated_since\` + \`next_cursor\` em vez de baixar tudo a cada execução.
 - **Não há deduplicação** na criação: repetir a mesma requisição cria outro registro. Depois de um erro de rede, confira (filtro \`source\`) antes de reenviar.
 - Envie como \`draft\` quando um analista ainda precisa revisar o achado.`,
+      },
+    ],
+  },
+  {
+    id: 'defesa', title: 'Time de defesa', roles: DEFENSE,
+    subs: [
+      {
+        id: 'def-inicio', title: 'Primeiros passos',
+        md: `Pelo portal, o time de defesa recebe as vulnerabilidades encontradas pelo Red Team e diz o que fará com cada uma: **aceitar** e registrar o **RVS** aberto para a correção, ou **assumir o risco** de não corrigir.
+
+- **Menu à esquerda:** uma seção para cada etapa (veja *As seções*). O botão ☰ no topo mostra os nomes; com o menu fechado, passe o mouse sobre o ícone.
+- **Botão com seu usuário (canto superior direito):** idioma, esta documentação, seu perfil, sair e o tempo restante da sessão.
+- **Primeiro acesso:** use a senha temporária recebida do administrador; o portal pede uma senha nova antes de continuar.
+- Você vê **apenas vulnerabilidades já enviadas** pelo Red Team. Rascunhos, notas internas do Red Team, operadores e o conteúdo dos relatórios não aparecem para você.`,
+      },
+      {
+        id: 'def-sessao', title: 'Sessão',
+        md: `- A sessão dura no máximo **1 hora** a partir do login e termina antes após **15 minutos sem atividade**.
+- No menu do seu usuário, **Sessão mm:ss / mm:ss** mostra o tempo restante.
+- **2 minutos** antes do fim por inatividade aparece *"Você ainda está aí?"*: clique em **Continuar conectado**.
+- Depois de **5 tentativas de login sem sucesso** em 15 minutos, a conta fica bloqueada por alguns minutos. Se esqueceu a senha, peça ao administrador do portal que a redefina.`,
+      },
+      {
+        id: 'def-secoes', title: 'As seções',
+        md: `Cada vulnerabilidade está em uma seção, conforme a etapa em que se encontra:
+
+- **Novas:** enviadas pelo Red Team e ainda não aceitas. Você pode **aceitar** ou **assumir o risco**.
+- **Aguardando RVS:** aceitas, ainda sem ID de RVS. Você pode **registrar o RVS** ou **assumir o risco**.
+- **Em andamento:** com RVS, em correção ou em reteste pelo Red Team. Apenas acompanhamento.
+- **Corrigidas:** correção confirmada pelo reteste. Apenas consulta.
+- **Risco assumido:** o time de defesa decidiu não corrigir. Você pode **desfazer** a decisão.
+
+As listas mostram o **identificador**, a **situação**, o **CVSS** (vermelho: 7 ou mais; laranja: de 4 a 6,9), o **relatório** de origem, quando foi **recebida** e o **ID do RVS**. Clique em uma linha para abrir a vulnerabilidade. As listas mostram 50 por página.`,
+      },
+      {
+        id: 'def-vuln', title: 'Uma vulnerabilidade',
+        md: `A página de uma vulnerabilidade mostra:
+
+- **Título, situação e ID interno** (\`VULN-0042\`), que identifica a vulnerabilidade em qualquer conversa com o Red Team.
+- **Linha do tempo:** quando foi recebida e cada etapa seguinte, com o ID do RVS ou a justificativa do risco assumido.
+- **Informações gerais:** CWE, CVSS, vetor CVSS e o relatório de origem.
+- **Descrição, Detalhes do achado e Mitigação / Solução**, com as imagens de evidência no próprio texto.
+- **Referências** e **Anexos**: use **Baixar** para salvar um arquivo.
+
+O caminho no topo (por exemplo *Novas › título*) volta para a seção de onde você abriu a vulnerabilidade. Os botões de ação ficam no canto superior direito e mudam conforme a etapa.`,
+      },
+      {
+        id: 'def-aceitar', title: 'Aceitar e registrar o RVS',
+        md: `1. Em **Novas**, abra a vulnerabilidade e clique em **Aceitar**. Ela passa para **Aguardando RVS**, com seu nome e a data da aceitação.
+2. Abra o RVS no seu sistema e, na vulnerabilidade, informe o **ID do RVS** e clique em **Registrar RVS**. Ela passa para **Em andamento**.
+
+Regras do ID do RVS:
+
+- **Cada vulnerabilidade tem o seu.** Um ID já usado em outra vulnerabilidade é recusado, e a mensagem diz qual vulnerabilidade o tem. Maiúsculas e espaços não contam: \`RVS-1\` e \` rvs-1 \` são o mesmo ID.
+- **Não pode ser alterado** depois de registrado. Se registrou um ID errado, peça ao Red Team que o corrija: um administrador devolve a vulnerabilidade para *Aguardando RVS*, e você registra o ID certo.
+- É preciso aceitar antes de registrar o RVS.`,
+      },
+      {
+        id: 'def-risco', title: 'Assumir o risco',
+        md: `Quando a vulnerabilidade **não será corrigida** (sistema a ser desativado, controle compensatório, decisão da área de negócio...), use **Assumir risco**, em *Novas* ou em *Aguardando RVS*.
+
+- A **justificativa é obrigatória** (pelo menos 5 caracteres). Ela fica registrada e é vista pelo Red Team.
+- A vulnerabilidade vai para **Risco assumido** e o fluxo dela termina, como se estivesse corrigida. Um relatório é concluído quando todas as suas vulnerabilidades estão corrigidas ou com o risco assumido.
+- **Mudou de ideia?** Em *Risco assumido*, use **Desfazer risco assumido**. Ela volta para *Novas*, ou para *Aguardando RVS* se já tinha sido aceita. A justificativa anterior fica guardada no registro de auditoria.`,
+      },
+      {
+        id: 'def-lote', title: 'Várias vulnerabilidades de uma vez',
+        md: `Nas seções com ações (*Novas*, *Aguardando RVS* e *Risco assumido*):
+
+1. **Selecione** com as caixas à esquerda. A caixa do cabeçalho seleciona a página inteira.
+2. Ou clique no **nome de um relatório**: todas as vulnerabilidades desse relatório na seção são selecionadas, em todas as páginas e dentro do filtro atual. Um segundo clique desfaz a seleção.
+3. Clique em **Ações** e escolha. O menu mostra apenas o que a seção permite.
+
+O que cada ação pede:
+
+- **Aceitar:** uma confirmação.
+- **Assumir risco:** uma justificativa, que vale para todas as selecionadas.
+- **Registrar RVS:** abre um formulário com **uma linha por vulnerabilidade** (ID interno, título e um campo para o ID do RVS). Campos em branco ficam para depois. IDs repetidos no formulário, ou já usados em outra vulnerabilidade, são apontados na própria linha; as linhas registradas saem do formulário.
+- **Desfazer risco assumido:** uma confirmação.
+
+Ao final, o portal mostra quantas foram feitas, quantas foram ignoradas (não se aplicavam) e quantas falharam, com o motivo.`,
+      },
+      {
+        id: 'def-filtros', title: 'Filtros',
+        md: `Use a caixa **Filtrar** no topo de cada seção. Digite \`/\` para ver as chaves:
+
+- \`status:fixing\`: situação exata (\`sent\`, \`fixing\`, \`retesting\`, \`fixed\`, \`risk_accepted\`)
+- \`cvss:7\`: CVSS maior ou igual a 7
+- \`id:senha\`: identificador contém
+- \`report:Data\`: relatório contém (\`report:none\` mostra as que não vieram de um relatório)
+- texto livre: busca no identificador
+- \`-chave:valor\`: exclui o que corresponde
+
+O valor vai até o primeiro espaço. Para incluir espaços, use aspas: \`report:"Rede do Data Center"\`. Vários termos são combinados com **E**. Cada seção começa sem filtro.`,
+      },
+      {
+        id: 'def-depois', title: 'Depois do RVS',
+        md: `Com o RVS registrado, a vulnerabilidade fica em **Em andamento**:
+
+1. **Em correção:** a área responsável corrige. Quando a correção estiver pronta, avise o Red Team pelo canal combinado, informando o ID interno e o RVS.
+2. **Em reteste:** o Red Team verifica a correção.
+3. Se o reteste for aprovado, ela vai para **Corrigidas**. Se não, volta para *Em correção*.
+
+Essas etapas são registradas pelo Red Team; a linha do tempo de cada vulnerabilidade mostra quando aconteceram.`,
+      },
+      {
+        id: 'def-registro', title: 'Registro das ações',
+        md: `O portal guarda um registro de auditoria com quem fez o quê e quando: logins, vulnerabilidades e anexos abertos, aceitações, RVS registrados, riscos assumidos e desfeitos. O Red Team e os auditores consultam esse registro.
+
+As vulnerabilidades e as evidências são **confidenciais**. Não as copie para canais fora dos sistemas autorizados da organização.`,
       },
     ],
   },
@@ -1533,6 +1646,116 @@ curl -sS https://<portal>/api/health
 - To sync, use \`updated_since\` + \`next_cursor\` instead of downloading everything on each run.
 - **There is no de-duplication** on create: repeating a request creates another record. After a network error, check (\`source\` filter) before sending again.
 - Send as \`draft\` when an analyst still needs to review the finding.`,
+      },
+    ],
+  },
+  {
+    id: 'defesa', title: 'Defense team', roles: DEFENSE,
+    subs: [
+      {
+        id: 'def-inicio', title: 'Getting started',
+        md: `Through the portal, the defense team receives the vulnerabilities found by the Red Team and says what it will do with each one: **accept** it and record the **RVS** opened for the fix, or **accept the risk** of not fixing it.
+
+- **Menu on the left:** one section per stage (see *The sections*). The ☰ button at the top shows the names; with the menu closed, hover over an icon.
+- **Button with your username (top right):** language, this documentation, your profile, sign out and the time left in the session.
+- **First sign-in:** use the temporary password from the administrator; the portal asks for a new one before you go on.
+- You see **only vulnerabilities the Red Team has sent**. Drafts, the Red Team's internal notes, operators and the reports' content are not shown to you.`,
+      },
+      {
+        id: 'def-sessao', title: 'Session',
+        md: `- A session lasts at most **1 hour** from sign-in and ends sooner after **15 minutes without activity**.
+- In your user menu, **Session mm:ss / mm:ss** shows the time left.
+- **2 minutes** before the idle end, *"Are you still there?"* appears: click **Stay signed in**.
+- After **5 failed sign-ins** within 15 minutes, the account is blocked for a few minutes. If you forgot your password, ask the portal administrator to reset it.`,
+      },
+      {
+        id: 'def-secoes', title: 'The sections',
+        md: `Each vulnerability is in one section, according to its stage:
+
+- **New:** sent by the Red Team, not accepted yet. You can **accept** it or **accept the risk**.
+- **Awaiting RVS:** accepted, no RVS id yet. You can **record the RVS** or **accept the risk**.
+- **In progress:** with an RVS, being fixed or being retested by the Red Team. Follow-up only.
+- **Fixed:** fix confirmed by the retest. Look-up only.
+- **Risk accepted:** the defense team decided not to fix it. You can **undo** the decision.
+
+The lists show the **identifier**, the **state**, the **CVSS** (red: 7 or more; orange: 4 to 6.9), the source **report**, when it was **received** and the **RVS id**. Click a row to open the vulnerability. Lists show 50 per page.`,
+      },
+      {
+        id: 'def-vuln', title: 'A vulnerability',
+        md: `A vulnerability's page shows:
+
+- **Title, state and internal ID** (\`VULN-0042\`), which identifies the vulnerability in any conversation with the Red Team.
+- **Timeline:** when it was received and each later stage, with the RVS id or the reason for the accepted risk.
+- **General information:** CWE, CVSS, CVSS vector and the source report.
+- **Description, Finding details and Mitigation / Solution**, with the evidence images in the text itself.
+- **References** and **Attachments**: use **Download** to save a file.
+
+The path at the top (for example *New › title*) goes back to the section you opened the vulnerability from. The action buttons are at the top right and change with the stage.`,
+      },
+      {
+        id: 'def-aceitar', title: 'Accept and record the RVS',
+        md: `1. In **New**, open the vulnerability and click **Accept**. It moves to **Awaiting RVS**, with your name and the date of acceptance.
+2. Open the RVS in your system and, on the vulnerability, enter the **RVS id** and click **Record RVS**. It moves to **In progress**.
+
+RVS id rules:
+
+- **Each vulnerability has its own.** An id already used on another vulnerability is refused, and the message says which one has it. Case and spaces don't count: \`RVS-1\` and \` rvs-1 \` are the same id.
+- **It can't be changed** once recorded. If you recorded a wrong id, ask the Red Team to correct it: an administrator moves the vulnerability back to *Awaiting RVS*, and you record the right id.
+- The vulnerability must be accepted before its RVS is recorded.`,
+      },
+      {
+        id: 'def-risco', title: 'Accept the risk',
+        md: `When the vulnerability **will not be fixed** (system being retired, compensating control, a business decision...), use **Accept risk**, in *New* or in *Awaiting RVS*.
+
+- A **reason is required** (at least 5 characters). It is recorded and seen by the Red Team.
+- The vulnerability moves to **Risk accepted** and its flow ends, as if fixed. A report is complete when all its vulnerabilities are fixed or risk-accepted.
+- **Changed your mind?** In *Risk accepted*, use **Undo accepted risk**. It goes back to *New*, or to *Awaiting RVS* if it had been accepted. The previous reason is kept in the audit log.`,
+      },
+      {
+        id: 'def-lote', title: 'Several vulnerabilities at once',
+        md: `In the sections with actions (*New*, *Awaiting RVS* and *Risk accepted*):
+
+1. **Select** with the boxes on the left. The header box selects the whole page.
+2. Or click a **report name**: every vulnerability of that report in the section is selected, on every page and within the current filter. A second click clears the selection.
+3. Click **Actions** and choose. The menu shows only what the section allows.
+
+What each action asks for:
+
+- **Accept:** a confirmation.
+- **Accept risk:** one reason, which applies to all the selected.
+- **Record RVS:** opens a form with **one line per vulnerability** (internal ID, title and a field for the RVS id). Blank fields are left for later. Ids repeated in the form, or already used on another vulnerability, are flagged on their line; recorded lines leave the form.
+- **Undo accepted risk:** a confirmation.
+
+At the end the portal shows how many were done, how many were skipped (they didn't apply) and how many failed, with the reason.`,
+      },
+      {
+        id: 'def-filtros', title: 'Filters',
+        md: `Use the **Filter** box at the top of each section. Type \`/\` to see the keys:
+
+- \`status:fixing\`: exact state (\`sent\`, \`fixing\`, \`retesting\`, \`fixed\`, \`risk_accepted\`)
+- \`cvss:7\`: CVSS 7 or higher
+- \`id:password\`: identifier contains
+- \`report:Data\`: report contains (\`report:none\` shows those that didn't come from a report)
+- free text: searches the identifier
+- \`-key:value\`: excludes matches
+
+A value ends at the first space. To include spaces, quote it: \`report:"Rede do Data Center"\`. Several terms combine with **AND**. Each section starts without a filter.`,
+      },
+      {
+        id: 'def-depois', title: 'After the RVS',
+        md: `With the RVS recorded, the vulnerability is **In progress**:
+
+1. **Fixing:** the responsible area fixes it. When the fix is ready, tell the Red Team through the agreed channel, with the internal ID and the RVS.
+2. **Retesting:** the Red Team checks the fix.
+3. If the retest passes, it moves to **Fixed**. If not, it goes back to *Fixing*.
+
+These stages are recorded by the Red Team; each vulnerability's timeline shows when they happened.`,
+      },
+      {
+        id: 'def-registro', title: 'Record of actions',
+        md: `The portal keeps an audit log of who did what and when: sign-ins, vulnerabilities and attachments opened, acceptances, RVS ids recorded, risks accepted and undone. The Red Team and auditors consult it.
+
+Vulnerabilities and evidence are **confidential**. Don't copy them to channels outside the organization's authorized systems.`,
       },
     ],
   },
