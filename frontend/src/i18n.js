@@ -17,7 +17,6 @@ const messages = {
       apiKeys: 'Chaves de API',
       admin: 'Administração',
       exitAdmin: 'Sair da administração',
-      defenseInbox: 'Vulnerabilidades recebidas',
     },
     hub: {
       exportPdfZip: 'Exportar PDF (ZIP)',
@@ -405,9 +404,14 @@ const messages = {
       updated: 'Última atualização:',
     },
     defense: {
-      title: 'Vulnerabilidades recebidas',
-      subtitle: 'Vulnerabilidades enviadas pelo Red Team. Aceite cada uma e registre o ID do RVS.',
-      tabs: { new: 'Novas', awaitingRvs: 'Aguardando RVS', inProgress: 'Em andamento', fixed: 'Corrigidas', riskAccepted: 'Risco assumido', all: 'Todas' },
+      tabs: { new: 'Novas', awaitingRvs: 'Aguardando RVS', inProgress: 'Em andamento', fixed: 'Corrigidas', riskAccepted: 'Risco assumido' },
+      hints: {
+        new: 'Enviadas pelo Red Team e ainda não aceitas. Aceite cada uma, ou assuma o risco.',
+        awaitingRvs: 'Aceitas, aguardando o ID do RVS aberto para cada uma.',
+        inProgress: 'Com RVS registrado: em correção ou em reteste pelo Red Team.',
+        fixed: 'Correção confirmada pelo reteste do Red Team.',
+        riskAccepted: 'Não serão corrigidas: o risco foi assumido, com justificativa.',
+      },
       new: 'Nova',
       awaitingRvs: 'Aguardando RVS',
       report: 'Relatório',
@@ -530,7 +534,6 @@ const messages = {
       apiKeys: 'API Keys',
       admin: 'Administration',
       exitAdmin: 'Exit administration',
-      defenseInbox: 'Received vulnerabilities',
     },
     hub: {
       exportPdfZip: 'Export PDF (ZIP)',
@@ -897,9 +900,14 @@ const messages = {
       updated: 'Last updated:',
     },
     defense: {
-      title: 'Received vulnerabilities',
-      subtitle: 'Vulnerabilities sent by the Red Team. Accept each one and record its RVS id.',
-      tabs: { new: 'New', awaitingRvs: 'Awaiting RVS', inProgress: 'In progress', fixed: 'Fixed', riskAccepted: 'Risk accepted', all: 'All' },
+      tabs: { new: 'New', awaitingRvs: 'Awaiting RVS', inProgress: 'In progress', fixed: 'Fixed', riskAccepted: 'Risk accepted' },
+      hints: {
+        new: 'Sent by the Red Team and not accepted yet. Accept each one, or accept its risk.',
+        awaitingRvs: 'Accepted, waiting for the id of the RVS opened for each one.',
+        inProgress: 'With an RVS: being fixed, or being retested by the Red Team.',
+        fixed: 'Fix confirmed by the Red Team retest.',
+        riskAccepted: 'Will not be fixed: the risk was accepted, with a reason.',
+      },
       new: 'New',
       awaitingRvs: 'Awaiting RVS',
       report: 'Report',

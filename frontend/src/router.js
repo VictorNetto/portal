@@ -13,6 +13,7 @@ import ReportView from './views/ReportView.vue'
 import DocsView from './views/DocsView.vue'
 import DefenseInboxView from './views/DefenseInboxView.vue'
 import DefenseVulnView from './views/DefenseVulnView.vue'
+import { SECTIONS } from './defenseSections'
 
 // Routes follow FRONTEND_SPEC §4.1.
 const routes = [
@@ -31,12 +32,16 @@ const routes = [
   { path: '/docs', name: 'docs', component: DocsView },
   { path: '/templates', name: 'templates', component: TemplatesView, meta: { roles: ['admin', 'write_all', 'write_restricted'] } },
   { path: '/audit-logs', name: 'audit', component: AuditView, meta: { roles: ['admin', 'auditor'] } },
-  { path: '/defense', name: 'defense', component: DefenseInboxView, meta: { roles: ['defense'] } },
+  // D17: one page per section of the defense team's work; /defense opens the first.
+  { path: '/defense', name: 'defense', redirect: SECTIONS[0].path },
+  ...SECTIONS.map((s) => ({
+    path: s.path, name: `defense-${s.key}`, component: DefenseInboxView, meta: { roles: ['defense'], section: s.key },
+  })),
   { path: '/defense/vulnerabilities/:id', name: 'defense-vuln', component: DefenseVulnView, meta: { roles: ['defense'] } },
 ]
 
 // D17: a defense account has its own pages and the profile, nothing else.
-const DEFENSE_ROUTES = ['defense', 'defense-vuln', 'profile']
+const DEFENSE_ROUTES = ['defense', 'defense-vuln', 'profile', ...SECTIONS.map((s) => `defense-${s.key}`)]
 
 const router = createRouter({
   history: createWebHistory(),

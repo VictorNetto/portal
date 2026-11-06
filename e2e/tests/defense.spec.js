@@ -37,12 +37,15 @@ async function fixingRvs() {
   return (await api(`/vulnerabilities/${v.id}/rvs`, { token: admin, body: { rvs_id: `RVS-e2e-${tag()}` } })).data
 }
 
+// Opens a section from the left rail.
+const section = (page, label) => page.click(`.sidebar .navItem[aria-label="${label}"]`)
+
 async function loginDefense(page) {
   await page.goto('/login')
   await page.fill('input[autocomplete=username]', defense.username)
   await page.fill('input[type=password]', defense.password)
   await page.click('button')
-  await expect(page).toHaveURL(/\/defense$/)
+  await expect(page).toHaveURL(/\/defense\/new$/)
 }
 
 test('the defense team accepts a received vuln and records its RVS id', async ({ page }) => {
@@ -51,7 +54,8 @@ test('the defense team accepts a received vuln and records its RVS id', async ({
   await loginDefense(page)
 
   // Its own rail, nothing of the red team's.
-  await expect(page.locator('.sidebar .navItem:not(.hamb)')).toHaveCount(1)
+  // Its own rail: one item per section, nothing of the red team's.
+  await expect(page.locator('.sidebar .navItem .navLabel')).toHaveText(['Novas', 'Aguardando RVS', 'Em andamento', 'Corrigidas', 'Risco assumido'])
   await page.click('.profileBtn')
   await expect(page.locator('.menuItem', { hasText: 'Documentação' })).toHaveCount(0)
   await page.click('.profileBtn')
@@ -80,9 +84,12 @@ test('the defense team accepts a received vuln and records its RVS id', async ({
   await expect(page.locator('.rvsForm')).toHaveCount(0)
   await expect(page.locator('.timeline .rvs')).toHaveText(rvs)
 
-  // Back on the list it moved to "Em andamento".
+  // The breadcrumb leads back to Novas, where it was opened; it now lives in "Em andamento".
+  await expect(page.locator('.crumbs a')).toHaveText('Novas')
+  await expect(page.locator('.sidebar .navItem.active')).toHaveAttribute('aria-label', 'Novas')
   await page.click('.crumbs a')
-  await page.click('.tab:has-text("Em andamento")')
+  await expect(page).toHaveURL(/\/defense\/new$/)
+  await section(page, 'Em andamento')
   await expect(page.locator('tbody tr', { hasText: id })).toContainText(rvs)
 })
 
@@ -90,7 +97,7 @@ test('red-team pages are out of reach for a defense account', async ({ page }) =
   await loginDefense(page)
   for (const path of ['/hub', '/rvs-queue', '/users', '/reports/new', '/docs']) {
     await page.goto(path)
-    await expect(page).toHaveURL(/\/defense$/)
+    await expect(page).toHaveURL(/\/defense\/new$/)
   }
 })
 
@@ -133,7 +140,9 @@ test('batch accept over a filtered selection', async ({ page }) => {
   await expect(page.locator('.ok.msg')).toContainText('2')
   // They left "Novas" and wait for their RVS.
   await expect(page.locator('tbody tr:not(:has(td.empty))')).toHaveCount(0)
-  await page.click('.tab:has-text("Aguardando RVS")')
+  await section(page, 'Aguardando RVS')
+  await expect(page.locator('.filterbar input')).toHaveValue('')                 // each section starts clean
+  await page.fill('.filterbar input', `e2e-batch-${u}`)
   await expect(page.locator('tbody tr:not(:has(td.empty))')).toHaveCount(2)
   for (const v of made) {
     const { data } = await api(`/vulnerabilities/${v.id}`, { token: admin })
@@ -170,13 +179,13 @@ test('a report name selects its vulns, and a quoted filter keeps spaces', async 
   await expect(rowsShown).toHaveCount(3)
   await page.locator('tbody .repLink', { hasText: name }).first().click()
   await expect(page.locator('.selectionHint')).toContainText('2')
-  await expect(page).toHaveURL(/\/defense$/)                               // it selects, it does not open
+  await expect(page).toHaveURL(/\/defense\/new$/)                           // it selects, it does not open
   await expect(page.locator('tbody tr.selected')).toHaveCount(2)
   await page.locator('tbody .repLink', { hasText: name }).first().click()
   await expect(page.locator('.selectionHint')).toHaveCount(0)
 
   // Not a link where nothing can be done with the selection.
-  await page.click('.tab:has-text("Em andamento")')
+  await section(page, 'Em andamento')
   await expect(page.locator('tbody .repLink')).toHaveCount(0)
 })
 
@@ -200,7 +209,7 @@ test('each tab offers only the batch actions its vulns allow', async ({ page }) 
   await menu.filter({ hasText: 'Aceitar' }).click()
   await okDialog()
 
-  await page.click('.tab:has-text("Aguardando RVS")')
+  await section(page, 'Aguardando RVS')
   await filter()
   await openMenu()
   await expect(menu).toHaveText(['Registrar RVS', 'Assumir risco'])
@@ -209,7 +218,7 @@ test('each tab offers only the batch actions its vulns allow', async ({ page }) 
   await okDialog()
   await expect(page.locator('.ok.msg')).toContainText('2')
 
-  await page.click('.tab:has-text("Risco assumido")')
+  await section(page, 'Risco assumido')
   await filter()
   await openMenu()
   await expect(menu).toHaveText(['Desfazer risco assumido'])
@@ -218,7 +227,7 @@ test('each tab offers only the batch actions its vulns allow', async ({ page }) 
   await expect(page.locator('.ok.msg')).toContainText('2')
 
   // Undone, they were accepted before: back to waiting for their RVS, one id each.
-  await page.click('.tab:has-text("Aguardando RVS")')
+  await section(page, 'Aguardando RVS')
   await filter()
   await openMenu()
   await menu.filter({ hasText: 'Registrar RVS' }).click()
@@ -240,14 +249,9 @@ test('each tab offers only the batch actions its vulns allow', async ({ page }) 
   await form.locator('.btn.primary').click()
   await expect(form).toHaveCount(0)
 
-  await page.click('.tab:has-text("Em andamento")')
+  await section(page, 'Em andamento')
   await filter()
   await expect(page.locator('tbody tr', { hasText: rvsA })).toHaveCount(1)
   await expect(page.locator('tbody tr', { hasText: rvsB })).toHaveCount(1)
   await expect(page.locator('tbody .check, thead .check')).toHaveCount(0)       // nothing to do here
-
-  await page.click('.tab:has-text("Todas")')
-  await filter()
-  await openMenu()
-  await expect(menu).toHaveText(['Aceitar', 'Registrar RVS', 'Assumir risco', 'Desfazer risco assumido'])
 })

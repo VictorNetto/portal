@@ -306,18 +306,13 @@ The UUID `id` is the database key; it stays out of the screens and appears in UR
   sent vuln, accepted or not, with a reason (5+ characters). It ends the flow like *fixed*: a report
   is done when every vuln is fixed or risk-accepted (`closed_count`). An admin correction back to
   *sent* undoes the decision and its reason.
-- **The defense list** works like the Hub: work tabs (Novas, Aguardando RVS, Em andamento,
-  Corrigidas, Risco assumido, Todas), the filter bar with its own keys (status, cvss, id, report),
-  pagination, and a batch menu with what each tab allows: Novas — Aceitar, Assumir risco;
-  Aguardando RVS — Registrar RVS (a form with one field per vuln), Assumir risco;
-  Risco assumido — Desfazer; Todas — all of them, each applied to the vulns it fits. Em andamento
-  and Corrigidas belong to the red team: no actions, no selection. Where there are actions, a
-  report name selects that report's vulns (a second click clears them).
-- **One RVS ID per vuln:** unique among live vulns, ignoring case and surrounding spaces
-  (app check with the owner's internal ID in the 409, plus a unique index for races). A deleted
-  vuln, or a correction that removes the ID, frees it. Applies to the red team, the defense team
-  and the integration API alike.
-- **Undo risk accepted:** the defense team can take the decision back; the vuln returns to sent
-  (Novas, or Aguardando RVS if it was accepted before). The old reason stays in the audit log.
+- **The defense team's rail** has one page per section, each with its icon: Novas, Aguardando RVS,
+  Em andamento, Corrigidas, Risco assumido (`frontend/src/defenseSections.js`). There is no "all"
+  page. Each page works like the Hub: the filter bar with its own keys (status, cvss, id, report),
+  pagination, and a batch menu with what the section allows: Novas — Aceitar, Assumir risco;
+  Aguardando RVS — Registrar RVS (a form with one field per vuln), Assumir risco; Risco assumido —
+  Desfazer. Em andamento and Corrigidas belong to the red team: no actions, no selection. Where
+  there are actions, a report name selects that report's vulns (a second click clears them). A
+  vulnerability page keeps the section it was opened from lit, and its breadcrumb leads back there.
 - **Filter values end at the first space;** a value with spaces is quoted: `report:"Rede do Data
   Center"`. Applies to every key and to free text, in the Hub and the defense list.

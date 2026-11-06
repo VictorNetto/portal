@@ -6,6 +6,7 @@ import { t, locale, setLocale, LOCALES } from '../i18n'
 import { canCreate } from '../access'
 import { confirmDialog } from '../dialog'
 import { hasUnsaved, mmss, sessionLeft, setDiscarding } from '../session'
+import { SECTIONS } from '../defenseSections'
 
 const router = useRouter()
 const route = useRoute()
@@ -31,10 +32,8 @@ const allNavItems = [
   { icon: 'M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z', label: 'nav.audit', to: '/audit-logs', roles: ['auditor'] },
   { icon: 'M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0M14 4v4M8 10v4M16 16v4', label: 'nav.admin', to: '/audit-logs', adminOnly: true, bottom: true },
 ]
-// D17: the defense team's rail.
-const defenseItems = [
-  { icon: 'M4 13h4l2 3h4l2-3h4M4 13l2.5-8h11l2.5 8v6a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1z', label: 'nav.defenseInbox', to: '/defense' },
-]
+// D17: the defense team's rail, one item per section.
+const defenseItems = SECTIONS.map((s) => ({ icon: s.icon, label: 'defense.tabs.' + s.key, to: s.path, section: s.key }))
 // The admin area: while an admin is on one of these pages the rail shows only them.
 const adminItems = [
   { icon: 'M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z', label: 'nav.audit', to: '/audit-logs' },
@@ -57,7 +56,8 @@ const navItems = computed(() =>
 function isActive(item) {
   if (item.children) return item.children.some(isActive)
   if (!item.to) return false
-  if (item.to === '/defense') return route.path.startsWith('/defense')
+  // A vulnerability page keeps the section it was opened from lit.
+  if (item.section) return route.path === item.to || route.query.from === item.section
   if (item.to === '/hub') {
     return route.path === '/hub' ||
       (route.path.startsWith('/vulnerabilities/') && route.path !== '/vulnerabilities/new')

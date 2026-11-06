@@ -14,6 +14,7 @@ import AppShell from '../components/AppShell.vue'
 import MarkdownView from '../components/MarkdownView.vue'
 import AttachmentsPanel from '../components/AttachmentsPanel.vue'
 import VulnTimeline from '../components/VulnTimeline.vue'
+import { SECTIONS, sectionOf } from '../defenseSections'
 
 const route = useRoute()
 const router = useRouter()
@@ -38,6 +39,8 @@ const mayAccept = computed(() => vuln.value?.status === 'sent' && !vuln.value.ac
 const mayRecordRvs = computed(() => vuln.value?.status === 'sent' && !!vuln.value.accepted_at)
 // Instead of fixing it, the team may assume the risk, with a reason (accepted or not).
 const mayAcceptRisk = computed(() => vuln.value?.status === 'sent')
+// The breadcrumb leads back to the section it was opened from (or the one it is in now).
+const crumbSection = computed(() => SECTIONS.find((s) => s.key === route.query.from) || (vuln.value ? sectionOf(vuln.value) : SECTIONS[0]))
 const sevClass = (s) => { const n = Number(s); return n >= 7 ? 'hi' : n >= 4 ? 'me' : 'lo' }
 
 async function load() {
@@ -106,7 +109,7 @@ watch(() => route.params.id, (id) => { if (id) load() })
   <AppShell>
     <div class="stickyTop">
       <nav class="crumbs">
-        <a @click="router.push('/defense')">{{ t('defense.title') }}</a>
+        <a @click="router.push(crumbSection.path)">{{ t('defense.tabs.' + crumbSection.key) }}</a>
         <span>›</span>
         <strong>{{ vuln?.identifier || vuln?.internal_id || '…' }}</strong>
       </nav>

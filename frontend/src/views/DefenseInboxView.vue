@@ -1,8 +1,9 @@
 <script setup>
-// The defense team's list (D17), laid out like the Hub: work tabs, the filter bar,
-// pagination, and a batch menu with the actions that fit the tab's vulns.
+// One section of the defense team's work (D17), laid out like the Hub: the filter bar,
+// pagination, and a batch menu with the actions that fit the section's vulns.
+// Each section is its own page in the left rail (defenseSections.js).
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { defenseVulns, defenseAccept, defenseAcceptRisk, defenseSetRvs, defenseUndoRisk, ApiError } from '../api'
 import { t } from '../i18n'
 import { fmtDate, fmtDateTime } from '../dates'
@@ -10,38 +11,39 @@ import { confirmDialog, promptDialog } from '../dialog'
 import { DEFENSE_FILTER_KEYS, parseQuery } from '../filterQuery'
 import AppShell from '../components/AppShell.vue'
 import FilterBar from '../components/FilterBar.vue'
+import { SECTIONS } from '../defenseSections'
 
 const router = useRouter()
+const route = useRoute()
 const items = ref([])
 const loading = ref(true)
 const error = ref('')
 const notice = ref('')
 
-const isNew = (v) => v.status === 'sent' && !v.accepted_at
-const awaitingRvs = (v) => v.status === 'sent' && !!v.accepted_at
-const riskAccepted = (v) => v.status === 'risk_accepted'
-// Each tab offers only what its vulns allow. Fixing, retesting and fixed belong to the
-// red team now, so those tabs have no actions (and no selection). "Todas" offers all of
-// them; each one applies to the selected vulns it fits and skips the rest.
-const TABS = [
-  { key: 'new', test: isNew, actions: ['accept', 'acceptRisk'] },
-  { key: 'awaitingRvs', test: awaitingRvs, actions: ['rvs', 'acceptRisk'] },
-  { key: 'inProgress', test: (v) => ['fixing', 'retesting'].includes(v.status), actions: [] },
-  { key: 'fixed', test: (v) => v.status === 'fixed', actions: [] },
-  { key: 'riskAccepted', test: riskAccepted, actions: ['undoRisk'] },
-  { key: 'all', test: () => true, actions: ['accept', 'rvs', 'acceptRisk', 'undoRisk'] },
-]
-const tab = ref('new')
-const tabActions = computed(() => TABS.find((x) => x.key === tab.value).actions)
+const byKey = Object.fromEntries(SECTIONS.map((s) => [s.key, s]))
+const isNew = byKey.new.test
+const awaitingRvs = byKey.awaitingRvs.test
+const riskAccepted = byKey.riskAccepted.test
+// Each section offers only what its vulns allow. Fixing, retesting and fixed belong to the
+// red team now, so those sections have no actions (and no selection).
+const SECTION_ACTIONS = {
+  new: ['accept', 'acceptRisk'],
+  awaitingRvs: ['rvs', 'acceptRisk'],
+  inProgress: [],
+  fixed: [],
+  riskAccepted: ['undoRisk'],
+}
+const tab = computed(() => route.meta.section || 'new')
+const section = computed(() => byKey[tab.value])
+const tabActions = computed(() => SECTION_ACTIONS[tab.value])
 // Selecting (checkboxes, and report names that select their vulns) only where something can follow.
 const selectable = computed(() => tabActions.value.length > 0)
-const count = (key) => items.value.filter(TABS.find((x) => x.key === key).test).length
 
 // The filter applies within the tab (the report field is matched by name, as in the Hub).
 const query = ref('')
 const filterBar = ref(null)
 const rows = computed(() => {
-  let list = items.value.filter(TABS.find((x) => x.key === tab.value).test)
+  let list = items.value.filter(section.value.test)
   if (query.value.trim()) list = list.filter(parseQuery(query.value).predicate)
   return list
 })
@@ -58,8 +60,9 @@ const rangeLabel = computed(() => {
   return `${start}-${Math.min(page.value * pageSize, total)} ${t('hub.of')} ${total}`
 })
 
-// Selection: a new tab or filter starts clean.
+// Each section starts clean; a new filter starts on page 1 with nothing selected.
 const selected = ref(new Set())
+watch(tab, () => { query.value = ''; notice.value = ''; error.value = '' })
 watch([tab, query], () => { page.value = 1; selected.value = new Set() })
 const allChecked = computed(() => pageRows.value.length > 0 && pageRows.value.every((v) => selected.value.has(v.id)))
 const someChecked = computed(() => pageRows.value.some((v) => selected.value.has(v.id)) && !allChecked.value)
@@ -210,12 +213,13 @@ onUnmounted(() => {
 <template>
   <AppShell>
     <div class="page">
-      <div class="top">
-        <div class="tabs">
-          <button v-for="x in TABS" :key="x.key" class="tab" :class="{ active: tab === x.key }" @click="tab = x.key">
-            {{ t('defense.tabs.' + x.key) }} <span class="n">{{ count(x.key) }}</span>
-          </button>
+      <div class="pageTop">
+        <div class="titleBlock">
+          <h1>{{ t('defense.tabs.' + tab) }}</h1>
+          <p>{{ t('defense.hints.' + tab) }}</p>
         </div>
+      </div>
+      <div class="top">
         <FilterBar ref="filterBar" v-model="query" class="filter" :keys="DEFENSE_FILTER_KEYS" help="filter.defenseHelp" />
         <div class="toolbar">
           <span v-if="selected.size" class="selectionHint mono">{{ selected.size }} {{ t('hub.selected') }}</span>
@@ -253,7 +257,7 @@ onUnmounted(() => {
           </thead>
           <tbody>
             <tr v-for="v in pageRows" :key="v.id" :class="{ selected: selected.has(v.id) }"
-                @click="router.push(`/defense/vulnerabilities/${v.id}`)">
+                @click="router.push({ path: `/defense/vulnerabilities/${v.id}`, query: { from: tab } })">
               <td @click.stop><input v-if="selectable" type="checkbox" class="check" :checked="selected.has(v.id)" @change="toggleRow(v.id)" /></td>
               <td class="val idcell" :title="v.identifier">{{ v.identifier || '—' }}</td>
               <td><span class="pill" :class="stateClass(v)">{{ stateLabel(v) }}</span></td>
@@ -305,14 +309,9 @@ onUnmounted(() => {
 .page { height: 100%; display: flex; flex-direction: column; }
 .page > * { flex: 0 0 auto; }
 .page > .tablePanel { flex: 0 1 auto; min-height: 0; overflow: auto; }
-.top { display: flex; align-items: center; gap: 24px; margin-bottom: 18px; border-bottom: 1px solid var(--line); }
-.tabs { display: flex; gap: 24px; flex: 0 0 auto; }
-.tab { border: 0; background: transparent; color: var(--muted); padding: 10px 0 9px; font-size: 14px; border-bottom: 2px solid transparent; margin-bottom: -1px; }
-.tab:hover:not(.active) { color: var(--text); }
-.tab.active { color: var(--text); border-color: var(--accent); }
-.tab .n { margin-left: 4px; font-size: 12px; color: var(--dim); }
-.filter { flex: 1 1 auto; min-width: 0; margin-bottom: 8px; }
-.toolbar { display: flex; gap: 10px; align-items: center; flex: 0 0 auto; margin-bottom: 8px; }
+.top { display: flex; align-items: center; gap: 16px; margin-bottom: 14px; }
+.filter { flex: 1 1 auto; min-width: 0; }
+.toolbar { display: flex; gap: 10px; align-items: center; flex: 0 0 auto; }
 .selectionHint { color: var(--muted); font-size: 12px; }
 .batchWrap { position: relative; }
 .pagination.top { margin: 0 0 12px; }
