@@ -66,15 +66,21 @@ const autocomplete = computed(() => {
     return { mode: 'key', negate, options }
   }
 
-  // value mode: "[-]key:partial" — show ALL of the key's values (no filtering
-  // by the typed partial).
+  // value mode: "[-]key:partial". Nothing typed yet: all of the key's values. Once
+  // something is typed, only the values that start with it; and no menu when none
+  // does, or when it is already one of them, so Enter never swaps a typed value
+  // (created:45d, cvss:7.5) for a suggestion.
   const neg2 = t[0] === '-' && t.length > 1
   const body = neg2 ? t.slice(1) : t
   const colon = body.indexOf(':')
   if (colon > 0) {
     const key = body.slice(0, colon).toLowerCase()
+    const partial = body.slice(colon + 1).toLowerCase()
     const vals = valuesFor(key)
-    if (vals && vals.length) return { mode: 'value', negate: neg2, key, options: vals }
+    if (!vals?.length) return null
+    const options = partial ? vals.filter((v) => String(v).toLowerCase().startsWith(partial)) : vals
+    if (!options.length || options.some((v) => String(v).toLowerCase() === partial)) return null
+    return { mode: 'value', negate: neg2, key, options }
   }
   return null
 })

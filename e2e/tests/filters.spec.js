@@ -61,6 +61,32 @@ test.describe('filter menu', () => {
   })
 })
 
+test.describe('typed values', () => {
+  test('Enter keeps a typed value; suggestions narrow to what was typed', async ({ page }) => {
+    await loginUI(page, writer.username, writer.password)
+    const input = page.locator('.filterbar input')
+    for (const value of ['created:45d', 'created:7m', 'updated:2y', 'cvss:7.5', 'created:01-10-2026..']) {
+      await input.fill(value)
+      await expect(menu(page), value).toHaveCount(0)            // nothing to pick from
+      await input.press('Enter')
+      await expect(input).toHaveValue(value)
+    }
+    // A suggestion typed in full closes the menu too.
+    await input.fill('created:30d')
+    await expect(menu(page)).toHaveCount(0)
+    // A partial value lists only what starts with it, and Enter picks it.
+    await input.fill('created:3')
+    await expect(menu(page)).toHaveText(['30d'])
+    await input.press('Enter')
+    await expect(input).toHaveValue('created:30d')
+    await input.fill('status:fix')
+    await expect(menu(page)).toHaveText(['fixing', 'fixed'])
+    // Nothing typed yet: every suggestion.
+    await input.fill('created:')
+    await expect(menu(page)).toHaveText(['1d', '7d', '30d', '90d', '1y'])
+  })
+})
+
 test.describe('date filters', () => {
   test('created:1d keeps what was made today, -created:1d hides it', async ({ page }) => {
     const u = tag()
