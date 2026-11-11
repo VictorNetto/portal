@@ -13,12 +13,8 @@
 //   operator:<text>              an operator's username contains (ci)
 //   source:<text>                source contains (ci)
 //   report:<text>                report id or name contains (ci); report:none = not in a report
-//   <date key>:<when>            the row's date for that key falls in <when> (DATE_KEYS):
-//       7d                         the last 7 days, today included (1d = today)
-//       3m                         the last 3 months
-//       2026-10-01                 on or after that day
-//       2026-10                    in that month
-//       2026-09-01..2026-09-30     in that range, both ends included (months work too)
+//   <date key>:<when>            the row's date for that key falls in <when> (DATE_KEYS;
+//                                see parsePeriod): 7d, 3m, 1y, or d1.d2.d3 (dd-mm-aaaa, mm-aaaa, aaaa).
 //     A row without that date never matches, so -sent:15d also keeps the unsent ones.
 //
 // The "/" menu lists only the basic keys, plus "more filters" for the advanced ones
@@ -44,7 +40,7 @@ export const DATE_KEYS = {
   risk: 'risk_accepted_at',
 }
 // Suggested values in a date key's menu.
-export const DATE_VALUES = ['1d', '7d', '30d', '90d']
+export const DATE_VALUES = ['1d', '7d', '30d', '90d', '1y']
 const dateKey = (key) => ({ key, enumerable: true, values: DATE_VALUES, advanced: true })
 
 // `enumerable: true` means the key has a known, listable value set and should
@@ -70,53 +66,65 @@ export const DEFENSE_FILTER_KEYS = [
 
 // --- dates ------------------------------------------------------------------
 // All periods are in the browser's local time, like the dates the lists show.
-const DAY_RE = /^(\d{4})-(\d{2})-(\d{2})$/
-const MONTH_RE = /^(\d{4})-(\d{2})$/
+//
+// Relative: 7d, 3m, 2y = the last 7 days (today included; 1d = today), 3 months, 2 years.
+// Explicit: up to three dates separated by dots, d1.d2.d3, each dd-mm-aaaa, mm-aaaa or aaaa
+// (one-digit days and months are fine):
+//   d1..d3    from the start of d1 to the end of d3
+//   d1..      d1 or later
+//   ..d3      d3 or earlier
+//   .d2.      within d2 (that day, month or year); a single date without dots means the same
+//   d2 counts only on its own: with d1 or d3 present, it is ignored.
+const DAY_RE = /^(\d{1,2})-(\d{1,2})-(\d{4})$/
+const MONTH_RE = /^(\d{1,2})-(\d{4})$/
+const YEAR_RE = /^(\d{4})$/
 
-// One calendar day or month as [start, end) local times; null when not a real date.
+// One day, month or year as [start, end) local times; null when not a real date.
 function calendarSpan(text) {
   let m = DAY_RE.exec(text)
   if (m) {
-    const [y, mo, d] = [Number(m[1]), Number(m[2]) - 1, Number(m[3])]
+    const [d, mo, y] = [Number(m[1]), Number(m[2]) - 1, Number(m[3])]
     const start = new Date(y, mo, d)
     if (start.getFullYear() !== y || start.getMonth() !== mo || start.getDate() !== d) return null
     return [start, new Date(y, mo, d + 1)]
   }
   m = MONTH_RE.exec(text)
   if (m) {
-    const [y, mo] = [Number(m[1]), Number(m[2]) - 1]
+    const [mo, y] = [Number(m[1]) - 1, Number(m[2])]
     if (mo < 0 || mo > 11) return null
     return [new Date(y, mo, 1), new Date(y, mo + 1, 1)]
+  }
+  m = YEAR_RE.exec(text)
+  if (m) {
+    const y = Number(m[1])
+    return [new Date(y, 0, 1), new Date(y + 1, 0, 1)]
   }
   return null
 }
 
-/** A date filter's value as { from, to } (local Dates, `to` exclusive or null); null if invalid. */
+/** A date filter's value as { from, to } (local Dates, either may be null; `to` exclusive); null if invalid. */
 export function parsePeriod(text, now = new Date()) {
   const v = String(text || '').trim().toLowerCase()
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
-  let m = /^(\d{1,4})d$/.exec(v)
-  if (m && Number(m[1]) >= 1) {
-    return { from: new Date(today.getFullYear(), today.getMonth(), today.getDate() - (Number(m[1]) - 1)), to: null }
+  const [y, mo, d] = [now.getFullYear(), now.getMonth(), now.getDate()]
+  const rel = /^(\d{1,4})([dmy])$/.exec(v)
+  if (rel) {
+    const n = Number(rel[1])
+    if (n < 1) return null
+    if (rel[2] === 'd') return { from: new Date(y, mo, d - (n - 1)), to: null }
+    if (rel[2] === 'm') return { from: new Date(y, mo - n, d), to: null }
+    return { from: new Date(y - n, mo, d), to: null }
   }
-  m = /^(\d{1,3})m$/.exec(v)
-  if (m && Number(m[1]) >= 1) {
-    return { from: new Date(today.getFullYear(), today.getMonth() - Number(m[1]), today.getDate()), to: null }
+
+  const parts = v.split('.')
+  if (parts.length === 1) parts.splice(0, 1, '', parts[0], '')    // a single date is d2
+  if (parts.length !== 3) return null
+  const [d1, d2, d3] = parts.map((p) => (p ? calendarSpan(p) : undefined))
+  if ([d1, d2, d3].includes(null)) return null                     // a date that doesn't exist
+  if (d1 || d3) {
+    if (d1 && d3 && d3[1] <= d1[0]) return null                    // the range ends before it starts
+    return { from: d1 ? d1[0] : null, to: d3 ? d3[1] : null }
   }
-  if (v.includes('..')) {
-    const [a, b, extra] = v.split('..')
-    if (extra !== undefined) return null
-    const first = calendarSpan(a)
-    const last = calendarSpan(b)
-    if (!first || !last || last[1] <= first[0]) return null
-    return { from: first[0], to: last[1] }
-  }
-  if (DAY_RE.test(v)) {
-    const span = calendarSpan(v)
-    return span ? { from: span[0], to: null } : null
-  }
-  const span = calendarSpan(v)
-  return span ? { from: span[0], to: span[1] } : null
+  return d2 ? { from: d2[0], to: d2[1] } : null
 }
 
 // CVSS value: 0..10 with at most one decimal place. Accepts "7", "7.8", "10".
@@ -210,7 +218,7 @@ function baseMatch(tok, r) {
     default: {
       if (!(tok.key in DATE_KEYS)) return true
       const d = parseUtc(r[DATE_KEYS[tok.key]])
-      return !!d && d >= tok.value.from && (!tok.value.to || d < tok.value.to)
+      return !!d && (!tok.value.from || d >= tok.value.from) && (!tok.value.to || d < tok.value.to)
     }
   }
 }

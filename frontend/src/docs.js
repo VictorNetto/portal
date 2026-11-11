@@ -81,13 +81,19 @@ No fim do menu, **Mais filtros…** mostra os filtros avançados, como as datas 
 - \`fixing\`: início da correção; \`retesting\`: reteste solicitado; \`fixed\`: corrigida
 - \`risk\`: risco assumido
 
-E o valor diz o período:
+E o valor diz o período. Relativo a hoje:
 
 - \`created:7d\`: nos últimos 7 dias, contando hoje (\`1d\` é hoje)
-- \`created:3m\`: nos últimos 3 meses
-- \`sent:2026-10-01\`: a partir desse dia
-- \`fixed:2026-10\`: nesse mês
-- \`fixed:2026-09-01..2026-09-30\`: nesse intervalo, com os dois dias incluídos (também vale com meses: \`2026-09..2026-10\`)
+- \`created:3m\` e \`created:1y\`: nos últimos 3 meses, no último ano
+
+Ou com datas, até três separadas por pontos (\`d1.d2.d3\`), cada uma como dia (\`05-10-2026\`), mês (\`10-2026\`) ou ano (\`2026\`):
+
+- \`fixed:01-09-2026..30-09-2026\`: de d1 até d3, com os dois incluídos (\`fixed:09-2026..10-2026\`: setembro e outubro)
+- \`sent:01-10-2026..\`: d1 ou depois
+- \`sent:..31-12-2025\`: d3 ou antes
+- \`fixed:10-2026\` (ou \`fixed:.10-2026.\`): só d2, ou seja, nesse dia, mês ou ano
+
+Quando há d1 ou d3, d2 é ignorado.
 
 Com \`-\`, o período se inverte: \`-updated:30d\` mostra o que não é alterado há 30 dias. Uma vulnerabilidade sem aquela data também entra, por isso combine com o status:
 
@@ -870,11 +876,14 @@ O valor vai até o primeiro espaço. Para incluir espaços, use aspas: \`report:
 
 **Datas**, em **Mais filtros…** no fim do menu: \`sent\` (recebida), \`accepted\` (aceita), \`fixing\` (início da correção), \`retesting\` (reteste solicitado), \`fixed\` (corrigida) e \`risk\` (risco assumido). O valor diz o período:
 
-- \`sent:7d\`: nos últimos 7 dias, contando hoje (\`1d\` é hoje)
-- \`sent:2026-10-01\`: a partir desse dia
-- \`fixed:2026-10\`: nesse mês
-- \`fixed:2026-09-01..2026-09-30\`: nesse intervalo, com os dois dias incluídos
-- \`-sent:15d\`: o contrário: recebidas há mais de 15 dias`,
+- \`sent:7d\`: nos últimos 7 dias, contando hoje (\`1d\` é hoje); também \`3m\` (meses) e \`1y\` (anos)
+- \`sent:01-10-2026..\`: nesse dia ou depois
+- \`sent:..31-10-2026\`: nesse dia ou antes
+- \`fixed:01-09-2026..30-09-2026\`: nesse intervalo, com os dois dias incluídos
+- \`fixed:10-2026\`: nesse mês (\`2026\`: nesse ano)
+- \`-sent:15d\`: o contrário: recebidas há mais de 15 dias
+
+Datas como dia (\`05-10-2026\`), mês (\`10-2026\`) ou ano (\`2026\`).`,
       },
       {
         id: 'def-depois', title: 'Depois do RVS',
@@ -1018,13 +1027,19 @@ At the end of the menu, **More filters…** shows the advanced filters, such as 
 - \`fixing\`: fix started; \`retesting\`: retest requested; \`fixed\`: fixed
 - \`risk\`: risk accepted
 
-And the value gives the period:
+And the value gives the period. Relative to today:
 
 - \`created:7d\`: in the last 7 days, today included (\`1d\` is today)
-- \`created:3m\`: in the last 3 months
-- \`sent:2026-10-01\`: from that day on
-- \`fixed:2026-10\`: in that month
-- \`fixed:2026-09-01..2026-09-30\`: in that range, both days included (months work too: \`2026-09..2026-10\`)
+- \`created:3m\` and \`created:1y\`: in the last 3 months, the last year
+
+Or with dates, up to three separated by dots (\`d1.d2.d3\`), each a day (\`05-10-2026\`), month (\`10-2026\`) or year (\`2026\`):
+
+- \`fixed:01-09-2026..30-09-2026\`: from d1 to d3, both included (\`fixed:09-2026..10-2026\`: September and October)
+- \`sent:01-10-2026..\`: d1 or later
+- \`sent:..31-12-2025\`: d3 or earlier
+- \`fixed:10-2026\` (or \`fixed:.10-2026.\`): d2 only, that is, on that day, month or year
+
+When d1 or d3 is given, d2 is ignored.
 
 With \`-\`, the period is inverted: \`-updated:30d\` shows what hasn't changed in 30 days. A vulnerability without that date is included too, so combine it with the status:
 
@@ -1807,11 +1822,14 @@ A value ends at the first space. To include spaces, quote it: \`report:"Rede do 
 
 **Dates**, under **More filters…** at the end of the menu: \`sent\` (received), \`accepted\`, \`fixing\` (fix started), \`retesting\` (retest requested), \`fixed\` and \`risk\` (risk accepted). The value gives the period:
 
-- \`sent:7d\`: in the last 7 days, today included (\`1d\` is today)
-- \`sent:2026-10-01\`: from that day on
-- \`fixed:2026-10\`: in that month
-- \`fixed:2026-09-01..2026-09-30\`: in that range, both days included
-- \`-sent:15d\`: the opposite: received more than 15 days ago`,
+- \`sent:7d\`: in the last 7 days, today included (\`1d\` is today); also \`3m\` (months) and \`1y\` (years)
+- \`sent:01-10-2026..\`: on that day or later
+- \`sent:..31-10-2026\`: on that day or earlier
+- \`fixed:01-09-2026..30-09-2026\`: in that range, both days included
+- \`fixed:10-2026\`: in that month (\`2026\`: in that year)
+- \`-sent:15d\`: the opposite: received more than 15 days ago
+
+Dates as a day (\`05-10-2026\`), month (\`10-2026\`) or year (\`2026\`).`,
       },
       {
         id: 'def-depois', title: 'After the RVS',

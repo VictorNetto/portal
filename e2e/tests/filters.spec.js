@@ -32,7 +32,7 @@ test.describe('filter menu', () => {
     // A date key offers quick periods, and completes the token.
     await menu(page).filter({ hasText: /^created$/ }).click()
     await expect(input).toHaveValue('created:')
-    await expect(menu(page)).toHaveText(['1d', '7d', '30d', '90d'])
+    await expect(menu(page)).toHaveText(['1d', '7d', '30d', '90d', '1y'])
     await menu(page).filter({ hasText: '7d' }).click()
     await expect(input).toHaveValue('created:7d')
 
@@ -72,20 +72,29 @@ test.describe('date filters', () => {
     expect(await rowCount(page)).toBe(1)
     await filterHub(page, `e2e-date-${u} -created:1d`)
     expect(await rowCount(page)).toBe(0)
-    // A range that ended long ago, and one around today.
-    await filterHub(page, `e2e-date-${u} created:2020-01..2020-12`)
-    expect(await rowCount(page)).toBe(0)
-    const today = new Date()
-    const ym = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`
-    await filterHub(page, `e2e-date-${u} created:${ym}`)
-    expect(await rowCount(page)).toBe(1)
+    // Explicit dates, d1.d2.d3 in Brazilian order.
+    const now = new Date()
+    const pad = (n) => String(n).padStart(2, '0')
+    const day = `${pad(now.getDate())}-${pad(now.getMonth() + 1)}-${now.getFullYear()}`
+    const month = `${pad(now.getMonth() + 1)}-${now.getFullYear()}`
+    const cases = {
+      '01-2020..12-2020': 0,                    // a range that ended long ago
+      [`${now.getFullYear() - 1}..${now.getFullYear()}`]: 1,
+      [month]: 1,                               // a single date: within it
+      [`.${day}.`]: 1,                          // d2 only: the same
+      [`${day}..`]: 1,                          // today or later
+      [`..${now.getFullYear() - 1}`]: 0,        // last year or earlier
+      '1y': 1,
+      '31-02-2026': 1,                          // not a date: the filter is ignored
+    }
+    for (const [when, n] of Object.entries(cases)) {
+      await filterHub(page, `e2e-date-${u} created:${when}`)
+      expect(await rowCount(page), when).toBe(n)
+    }
     // Never sent, so no sent date: sent:30d excludes it, -sent:30d keeps it.
     await filterHub(page, `e2e-date-${u} sent:30d`)
     expect(await rowCount(page)).toBe(0)
     await filterHub(page, `e2e-date-${u} -sent:30d`)
-    expect(await rowCount(page)).toBe(1)
-    // An invalid date is ignored rather than hiding everything.
-    await filterHub(page, `e2e-date-${u} created:2026-02-31`)
     expect(await rowCount(page)).toBe(1)
   })
 
