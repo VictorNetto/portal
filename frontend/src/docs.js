@@ -56,18 +56,45 @@ As vulnerabilidades de um relatório seguem o acesso do relatório.`,
         id: 'operacoes', title: 'Operações e filtros',
         md: `A página **Operações** lista vulnerabilidades e relatórios. A lista mostra só o essencial. Clique em uma linha para ver todas as informações no painel de detalhes, abaixo da lista; **Abrir** leva à página do registro. Marque várias linhas para ações em lote (exportar, enviar, excluir). Itens que não podem receber a ação são ignorados e informados.
 
-Use a caixa **Filtrar**. Digite \`/\` para ver as chaves disponíveis:
+Use a caixa **Filtrar**. Texto livre busca no identificador. Digite \`/\` para ver as chaves:
 
 - \`status:draft\`: status exato
 - \`cvss:7\`: CVSS maior ou igual a 7
-- \`operator:nome\`: operador atribuído
-- \`id:CVE\`: identificador contém
-- \`source:nuclei\`: fonte contém
 - \`report:nome\`: relatório contém (\`report:none\` mostra as que não estão em relatório)
-- texto livre: busca no identificador
+- \`operator:nome\`: operador atribuído
 - \`-chave:valor\`: exclui o que corresponde
 
-O valor vai até o primeiro espaço. Para incluir espaços, use aspas: \`report:"Rede do Data Center"\`. Vários termos são combinados com **E**.`,
+O valor vai até o primeiro espaço. Para incluir espaços, use aspas: \`report:"Rede do Data Center"\`. Vários termos são combinados com **E**.
+
+No fim do menu, **Mais filtros…** mostra os filtros avançados, como as datas (próximo tópico).`,
+      },
+      {
+        id: 'filtros-avancados', title: 'Filtros avançados',
+        md: `Aparecem em **Mais filtros…**, no fim do menu do \`/\`. Quem já sabe o nome de uma chave pode digitá-lo direto.
+
+- \`source:nuclei\`: fonte contém
+
+**Datas.** Cada chave lê uma data da vulnerabilidade:
+
+- \`created\`: criada; \`updated\`: alterada pela última vez
+- \`sent\`: enviada; \`accepted\`: aceita pelo time de defesa
+- \`fixing\`: início da correção; \`retesting\`: reteste solicitado; \`fixed\`: corrigida
+- \`risk\`: risco assumido
+
+E o valor diz o período:
+
+- \`created:7d\`: nos últimos 7 dias, contando hoje (\`1d\` é hoje)
+- \`created:3m\`: nos últimos 3 meses
+- \`sent:2026-10-01\`: a partir desse dia
+- \`fixed:2026-10\`: nesse mês
+- \`fixed:2026-09-01..2026-09-30\`: nesse intervalo, com os dois dias incluídos (também vale com meses: \`2026-09..2026-10\`)
+
+Com \`-\`, o período se inverte: \`-updated:30d\` mostra o que não é alterado há 30 dias. Uma vulnerabilidade sem aquela data também entra, por isso combine com o status:
+
+- \`status:sent -sent:15d\`: enviadas há mais de 15 dias e ainda sem resposta do time de defesa
+- \`status:draft -updated:30d\`: rascunhos esquecidos
+
+Nos relatórios, valem \`created\`, \`updated\` e \`sent\`. As datas seguem o fuso do seu navegador.`,
       },
       {
         id: 'textos', title: 'Textos, imagens e anexos',
@@ -832,16 +859,22 @@ Ao final, o portal mostra quantas foram feitas, quantas foram ignoradas (não se
       },
       {
         id: 'def-filtros', title: 'Filtros',
-        md: `Use a caixa **Filtrar** no topo de cada seção. Digite \`/\` para ver as chaves:
+        md: `Use a caixa **Filtrar** no topo de cada seção. Texto livre busca no identificador. Digite \`/\` para ver as chaves:
 
 - \`status:fixing\`: situação exata (\`sent\`, \`fixing\`, \`retesting\`, \`fixed\`, \`risk_accepted\`)
 - \`cvss:7\`: CVSS maior ou igual a 7
-- \`id:senha\`: identificador contém
 - \`report:Data\`: relatório contém (\`report:none\` mostra as que não vieram de um relatório)
-- texto livre: busca no identificador
 - \`-chave:valor\`: exclui o que corresponde
 
-O valor vai até o primeiro espaço. Para incluir espaços, use aspas: \`report:"Rede do Data Center"\`. Vários termos são combinados com **E**. Cada seção começa sem filtro.`,
+O valor vai até o primeiro espaço. Para incluir espaços, use aspas: \`report:"Rede do Data Center"\`. Vários termos são combinados com **E**. Cada seção começa sem filtro.
+
+**Datas**, em **Mais filtros…** no fim do menu: \`sent\` (recebida), \`accepted\` (aceita), \`fixing\` (início da correção), \`retesting\` (reteste solicitado), \`fixed\` (corrigida) e \`risk\` (risco assumido). O valor diz o período:
+
+- \`sent:7d\`: nos últimos 7 dias, contando hoje (\`1d\` é hoje)
+- \`sent:2026-10-01\`: a partir desse dia
+- \`fixed:2026-10\`: nesse mês
+- \`fixed:2026-09-01..2026-09-30\`: nesse intervalo, com os dois dias incluídos
+- \`-sent:15d\`: o contrário: recebidas há mais de 15 dias`,
       },
       {
         id: 'def-depois', title: 'Depois do RVS',
@@ -960,18 +993,45 @@ A report's vulnerabilities follow the report's access.`,
         id: 'operacoes', title: 'Operations and filters',
         md: `The **Operations** page lists vulnerabilities and reports. The list shows only the essentials. Click a row to see everything in the detail panel below the list; **Open** goes to the record's page. Tick several rows for batch actions (export, send, delete). Items the action doesn't apply to are skipped and reported.
 
-Use the **Filter** box. Type \`/\` to see the keys:
+Use the **Filter** box. Free text searches the identifier. Type \`/\` to see the keys:
 
 - \`status:draft\`: exact status
 - \`cvss:7\`: CVSS 7 or higher
-- \`operator:name\`: assigned operator
-- \`id:CVE\`: identifier contains
-- \`source:nuclei\`: source contains
 - \`report:name\`: report contains (\`report:none\` shows those outside any report)
-- free text: searches the identifier
+- \`operator:name\`: assigned operator
 - \`-key:value\`: excludes matches
 
-A value ends at the first space. To include spaces, quote it: \`report:"Rede do Data Center"\`. Several terms combine with **AND**.`,
+A value ends at the first space. To include spaces, quote it: \`report:"Rede do Data Center"\`. Several terms combine with **AND**.
+
+At the end of the menu, **More filters…** shows the advanced filters, such as dates (next topic).`,
+      },
+      {
+        id: 'filtros-avancados', title: 'Advanced filters',
+        md: `They appear under **More filters…**, at the end of the \`/\` menu. If you know a key's name, just type it.
+
+- \`source:nuclei\`: source contains
+
+**Dates.** Each key reads one of the vulnerability's dates:
+
+- \`created\`: created; \`updated\`: last changed
+- \`sent\`: sent; \`accepted\`: accepted by the defense team
+- \`fixing\`: fix started; \`retesting\`: retest requested; \`fixed\`: fixed
+- \`risk\`: risk accepted
+
+And the value gives the period:
+
+- \`created:7d\`: in the last 7 days, today included (\`1d\` is today)
+- \`created:3m\`: in the last 3 months
+- \`sent:2026-10-01\`: from that day on
+- \`fixed:2026-10\`: in that month
+- \`fixed:2026-09-01..2026-09-30\`: in that range, both days included (months work too: \`2026-09..2026-10\`)
+
+With \`-\`, the period is inverted: \`-updated:30d\` shows what hasn't changed in 30 days. A vulnerability without that date is included too, so combine it with the status:
+
+- \`status:sent -sent:15d\`: sent more than 15 days ago and still unanswered by the defense team
+- \`status:draft -updated:30d\`: forgotten drafts
+
+For reports, \`created\`, \`updated\` and \`sent\` apply. Dates follow your browser's time zone.`,
       },
       {
         id: 'textos', title: 'Text, images and attachments',
@@ -1736,16 +1796,22 @@ At the end the portal shows how many were done, how many were skipped (they didn
       },
       {
         id: 'def-filtros', title: 'Filters',
-        md: `Use the **Filter** box at the top of each section. Type \`/\` to see the keys:
+        md: `Use the **Filter** box at the top of each section. Free text searches the identifier. Type \`/\` to see the keys:
 
 - \`status:fixing\`: exact state (\`sent\`, \`fixing\`, \`retesting\`, \`fixed\`, \`risk_accepted\`)
 - \`cvss:7\`: CVSS 7 or higher
-- \`id:password\`: identifier contains
 - \`report:Data\`: report contains (\`report:none\` shows those that didn't come from a report)
-- free text: searches the identifier
 - \`-key:value\`: excludes matches
 
-A value ends at the first space. To include spaces, quote it: \`report:"Rede do Data Center"\`. Several terms combine with **AND**. Each section starts without a filter.`,
+A value ends at the first space. To include spaces, quote it: \`report:"Rede do Data Center"\`. Several terms combine with **AND**. Each section starts without a filter.
+
+**Dates**, under **More filters…** at the end of the menu: \`sent\` (received), \`accepted\`, \`fixing\` (fix started), \`retesting\` (retest requested), \`fixed\` and \`risk\` (risk accepted). The value gives the period:
+
+- \`sent:7d\`: in the last 7 days, today included (\`1d\` is today)
+- \`sent:2026-10-01\`: from that day on
+- \`fixed:2026-10\`: in that month
+- \`fixed:2026-09-01..2026-09-30\`: in that range, both days included
+- \`-sent:15d\`: the opposite: received more than 15 days ago`,
       },
       {
         id: 'def-depois', title: 'After the RVS',

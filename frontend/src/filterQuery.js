@@ -5,14 +5,25 @@
 //   -key:value       exclude rows matching
 //   <bare text>      free search on identifier (negatable: -text)
 // A value is only what follows the ":" up to the next space. To include spaces, quote it:
-//   report:"Rede do Data Center"   "texto com espaços"   -id:"sem rotação"
+//   report:"Rede do Data Center"   "texto com espaços"   -"sem rotação"
 //
 // Keys:
 //   status:<one of STATUSES>     exact status
 //   cvss:<x>                     CVSS >= x  (x: 0..10, at most 1 decimal)
-//   id:<text> / identifier:<text>  identifier contains (ci)
+//   operator:<text>              an operator's username contains (ci)
 //   source:<text>                source contains (ci)
 //   report:<text>                report id or name contains (ci); report:none = not in a report
+//   <date key>:<when>            the row's date for that key falls in <when> (DATE_KEYS):
+//       7d                         the last 7 days, today included (1d = today)
+//       3m                         the last 3 months
+//       2026-10-01                 on or after that day
+//       2026-10                    in that month
+//       2026-09-01..2026-09-30     in that range, both ends included (months work too)
+//     A row without that date never matches, so -sent:15d also keeps the unsent ones.
+//
+// The "/" menu lists only the basic keys, plus "more filters" for the advanced ones
+// (`advanced: true`). Typing a key's name finds it either way.
+import { parseUtc } from './dates'
 
 export const STATUSES = [
   'draft', 'ready', 'sent', 'fixing', 'retesting', 'fixed', 'risk_accepted',
@@ -21,25 +32,92 @@ export const STATUSES = [
 // CVSS menu values: whole numbers 10..1 (reverse order). cvss:x means >= x.
 export const CVSS_VALUES = ['10', '9', '8', '7', '6', '5', '4', '3', '2', '1']
 
+// Date keys and the row field each one reads.
+export const DATE_KEYS = {
+  created: 'created_at',
+  updated: 'updated_at',
+  sent: 'sent_at',
+  accepted: 'accepted_at',
+  fixing: 'fixing_at',
+  retesting: 'retesting_at',
+  fixed: 'fixed_at',
+  risk: 'risk_accepted_at',
+}
+// Suggested values in a date key's menu.
+export const DATE_VALUES = ['1d', '7d', '30d', '90d']
+const dateKey = (key) => ({ key, enumerable: true, values: DATE_VALUES, advanced: true })
+
 // `enumerable: true` means the key has a known, listable value set and should
 // show a second value menu after selection (SecTools style). `values` may be
 // static (status, cvss) or resolved dynamically (operator — from loaded rows).
+// `advanced: true` keeps a key out of the first "/" menu (behind "more filters").
 export const FILTER_KEYS = [
-  { key: 'status', desc: 'status exato', enumerable: true, values: STATUSES },
-  { key: 'cvss', desc: 'CVSS ≥ x', enumerable: true, values: CVSS_VALUES },
-  { key: 'operator', desc: 'operador atribuído', enumerable: true, values: [] },
-  { key: 'id', desc: 'identificador contém', enumerable: false, values: [] },
-  { key: 'source', desc: 'fonte contém', enumerable: false, values: [] },
-  { key: 'report', desc: 'relatório contém (ou none)', enumerable: false, values: [] },
+  { key: 'status', enumerable: true, values: STATUSES },
+  { key: 'cvss', enumerable: true, values: CVSS_VALUES },
+  { key: 'report', enumerable: false, values: [] },
+  { key: 'operator', enumerable: true, values: [] },
+  { key: 'source', enumerable: false, values: [], advanced: true },
+  ...Object.keys(DATE_KEYS).map(dateKey),
 ]
 
-// The defense team's list (D17): only released statuses, and no operator or source.
+// The defense team's list (D17): only released statuses and their dates; no operator or source.
 export const DEFENSE_FILTER_KEYS = [
-  { key: 'status', desc: 'status exato', enumerable: true, values: ['sent', 'fixing', 'retesting', 'fixed', 'risk_accepted'] },
-  { key: 'cvss', desc: 'CVSS ≥ x', enumerable: true, values: CVSS_VALUES },
-  { key: 'id', desc: 'identificador contém', enumerable: false, values: [] },
-  { key: 'report', desc: 'relatório contém (ou none)', enumerable: false, values: [] },
+  { key: 'status', enumerable: true, values: ['sent', 'fixing', 'retesting', 'fixed', 'risk_accepted'] },
+  { key: 'cvss', enumerable: true, values: CVSS_VALUES },
+  { key: 'report', enumerable: false, values: [] },
+  ...['sent', 'accepted', 'fixing', 'retesting', 'fixed', 'risk'].map(dateKey),
 ]
+
+// --- dates ------------------------------------------------------------------
+// All periods are in the browser's local time, like the dates the lists show.
+const DAY_RE = /^(\d{4})-(\d{2})-(\d{2})$/
+const MONTH_RE = /^(\d{4})-(\d{2})$/
+
+// One calendar day or month as [start, end) local times; null when not a real date.
+function calendarSpan(text) {
+  let m = DAY_RE.exec(text)
+  if (m) {
+    const [y, mo, d] = [Number(m[1]), Number(m[2]) - 1, Number(m[3])]
+    const start = new Date(y, mo, d)
+    if (start.getFullYear() !== y || start.getMonth() !== mo || start.getDate() !== d) return null
+    return [start, new Date(y, mo, d + 1)]
+  }
+  m = MONTH_RE.exec(text)
+  if (m) {
+    const [y, mo] = [Number(m[1]), Number(m[2]) - 1]
+    if (mo < 0 || mo > 11) return null
+    return [new Date(y, mo, 1), new Date(y, mo + 1, 1)]
+  }
+  return null
+}
+
+/** A date filter's value as { from, to } (local Dates, `to` exclusive or null); null if invalid. */
+export function parsePeriod(text, now = new Date()) {
+  const v = String(text || '').trim().toLowerCase()
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  let m = /^(\d{1,4})d$/.exec(v)
+  if (m && Number(m[1]) >= 1) {
+    return { from: new Date(today.getFullYear(), today.getMonth(), today.getDate() - (Number(m[1]) - 1)), to: null }
+  }
+  m = /^(\d{1,3})m$/.exec(v)
+  if (m && Number(m[1]) >= 1) {
+    return { from: new Date(today.getFullYear(), today.getMonth() - Number(m[1]), today.getDate()), to: null }
+  }
+  if (v.includes('..')) {
+    const [a, b, extra] = v.split('..')
+    if (extra !== undefined) return null
+    const first = calendarSpan(a)
+    const last = calendarSpan(b)
+    if (!first || !last || last[1] <= first[0]) return null
+    return { from: first[0], to: last[1] }
+  }
+  if (DAY_RE.test(v)) {
+    const span = calendarSpan(v)
+    return span ? { from: span[0], to: null } : null
+  }
+  const span = calendarSpan(v)
+  return span ? { from: span[0], to: span[1] } : null
+}
 
 // CVSS value: 0..10 with at most one decimal place. Accepts "7", "7.8", "10".
 // Rejects "5.77", "-1", "10.1", "11", "".
@@ -86,18 +164,21 @@ function makeToken(raw) {
   const quote = body.indexOf('"')
   if (colon === -1 || (quote !== -1 && quote < colon)) {
     const value = unquote(body)
-    return { raw, negate, key: 'id', op: 'contains', value, valid: value.length > 0 }
+    return { raw, negate, key: 'text', op: 'contains', value, valid: value.length > 0 }
   }
-  let key = body.slice(0, colon).toLowerCase()
+  const key = body.slice(0, colon).toLowerCase()
   const value = unquote(body.slice(colon + 1))
-  if (key === 'identifier') key = 'id'
 
   if (key === 'status')
     return { raw, negate, key, op: '=', value, valid: STATUS_SET.has(value) }
   if (key === 'cvss')
     return { raw, negate, key, op: '>=', value: Number(value), valid: isValidCvss(value) }
-  if (key === 'id' || key === 'source' || key === 'operator' || key === 'report')
+  if (key === 'source' || key === 'operator' || key === 'report')
     return { raw, negate, key, op: 'contains', value, valid: value.length > 0 }
+  if (key in DATE_KEYS) {
+    const period = parsePeriod(value)
+    return { raw, negate, key, op: 'in', value: period, valid: period !== null }
+  }
   return { raw, negate, key, op: '?', value, valid: false }
 }
 
@@ -105,7 +186,7 @@ function baseMatch(tok, r) {
   switch (tok.key) {
     case 'status':
       return r.status === tok.value
-    case 'id':
+    case 'text':
       return (r.identifier || '').toLowerCase().includes(tok.value.toLowerCase())
     case 'source':
       return (r.source || '').toLowerCase().includes(tok.value.toLowerCase())
@@ -126,8 +207,11 @@ function baseMatch(tok, r) {
     case 'cvss':
       return r.cvss_score !== null && r.cvss_score !== undefined &&
         Number(r.cvss_score) >= tok.value
-    default:
-      return true
+    default: {
+      if (!(tok.key in DATE_KEYS)) return true
+      const d = parseUtc(r[DATE_KEYS[tok.key]])
+      return !!d && d >= tok.value.from && (!tok.value.to || d < tok.value.to)
+    }
   }
 }
 

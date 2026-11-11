@@ -17,6 +17,9 @@ const emit = defineEmits(['update:modelValue'])
 const inputEl = ref(null)
 const activeIdx = ref(0)
 const dismissed = ref(false) // set by Escape; cleared on next input
+// "/" lists the basic keys and MORE; choosing MORE lists every key.
+const MORE = '\u0000more'
+const expanded = ref(false)
 
 const text = computed({
   get: () => props.modelValue,
@@ -26,6 +29,8 @@ const text = computed({
 const hasText = computed(() => (text.value || '').length > 0)
 
 const KEY_LIST = computed(() => props.keys.map((k) => k.key))
+const BASIC_KEYS = computed(() => props.keys.filter((k) => !k.advanced).map((k) => k.key))
+const FIRST_ADVANCED = computed(() => props.keys.find((k) => k.advanced)?.key)
 const KEY_DEF = computed(() => Object.fromEntries(props.keys.map((k) => [k.key, k])))
 
 function valuesFor(key) {
@@ -51,6 +56,11 @@ const autocomplete = computed(() => {
   const slashIndex = negate ? 1 : t[0] === '/' ? 0 : -1
   if (slashIndex !== -1) {
     const needle = t.slice(slashIndex + 1).toLowerCase()
+    // Just "/": the basic keys, and "more filters" when there are others. Typing a
+    // name searches them all.
+    if (!needle && !expanded.value && BASIC_KEYS.value.length < KEY_LIST.value.length) {
+      return { mode: 'key', negate, options: [...BASIC_KEYS.value, MORE] }
+    }
     const options = KEY_LIST.value.filter((k) => k.startsWith(needle))
     if (!options.length) return null
     return { mode: 'key', negate, options }
@@ -72,7 +82,14 @@ const autocomplete = computed(() => {
 function applyAutocomplete(choice) {
   const ac = autocomplete.value
   if (!ac) return
+  if (choice === MORE) {
+    expanded.value = true
+    activeIdx.value = BASIC_KEYS.value.length // the first advanced key
+    nextTick(() => inputEl.value?.focus())
+    return
+  }
   const base = (text.value || '').replace(/\S*$/, '')
+  expanded.value = false
   if (ac.mode === 'key') {
     // after choosing a key, keep the menu open so its value menu can show
     text.value = base + (ac.negate ? '-' : '') + choice + ':'
@@ -88,12 +105,13 @@ function applyAutocomplete(choice) {
 
 // Close the menu shortly after blur so a click on a menu item still registers.
 function onBlur() {
-  setTimeout(() => { dismissed.value = true }, 120)
+  setTimeout(() => { dismissed.value = true; expanded.value = false }, 120)
 }
 
 function onInput() {
   dismissed.value = false
   activeIdx.value = 0
+  if (!term.value.includes('/')) expanded.value = false
 }
 
 function onKeydown(e) {
@@ -103,7 +121,7 @@ function onKeydown(e) {
   if (e.key === 'ArrowDown') { e.preventDefault(); activeIdx.value = (activeIdx.value + 1) % n }
   else if (e.key === 'ArrowUp') { e.preventDefault(); activeIdx.value = (activeIdx.value - 1 + n) % n }
   else if (e.key === 'Enter' || e.key === 'Tab') { e.preventDefault(); applyAutocomplete(ac.options[activeIdx.value]) }
-  else if (e.key === 'Escape') { e.preventDefault(); dismissed.value = true }
+  else if (e.key === 'Escape') { e.preventDefault(); dismissed.value = true; expanded.value = false }
 }
 
 function clearAll() {
@@ -119,6 +137,7 @@ function focusAndTrigger() {
   const needsSpace = cur.length && !cur.endsWith(' ')
   text.value = cur + (needsSpace ? ' /' : '/')
   dismissed.value = false
+  expanded.value = false
   activeIdx.value = 0
 }
 defineExpose({ focusAndTrigger })
@@ -152,9 +171,11 @@ const HELP_LINES = computed(() => t(props.help))
          Shows only the name — no description or key suffix. -->
     <ul v-if="autocomplete" class="menu">
       <li v-for="(opt, i) in autocomplete.options" :key="opt"
-          :class="{ active: i === activeIdx }"
+          :class="{ active: i === activeIdx, more: opt === MORE,
+                    group: autocomplete.mode === 'key' && i > 0 && (opt === MORE || opt === FIRST_ADVANCED) }"
           @mousedown.prevent="applyAutocomplete(opt)">
-        <span class="mono">{{ opt }}</span>
+        <span v-if="opt === MORE">{{ t('filter.more') }}</span>
+        <span v-else class="mono">{{ opt }}</span>
       </li>
     </ul>
   </div>
@@ -192,4 +213,8 @@ const HELP_LINES = computed(() => t(props.help))
 .menu li { display: flex; align-items: baseline; gap: 10px; padding: 6px 12px; border-radius: var(--radius-sm); cursor: pointer; white-space: nowrap; }
 .menu li.active, .menu li:hover { background: var(--hover); }
 .menu li .mono { color: var(--text-2); }
+/* A hairline above "more filters", and above the first advanced key once they show. */
+.menu li.group { margin-top: 5px; position: relative; }
+.menu li.group::before { content: ''; position: absolute; left: 8px; right: 8px; top: -3px; border-top: 1px solid var(--line); }
+.menu li.more { color: var(--muted); font-size: 13px; }
 </style>

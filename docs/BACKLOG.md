@@ -29,8 +29,6 @@ Still open:
 - **Operators limited to users who can edit?** Today a read-only user can be made an
   operator (the ingest API already refuses this). Recommended: operators = admin / editors
   only; readers get access through "Compartilhado com".
-- **Date filters in the Hub** (`created:`, `updated:`, relative `7d`, status dates).
-  Waiting on the team.
 - **Real email dispatch:** SMTP details and recipients (or Azure ACS).
 - **UI theme refinement** (the e2e suite protects against regressions).
 - **Ultrawide screens:** optionally cap the page width above ~2560px.
