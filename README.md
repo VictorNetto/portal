@@ -95,7 +95,8 @@ scripts/          backup.sh / restore.sh (database + attachments, optionally enc
                   selfsigned-cert.sh (a certificate when the PKI has none yet);
                   install-test/ (installs and runs the portal on SLES 15 and 16, in containers)
 docs/
-  specs/          Canonical specifications (SPEC.md, FRONTEND_SPEC.md)
+  specs/          Canonical specifications (SPEC.md, FRONTEND_SPEC.md); DASHBOARDS.md is a draft
+                  (chart query language, with a prototype and example images in specs/dashboards/)
   DECISIONS.md    Resolved design decisions D1–D11 with rationale
   BACKLOG.md      Parked features and pending decisions (template management, constraints, …)
   INSTALL.md      Installing on a new server: hardware, OS, Docker, the portal, first login
