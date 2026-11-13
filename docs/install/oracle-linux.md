@@ -49,9 +49,29 @@ The default kernel is Oracle's *Unbreakable Enterprise Kernel* (UEK); keep it.
 
 From here on, work over SSH from your machine. Commands that start with `sudo` ask for the `portaladm` password.
 
-If the VM has no direct internet access, do **3.7 Proxy** first: everything below downloads packages.
+If the VM has no direct internet access, do **3.8 Proxy** first: everything below downloads packages.
 
-### 3.1 Updates, tools and disk size
+### 3.1 The `portaladm` account and `sudo`
+
+All administration is done from one personal account, `portaladm`, which may use `sudo` because it is in the **`wheel`** group. The installer created it in section 2 and put it there (*Make this user administrator*). Check:
+
+```bash
+id portaladm                      # the groups must include "wheel"
+```
+
+**If the account doesn't exist, or `wheel` is missing** (for example, the system was installed by someone else, from IT's template or with another user name), fix it from an account that already has `sudo`, or as root at the console:
+
+```bash
+sudo useradd -m -s /bin/bash -c "Portal Admin" portaladm   # only if it doesn't exist; -m creates /home/portaladm
+sudo passwd portaladm                                      # only if just created: a strong password, stored in the password manager
+sudo usermod -aG wheel portaladm                         # the "wheel" group may run any command with sudo, with portaladm's own password
+```
+
+Then **log out and in again** as `portaladm` (`ssh portaladm@10.20.30.40`), so the new group applies. Use only this account from here on.
+
+**Check:** `id` lists `wheel`, and `sudo -k; sudo true` asks for **portaladm**'s password (`[sudo] password for portaladm:`), then returns without an error.
+
+### 3.2 Updates, tools and disk size
 
 ```bash
 sudo dnf -y upgrade
@@ -73,7 +93,7 @@ sudo lvextend -r -l +100%FREE "$(findmnt -n -o SOURCE /)"
 df -h /
 ```
 
-### 3.2 SSH: keys only
+### 3.3 SSH: keys only
 
 On **your machine**, copy your public key to the server:
 
@@ -98,7 +118,7 @@ The file name starts with `10-` so it is read before the system's own `50-redhat
 
 **Check:** open a *second* terminal and log in again before closing the first one. If it fails, fix it from the first terminal.
 
-### 3.3 Time zone and clock
+### 3.4 Time zone and clock
 
 The portal stores times in UTC and shows them in each user's browser time, so the server's time zone only affects logs and scheduled jobs. If you set them in the installer, just check:
 
@@ -115,7 +135,7 @@ sudo systemctl restart chronyd
 chronyc sources                   # the organization's server, marked with ^*
 ```
 
-### 3.4 Automatic security updates
+### 3.5 Automatic security updates
 
 ```bash
 sudo dnf -y install dnf-automatic
@@ -127,7 +147,7 @@ systemctl list-timers dnf-automatic.timer          # shows the next run
 
 Security updates now install every day. `sudo dnf needs-restarting -r` tells whether a reboot is needed; reboot at a quiet time: the portal starts by itself.
 
-### 3.5 Firewall
+### 3.6 Firewall
 
 `firewalld` is on by default and lets SSH in from anywhere. Allow SSH only from the administrators' network, and the web ports from everywhere the users are:
 
@@ -140,11 +160,11 @@ sudo firewall-cmd --reload
 sudo firewall-cmd --list-all       # services: http https (dhcpv6-client); the rich rule for ssh
 ```
 
-(`--remove-service` prints a warning if that service was not allowed; that's fine.) **Check** with a second SSH login, as in 3.2, before closing the first terminal.
+(`--remove-service` prints a warning if that service was not allowed; that's fine.) **Check** with a second SSH login, as in 3.3, before closing the first terminal.
 
 > Docker manages its own firewall rules, and ports published by containers are **not** filtered by these rules. The portal publishes only 80 and 443 (nginx), which are open anyway; the database and the API are not published. If you need to limit *who* reaches 443, do it in the network firewall.
 
-### 3.6 SELinux
+### 3.7 SELinux
 
 SELinux is on (*Enforcing*) by default. **Keep it on.** The portal's containers work with it; section 4.1 turns on Docker's SELinux support.
 
@@ -152,7 +172,7 @@ SELinux is on (*Enforcing*) by default. **Keep it on.** The portal's containers 
 getenforce                         # Enforcing
 ```
 
-### 3.7 Proxy (only if the VM has no direct internet access)
+### 3.8 Proxy (only if the VM has no direct internet access)
 
 For `dnf`:
 

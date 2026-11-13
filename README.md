@@ -92,6 +92,7 @@ frontend/
   src/            views/, components/ (Markdown editor, timeline, ...), i18n.js, api.js, router.js
 nginx/            Reverse proxy config (nginx.conf = dev, prod.conf.template = production/TLS)
 scripts/          backup.sh / restore.sh (database + attachments, optionally encrypted);
+                  selfsigned-cert.sh (a certificate when the PKI has none yet);
                   install-test/ (installs and runs the portal on SLES 15 and 16, in containers)
 docs/
   specs/          Canonical specifications (SPEC.md, FRONTEND_SPEC.md)

@@ -1,6 +1,7 @@
 #!/bin/bash
 # Runs INSIDE a SLES container (see run.sh): Docker from SUSE's own packages, as in
-# docs/install/sles.md section 4, then the portal as in INSTALL.md sections 6-10.
+# docs/install/sles.md sections 3.1 and 4, then the portal as in INSTALL.md sections 6-10
+# (with the self-signed certificate of section 7.2).
 set -euo pipefail
 VER="$1"                          # 15 or 16
 step() { echo; echo "=== [$VER] $*"; }
@@ -9,8 +10,22 @@ T0=$(date +%s)
 step "System"
 grep PRETTY_NAME /etc/os-release
 
+step "The portaladm account and sudo (sles.md section 3.1)"
+for try in 1 2 3 4; do zypper -q -n install --no-recommends sudo shadow >/dev/null && break; echo "zypper failed (mirror), retry $try"; sleep 5; done
+id portaladm 2>/dev/null || useradd -m -s /bin/bash -c "Portal Admin" portaladm
+echo 'portaladm:Admin-Pass-123' | chpasswd
+groupadd -f -r wheel
+usermod -aG wheel portaladm
+printf '%s
+' 'Defaults:%wheel !targetpw' '%wheel ALL=(ALL:ALL) ALL' > /etc/sudoers.d/50-wheel
+chmod 440 /etc/sudoers.d/50-wheel
+visudo -c
+id portaladm | grep -q '(wheel)' && echo "portaladm is in wheel"
+# With SUSE's "Defaults targetpw" still in effect, this would need root's password.
+su - portaladm -c "echo Admin-Pass-123 | sudo -S -k -p '' id -un" | grep -qx root && echo "sudo with portaladm's own password: ok"
+
 step "Docker from SUSE packages"
-PKGS="docker docker-buildx curl openssl tar gzip iptables"
+PKGS="docker docker-buildx curl openssl tar gzip iptables sudo shadow"
 [ "$VER" = 16 ] && PKGS="$PKGS docker-compose"
 for try in 1 2 3 4; do zypper -q -n --gpg-auto-import-keys install --no-recommends $PKGS >/dev/null && break; echo "zypper failed (mirror), retry $try"; sleep 5; done
 rpm -q docker docker-buildx $([ "$VER" = 16 ] && echo docker-compose)
@@ -43,10 +58,15 @@ sed -i -e "s/^PORTAL_SERVER_NAME=.*/PORTAL_SERVER_NAME=portal.test/" \
        -e "s/^JWT_SECRET=.*/JWT_SECRET=$JWT/" \
        -e "s/^FIRST_ADMIN_PASSWORD=.*/FIRST_ADMIN_PASSWORD=First-Admin-Pass-123/" \
        -e "s/^DISPATCH_TRANSPORT=.*/DISPATCH_TRANSPORT=stub/" .env.production
-mkdir -p certs
-openssl req -x509 -newkey rsa:2048 -nodes -days 2 -subj /CN=portal.test \
-  -addext subjectAltName=DNS:portal.test -keyout certs/privkey.pem -out certs/fullchain.pem 2>/dev/null
-chmod 600 certs/privkey.pem
+chown -R portaladm: /opt/portal
+
+step "Self-signed certificate (INSTALL.md section 7.2)"
+scripts/selfsigned-cert.sh portal.test 127.0.0.1
+ls -l certs /root/portal-ca
+stat -c '%U %a %n' certs/*
+openssl verify -CAfile certs/ca.crt certs/fullchain.pem
+scripts/selfsigned-cert.sh portal.test 127.0.0.1 | grep -q 'New certificate authority' && { echo "a second run must reuse the CA" >&2; exit 1; }
+openssl verify -CAfile /root/portal-ca/ca.crt certs/fullchain.pem >/dev/null && echo "renewal kept the same CA"
 
 step "Build and start (INSTALL.md section 8)"
 export PORTAL_ENV_FILE=.env.production
@@ -59,15 +79,16 @@ dc up -d db
 dc run --rm api alembic upgrade head 2>&1 | tail -4
 dc up -d
 for i in $(seq 90); do
-  curl -fsS -k --resolve portal.test:443:127.0.0.1 https://portal.test/api/health 2>/dev/null && break; sleep 2
+  curl -fsS --cacert certs/ca.crt --resolve portal.test:443:127.0.0.1 https://portal.test/api/health 2>/dev/null && break; sleep 2
 done
 echo; dc ps --format '{{.Service}}: {{.Status}}'
 
 step "Checks (INSTALL.md section 9)"
-curl -fsS -k --resolve portal.test:443:127.0.0.1 https://portal.test/api/health; echo
+curl -fsS --cacert certs/ca.crt --resolve portal.test:443:127.0.0.1 https://portal.test/api/health; echo
+curl -fsS --cacert certs/ca.crt https://127.0.0.1/api/health >/dev/null && echo "by IP address (in the SAN): ok"
 curl -s -o /dev/null -w 'http -> %{http_code} %{redirect_url}\n' --resolve portal.test:80:127.0.0.1 http://portal.test/
-curl -fsS -k --resolve portal.test:443:127.0.0.1 https://portal.test/ | grep -o '<title>[^<]*</title>'
-curl -fsS -k --resolve portal.test:443:127.0.0.1 -H 'Content-Type: application/json' \
+curl -fsS --cacert certs/ca.crt --resolve portal.test:443:127.0.0.1 https://portal.test/ | grep -o '<title>[^<]*</title>'
+curl -fsS --cacert certs/ca.crt --resolve portal.test:443:127.0.0.1 -H 'Content-Type: application/json' \
   -d '{"username":"admin","password":"First-Admin-Pass-123"}' https://portal.test/api/auth/login \
   | grep -o '"access_token"' && echo "admin login: ok"
 
@@ -77,9 +98,9 @@ scripts/backup.sh /tmp/bk 2>&1 | tail -2
 ls -lh /tmp/bk
 scripts/restore.sh "$(ls /tmp/bk/*.enc | head -1)" --yes 2>&1 | tail -2
 R0=$(date +%s)
-for i in $(seq 60); do curl -fsS -k --resolve portal.test:443:127.0.0.1 https://portal.test/api/health >/dev/null 2>&1 && break; sleep 1; done
-curl -fsS -k --resolve portal.test:443:127.0.0.1 https://portal.test/api/health; echo " (answered $(( $(date +%s) - R0 ))s after the restore)"
-curl -fsS -k --resolve portal.test:443:127.0.0.1 -H 'Content-Type: application/json'   -d '{"username":"admin","password":"First-Admin-Pass-123"}' https://portal.test/api/auth/login | grep -q access_token && echo "admin login after restore: ok"
+for i in $(seq 60); do curl -fsS --cacert certs/ca.crt --resolve portal.test:443:127.0.0.1 https://portal.test/api/health >/dev/null 2>&1 && break; sleep 1; done
+curl -fsS --cacert certs/ca.crt --resolve portal.test:443:127.0.0.1 https://portal.test/api/health; echo " (answered $(( $(date +%s) - R0 ))s after the restore)"
+curl -fsS --cacert certs/ca.crt --resolve portal.test:443:127.0.0.1 -H 'Content-Type: application/json'   -d '{"username":"admin","password":"First-Admin-Pass-123"}' https://portal.test/api/auth/login | grep -q access_token && echo "admin login after restore: ok"
 
 step "Disk used by Docker"
 du -sh /var/lib/docker 2>/dev/null | cut -f1

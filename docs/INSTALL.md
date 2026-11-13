@@ -48,7 +48,7 @@ Request these early; some take days.
 |---|---|---|
 | The VM above, with a static IP | Where the portal runs | `10.20.30.40` |
 | A DNS **A record** for the portal's name | How users reach it | `portal.redteam.my-organization.com` → `10.20.30.40` |
-| A **TLS server certificate** from the organization's PKI, with that name in its **SAN** | HTTPS without browser warnings | `fullchain.pem` + `privkey.pem` |
+| A **TLS server certificate** from the organization's PKI, with that name in its **SAN** | HTTPS without browser warnings. Without one, the portal can start with a self-signed certificate (section 7.2) | `fullchain.pem` + `privkey.pem` |
 | **Port 443** (and 80) open from the user networks, including VPN | Users reach the portal | — |
 | **Port 22** open from the administrators' network only | SSH administration | — |
 | An **SMTP account** that may send to the defense team | Sending reports | `smtp.my-organization.com:587` |
@@ -81,7 +81,7 @@ Once running, the portal makes **no outgoing connections** except to the SMTP se
 
 - The installation image, attached to the VM: `ubuntu-24.04.x-live-server-amd64.iso` (ubuntu.com), `OracleLinux-R9-Ux-x86_64-dvd.iso` (yum.oracle.com/oracle-linux-isos.html), or the SLES 16 / `SLE-15-SP7-Full-x86_64-GM-Media1.iso` image (suse.com, with the organization's account).
 - The IP address, subnet (for example `10.20.30.0/24`), gateway and DNS servers for the VM.
-- A name for the server (for example `portal-01`) and for the administrator account (for example `portaladm`).
+- A name for the server (for example `portal-01`) and for the administrator account, `portaladm`, which may use `sudo`. The guides create it in the installer and, if the system came ready from IT, show how to create it afterwards (section 3.1 of each guide).
 - An SSH key pair on your own machine (`ssh-keygen -t ed25519` if you don't have one).
 - A password manager entry to store the secrets created below.
 
@@ -145,7 +145,7 @@ Edit the file (`nano .env.production`) and set:
 
 | Setting | Value |
 |---|---|
-| `PORTAL_SERVER_NAME` | The DNS name, exactly as in the certificate: `portal.redteam.my-organization.com` |
+| `PORTAL_SERVER_NAME` | The DNS name, exactly as in the certificate: `portal.redteam.my-organization.com` (with a self-signed certificate, the name you will give it in section 7.2) |
 | `PORTAL_CERT_DIR` | Leave `./certs` |
 | `POSTGRES_PASSWORD` | The database password created above |
 | `DATABASE_URL` | Replace `CHANGE-ME-long-random` with **the same** database password |
@@ -170,6 +170,13 @@ The web server needs two files in `/opt/portal/certs`:
 |---|---|
 | `fullchain.pem` | The server certificate **followed by** the intermediate certificate(s), in that order |
 | `privkey.pem` | The private key, **not** protected by a passphrase (the server can't type one at startup) |
+
+There are two ways to get them:
+
+- **7.1 From the organization's PKI** (preferred): every browser in the organization already trusts it.
+- **7.2 Self-signed**, when IT has no certificate for you yet, or none at all. The portal works the same, but each user's machine must be told once to trust it (7.3); until then, browsers warn. You can switch to a PKI certificate later by just replacing the two files (RUNBOOK §3).
+
+### 7.1 Certificate from the organization's PKI
 
 ```bash
 mkdir -p /opt/portal/certs
@@ -198,7 +205,38 @@ openssl pkey -in privkey.pem -pubout | openssl sha256                         # 
 
 Put the expiry date in the team calendar, a few weeks early. Renewal is in RUNBOOK §3.
 
----
+### 7.2 Self-signed certificate
+
+`scripts/selfsigned-cert.sh` creates it. Give it the portal's name (the same as `PORTAL_SERVER_NAME`) and the server's IP address, so the portal also opens at `https://10.20.30.40` while there is no DNS record:
+
+```bash
+cd /opt/portal
+sudo scripts/selfsigned-cert.sh portal.redteam.my-organization.com 10.20.30.40
+```
+
+On the first run it creates a small **certificate authority** of the portal's own, in `/root/portal-ca`, and signs the server certificate with it. Users trust the authority, `ca.crt`, once; a renewed server certificate then needs nothing from them.
+
+The authority's private key, `/root/portal-ca/ca.key`, never leaves that folder: anyone who has it can make certificates your users will trust, so keep it out of copies and tickets. Do include `/root/portal-ca` in the VM's backups, or a rebuilt server will need every user to import a new `ca.crt`.
+
+The script writes, owned by `portaladm`:
+
+| File | What |
+|---|---|
+| `certs/fullchain.pem`, `certs/privkey.pem` | What the web server uses, as in 7.1 |
+| `certs/ca.crt` | What users import (7.3). It holds no secret |
+
+It ends by printing the expiry date (825 days: the most Apple devices accept) and the authority's fingerprints. Store the fingerprints with the portal's documentation: users compare them when they import. Put the expiry date in the team calendar; renewal is running the same command again, then `dc restart nginx` (RUNBOOK §3).
+
+### 7.3 Trusting the self-signed certificate (users' machines)
+
+Only with 7.2. Copy `ca.crt` to your machine (`scp portaladm@10.20.30.40:/opt/portal/certs/ca.crt .`) and give it to IT, or to the users:
+
+- **Many machines (recommended):** ask IT to distribute `ca.crt` as a **trusted root certification authority** by group policy (GPO or Intune). Nobody has to do anything, and new machines get it too.
+- **Windows, one machine:** double-click `ca.crt` → **Install Certificate…** → *Current User* → **Place all certificates in the following store** → *Browse* → **Trusted Root Certification Authorities** → *Finish*. In the security warning that follows, check that the *Thumbprint* is the SHA-1 fingerprint the script printed, then *Yes*. Chrome and Edge use this store; restart the browser.
+- **Firefox**, if it still warns: *Settings* → *Privacy & Security* → *Certificates* → **View Certificates…** → *Authorities* → **Import…** → `ca.crt` → tick *Trust this CA to identify websites*.
+- **macOS:** open `ca.crt` in *Keychain Access* (System keychain), then *Get Info* → *Trust* → **Always Trust**.
+
+Users who skip this see a warning on every visit. They can click past it, but then the browser can't tell the real portal from an impostor: do the import.
 
 ## 8. Build and start
 
@@ -247,7 +285,7 @@ If the name doesn't resolve on the server itself, test with `curl -fsS --resolve
 
 1. `nslookup portal.redteam.my-organization.com` returns the server's IP.
 2. Open `http://portal.redteam.my-organization.com`: it redirects to `https://`.
-3. The browser shows the padlock with **no warning**. A warning means the name is not in the certificate, the chain is incomplete, or the organization's root certificate is not on that machine.
+3. The browser shows the padlock with **no warning**. A warning means the name is not in the certificate, the chain is incomplete, or the organization's root certificate (with a self-signed certificate: the portal's `ca.crt`, section 7.3) is not on that machine.
 
 ### 9.3 In the portal
 
@@ -288,6 +326,7 @@ Set them up **before** the portal holds real findings. The full procedure, inclu
 ## 11. Final checklist
 
 - [ ] The VM matches section 1.1; `df -h /` shows the whole disk.
+- [ ] You work as `portaladm`, which is in the `sudo` group (Ubuntu) or `wheel` (Oracle Linux, SLES).
 - [ ] SSH works with keys only; password and root logins are refused.
 - [ ] The clock is synchronized; automatic security updates are enabled.
 - [ ] The firewall (`ufw` or `firewalld`) allows 22 from administrators only, and 80/443.
@@ -295,6 +334,7 @@ Set them up **before** the portal holds real findings. The full procedure, inclu
 - [ ] Docker comes from `download.docker.com` (SLES: the Containers Module); `docker compose version` works; log size is limited.
 - [ ] `.env.production` has real secrets, mode `600`, and they are in the password manager.
 - [ ] The certificate has the portal's name in its SAN, the full chain, and its expiry date in the calendar.
+- [ ] Self-signed only: users' machines trust `ca.crt` (ideally by group policy), and `/root/portal-ca` is in the VM's backups.
 - [ ] `dc ps` shows four services up; `/api/health` answers from the office and from the VPN, without browser warnings.
 - [ ] The first admin password was changed; team accounts exist.
 - [ ] A test email reached the defense team.

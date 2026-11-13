@@ -94,19 +94,33 @@ From here on, work over SSH from your machine.
 
 If the VM has no direct internet access, do **3.1** and then **3.8 Proxy** first: everything else downloads packages.
 
-### 3.1 `sudo` with your own password
+### 3.1 The `portaladm` account and `sudo`
 
-By default, `sudo` on SLES asks for the **root** password. Make it ask for `portaladm`'s, like the rest of this guide expects. Become root once:
+All administration is done from one personal account, `portaladm`, which may use `sudo`. The installer created the account in section 2, but on SLES it is not an administrator yet, and by default `sudo` asks for the **root** password. Put the account in the **`wheel`** group and let that group use `sudo` with its own password. Become root once:
 
 ```bash
 su -                                                   # the root password from section 2
-printf '%s\n' 'Defaults:portaladm !targetpw' 'portaladm ALL=(ALL:ALL) ALL' > /etc/sudoers.d/50-portaladm
-chmod 440 /etc/sudoers.d/50-portaladm
+id portaladm                                           # "no such user"? create it first, below
+groupadd -f -r wheel                                   # the administrators' group (does nothing if it exists)
+usermod -aG wheel portaladm
+printf '%s\n' 'Defaults:%wheel !targetpw' '%wheel ALL=(ALL:ALL) ALL' > /etc/sudoers.d/50-wheel
+chmod 440 /etc/sudoers.d/50-wheel
 visudo -c                                              # "parsed OK" for the new file
 exit
 ```
 
-**Check:** `sudo -k; sudo true` asks for **portaladm**'s password (`[sudo] password for portaladm:`).
+**If the account doesn't exist** (the system was installed by someone else, for example from IT's template, or with another user name), create it as root before the `groupadd` line:
+
+```bash
+useradd -m -s /bin/bash -c "Portal Admin" portaladm    # -m creates /home/portaladm
+passwd portaladm                                       # a strong password, stored in the password manager
+```
+
+If the root password is not yours, ask whoever has it to run these commands.
+
+Then **log out and in again** as `portaladm`, so the new group applies.
+
+**Check:** `id` lists `wheel`, and `sudo -k; sudo true` asks for **portaladm**'s password (`[sudo] password for portaladm:`), then returns without an error.
 
 ### 3.2 Updates, tools and disk size
 

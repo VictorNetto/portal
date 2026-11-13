@@ -27,6 +27,8 @@ alias dc='docker compose -f docker-compose.prod.yml --env-file .env.production'
 3. Install the certificate. In `./certs` (or the folder named by `PORTAL_CERT_DIR`):
    - `fullchain.pem` — the server certificate **followed by** the intermediate chain
    - `privkey.pem` — the private key (`chmod 600`; never commit it — `certs/` is git-ignored)
+
+   No PKI certificate yet? `sudo scripts/selfsigned-cert.sh <name> <IP>` writes both (INSTALL.md §7.2–7.3).
 4. Build and migrate:
    ```bash
    dc build
@@ -74,6 +76,8 @@ All services restart automatically after a crash or a reboot (`restart: unless-s
 
 **Certificate renewal.** PKI certificates expire and do not renew themselves. Put a calendar reminder a few weeks before expiry. To renew: replace `certs/fullchain.pem` and `certs/privkey.pem`, then `dc restart nginx`. Check what you have with `openssl x509 -in certs/fullchain.pem -noout -enddate`.
 
+**Self-signed certificate** (INSTALL.md §7.2): renew by running the same command again, `sudo scripts/selfsigned-cert.sh <name> <IP>`, then `dc restart nginx`. It reuses the authority in `/root/portal-ca`, so users import nothing new. Moving to a PKI certificate later works like a renewal: put its two files in `certs/` and restart nginx; users may then remove the portal's `ca.crt`.
+
 ## 4. Backups
 
 `scripts/backup.sh` writes one archive with a PostgreSQL dump **and** the uploaded files (the two must be restored together), plus checksums.
@@ -112,7 +116,7 @@ Disaster recovery on a new machine: do sections 1.1–1.4 (code, `.env.productio
 | Symptom | Likely cause / fix |
 |---|---|
 | `api` keeps restarting, log says *Unsafe production configuration* | `JWT_SECRET` missing, the dev value, or shorter than 32 characters |
-| Browser says the connection is not private | Certificate missing the hostname in its **SAN**, expired, or chain not included in `fullchain.pem` |
+| Browser says the connection is not private | Certificate missing the hostname in its **SAN**, expired, or chain not included in `fullchain.pem`. Self-signed: that machine hasn't imported `certs/ca.crt` (INSTALL.md §7.3), or `/root/portal-ca` was recreated and it has the old one |
 | nginx will not start, *cannot load certificate* | `certs/fullchain.pem` / `privkey.pem` missing or not readable; mismatched pair |
 | `502 Bad Gateway` right after an update | api still starting or migrations pending: `dc logs api`, then `dc run --rm api alembic upgrade head` |
 | Uploads fail with `413` | file over 50 MB (app limit) or over 100 MB (proxy limit) |

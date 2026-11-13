@@ -26,7 +26,7 @@ Boot the VM from the ISO. The installer is text-based; move with the arrow keys 
 7. **Ubuntu archive mirror:** keep the default; the installer tests it. If the test fails, the network or proxy is wrong: go back.
 8. **Storage:** *Use an entire disk*, with **Set up this disk as an LVM group** ticked. Leave encryption off unless your policy requires it (an encrypted disk asks for a passphrase at every boot, so the server can't restart unattended).
 
-   On the summary screen, **check the size of `ubuntu-lv` (mounted at `/`)**: Ubuntu often uses only part of the disk. If it is smaller than the disk, select it → *Edit* → set the size to the maximum shown → *Save*. (If you miss this, it can be fixed later, section 3.1 below.)
+   On the summary screen, **check the size of `ubuntu-lv` (mounted at `/`)**: Ubuntu often uses only part of the disk. If it is smaller than the disk, select it → *Edit* → set the size to the maximum shown → *Save*. (If you miss this, it can be fixed later, section 3.2 below.)
 9. **Confirm** the destructive action: *Continue*.
 10. **Profile:**
     - Your name: `Portal Admin`
@@ -34,7 +34,7 @@ Boot the VM from the ISO. The installer is text-based; move with the arrow keys 
     - Username: `portaladm`
     - Password: a strong one, stored in the password manager
 11. **Ubuntu Pro:** *Skip for now* (unless your organization uses it).
-12. **SSH:** tick **Install OpenSSH server**. If your public key is on GitHub or Launchpad you can import it here; otherwise add it in section 3.2. Leave *Allow password authentication over SSH* on for now; it is turned off in section 3.2.
+12. **SSH:** tick **Install OpenSSH server**. If your public key is on GitHub or Launchpad you can import it here; otherwise add it in section 3.3. Leave *Allow password authentication over SSH* on for now; it is turned off in section 3.3.
 13. **Featured server snaps:** select **nothing**. In particular, **do not select `docker`** here: the snap version doesn't work with this setup. Docker is installed in section 4.
 14. Wait for *Installation complete*, then **Reboot now**. Remove the ISO from the VM when asked.
 
@@ -46,7 +46,27 @@ Boot the VM from the ISO. The installer is text-based; move with the arrow keys 
 
 From here on, work over SSH from your machine. Commands that start with `sudo` ask for the `portaladm` password.
 
-### 3.1 Updates and disk size
+### 3.1 The `portaladm` account and `sudo`
+
+All administration is done from one personal account, `portaladm`, which may use `sudo` because it is in the **`sudo`** group. The installer created it in section 2 and put it there. Check:
+
+```bash
+id portaladm                      # the groups must include "sudo"
+```
+
+**If the account doesn't exist, or `sudo` is missing** (for example, the system was installed by someone else, from IT's template or with another user name), fix it from an account that already has `sudo`, or as root at the console:
+
+```bash
+sudo useradd -m -s /bin/bash -c "Portal Admin" portaladm   # only if it doesn't exist; -m creates /home/portaladm
+sudo passwd portaladm                                      # only if just created: a strong password, stored in the password manager
+sudo usermod -aG sudo portaladm                         # the "sudo" group may run any command with sudo, with portaladm's own password
+```
+
+Then **log out and in again** as `portaladm` (`ssh portaladm@10.20.30.40`), so the new group applies. Use only this account from here on.
+
+**Check:** `id` lists `sudo`, and `sudo -k; sudo true` asks for **portaladm**'s password (`[sudo] password for portaladm:`), then returns without an error.
+
+### 3.2 Updates and disk size
 
 ```bash
 sudo apt update && sudo apt full-upgrade -y
@@ -67,7 +87,7 @@ sudo lvextend -r -l +100%FREE /dev/ubuntu-vg/ubuntu-lv
 df -h /
 ```
 
-### 3.2 SSH: keys only
+### 3.3 SSH: keys only
 
 On **your machine**, copy your public key to the server:
 
@@ -89,7 +109,7 @@ sudo sshd -t && sudo systemctl restart ssh
 
 **Check:** open a *second* terminal and log in again before closing the first one. If it fails, fix it from the first terminal.
 
-### 3.3 Time zone and clock
+### 3.4 Time zone and clock
 
 The portal stores times in UTC and shows them in each user's browser time, so the server's time zone only affects logs and scheduled jobs.
 
@@ -106,7 +126,7 @@ sudo systemctl restart systemd-timesyncd
 timedatectl
 ```
 
-### 3.4 Automatic security updates
+### 3.5 Automatic security updates
 
 Ubuntu Server installs them by default. Confirm:
 
@@ -116,7 +136,7 @@ systemctl is-enabled unattended-upgrades       # enabled
 
 Security updates install automatically; a reboot is sometimes needed (`/var/run/reboot-required` exists). Reboot at a quiet time: the portal starts by itself.
 
-### 3.5 Firewall
+### 3.6 Firewall
 
 Allow SSH only from the administrators' network, and the web ports from everywhere the users are:
 
@@ -132,7 +152,7 @@ sudo ufw status verbose
 
 > Docker manages its own firewall rules, and ports published by containers are **not** filtered by `ufw`. The portal publishes only 80 and 443 (nginx), which are open anyway; the database and the API are not published. If you need to limit *who* reaches 443, do it in the network firewall, not with `ufw`.
 
-### 3.6 Proxy (only if the VM has no direct internet access)
+### 3.7 Proxy (only if the VM has no direct internet access)
 
 The installer set the proxy for `apt` only. Make it available to the shell too:
 
