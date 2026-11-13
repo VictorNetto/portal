@@ -11,7 +11,7 @@ step "System"
 grep PRETTY_NAME /etc/os-release
 
 step "The portaladm account and sudo (sles.md section 3.1)"
-for try in 1 2 3 4; do zypper -q -n install --no-recommends sudo shadow >/dev/null && break; echo "zypper failed (mirror), retry $try"; sleep 5; done
+for try in 1 2 3 4; do zypper -q -n install --no-recommends sudo shadow util-linux >/dev/null && break; echo "zypper failed (mirror), retry $try"; sleep 5; done
 id portaladm 2>/dev/null || useradd -m -s /bin/bash -c "Portal Admin" portaladm
 echo 'portaladm:Admin-Pass-123' | chpasswd
 groupadd -f -r wheel
@@ -19,7 +19,8 @@ usermod -aG wheel portaladm
 printf '%s
 ' 'Defaults:%wheel !targetpw' '%wheel ALL=(ALL:ALL) ALL' > /etc/sudoers.d/50-wheel
 chmod 440 /etc/sudoers.d/50-wheel
-visudo -c
+# Only the new file: SLES 16 ships /usr/etc/sudoers as 0444, which a plain visudo -c rejects.
+visudo -c -f /etc/sudoers.d/50-wheel
 id portaladm | grep -q '(wheel)' && echo "portaladm is in wheel"
 # With SUSE's "Defaults targetpw" still in effect, this would need root's password.
 su - portaladm -c "echo Admin-Pass-123 | sudo -S -k -p '' id -un" | grep -qx root && echo "sudo with portaladm's own password: ok"

@@ -105,7 +105,7 @@ groupadd -f -r wheel                                   # the administrators' gro
 usermod -aG wheel portaladm
 printf '%s\n' 'Defaults:%wheel !targetpw' '%wheel ALL=(ALL:ALL) ALL' > /etc/sudoers.d/50-wheel
 chmod 440 /etc/sudoers.d/50-wheel
-visudo -c                                              # "parsed OK" for the new file
+visudo -c -f /etc/sudoers.d/50-wheel                   # "parsed OK"
 exit
 ```
 
