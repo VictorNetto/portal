@@ -1,6 +1,8 @@
-# Dashboards: the chart query language (draft)
+# Dashboards: the chart query language
 
-Status: **draft for discussion**. Nothing here is built in the portal yet. The grammar, the examples and the images come from a prototype, [dashboards/prototype.py](dashboards/prototype.py), that parses every query below, runs it over **mock data** (about 420 invented findings over 15 months), and draws the PNGs. Run it again after changing the grammar or an example (instructions at the top of the file).
+Status: **built** (D18 in [DECISIONS.md](../DECISIONS.md)), except reports (§4). In the portal: menu ➝ *Dashboards*, for admins and the **dashboard** role. The language runs in the API ([dashboard_query.py](../../backend/app/services/dashboard_query.py), [dashboard_engine.py](../../backend/app/services/dashboard_engine.py)); the browser draws the results ([DashChart.vue](../../frontend/src/components/DashChart.vue)).
+
+The images below come from the first prototype, [dashboards/prototype.py](dashboards/prototype.py), over **mock data** (about 420 invented findings over 15 months). The portal draws the same charts in its own style.
 
 ## 1. Idea
 
@@ -40,6 +42,19 @@ chart    = "number" | "bar" | "hbar" | "line" | "table" ;
 
 Clause words (`by`, `over`, `where`, `top`, `as`, `title`) end the clause before them. To search the Hub's free text for one of these words, quote it: `where "by"`.
 
+### Variables
+
+A dashboard has variables, `name = value`. `$name` anywhere in a query (titles included) is replaced by the value before the query is read; values are not expanded again. An error inside a value points at the `$name` that brought it.
+
+```
+aberta  = sent,fixing,retesting
+periodo = 3m
+
+count where status:$aberta fixed:$periodo title "Corrigidas ($periodo)"
+```
+
+On the dashboard page, viewers may change the values for their own view (*Aplicar* / *Restaurar*); editing the dashboard changes them for everyone. A report would set `$periodo` to its own period (§4).
+
 ### Vocabulary
 
 | Part | Meaning |
@@ -75,7 +90,7 @@ The window **starts on a whole bucket**: `fixed:12m per month` is 12 whole month
 
 ### Two differences from the Hub filter
 
-1. **`status:a,b` means either.** `status:sent,fixing,retesting` reads as "sent or fixing or retesting". The Hub can't express it today, and charts need it all the time (the open findings). It would be added to the Hub too, so the two stay the same language.
+1. **`status:a,b` means either.** `status:sent,fixing,retesting` reads as "sent or fixing or retesting". The Hub accepts it too, so the two stay the same language. There is no `status:open` shortcut on purpose: the statuses are written out (or kept in a variable).
 2. **An invalid filter is an error.** While you type, the Hub ignores a token it can't read (`fixed:12w`). A saved chart must not, because it would silently count something else. The prototype found exactly this mistake in one of its own examples.
 
 ## 3. Examples
@@ -125,7 +140,7 @@ All titles and numbers are from the mock data. "Open" below means `status:sent,f
 
 ### Tables
 
-`median days sent..fixed by severity where fixed:{period} as table title "Mediana de dias até a correção"`. `{period}` is the dashboard's or the report's period (here August to October 2026). Duration tables also show how many findings each value comes from.
+`median days sent..fixed by severity where fixed:$periodo as table title "Mediana de dias até a correção"`. `$periodo` is a variable (here `01-08-2026..31-10-2026`). Duration tables also show how many findings each value comes from.
 
 ![](dashboards/examples/12-tabela-tempo-correcao.png)
 
@@ -162,36 +177,38 @@ Errors give the position and the fix, in the user's language:
 | `count by severity over fixed per week where fixed:12w` | período inválido; use 7d, 3m, 1y ou d1.d2.d3 (dd-mm-aaaa, mm-aaaa, aaaa): "fixed:12w" (posição 45) |
 | `count where status:open` | status desconhecido; use draft, ready, sent, fixing, retesting, fixed, risk_accepted: "status:open" (posição 13) |
 
-## 4. In reports
+## 4. In reports (not built yet)
 
-A report is Markdown with `chart` blocks. When the report is generated for a period, `{period}` becomes that period (`01-08-2026..31-10-2026`), and the numbers are **frozen** in the report: editing a finding later does not change a report already issued.
+A report is Markdown with `chart` blocks. When the report is generated for a period, `$periodo` becomes that period (`01-08-2026..31-10-2026`), and the numbers are **frozen** in the report: editing a finding later does not change a report already issued.
 
 ````markdown
 ## Remediação no trimestre
 
 ```chart
-count by severity over fixed per week where fixed:{period} as bar title "Corrigidas por semana"
+count by severity over fixed per week where fixed:$periodo as bar title "Corrigidas por semana"
 ```
 
 ```chart
-median days sent..fixed by severity where fixed:{period} as table title "Mediana de dias até a correção"
+median days sent..fixed by severity where fixed:$periodo as table title "Mediana de dias até a correção"
 ```
 ````
 
-## 5. Rules (for the real implementation)
+## 5. Rules
 
-- **Computed in the API**, never in the browser, and never turned into SQL text: the query becomes a fixed set of database operations. The results respect the viewer's access rules, so a restricted user's chart counts only what that user may see.
+- **Computed in the API**, never in the browser, and never turned into SQL text: the API loads the few chart fields of every live finding once per request and computes each chart from them. Periods and buckets use the portal's time zone (`PORTAL_TIMEZONE`, default `America/Sao_Paulo`).
+- **Who:** admins and the **dashboard** role. A dashboard account reaches nothing else in the portal. Every dashboard is shared by those accounts, and the counts cover every finding.
 - **Aggregates only.** No query lists findings or shows an identifier, host or description.
-- **TV links** (read-only, revocable, recorded in the audit log) accept only `status`, `severity` and `source` groupings, checked when the link is made and again at every refresh. A board computes with the access of the person who made the link.
-- **One filter grammar.** The Hub filter now runs in the browser (`frontend/src/filterQuery.js`); the API needs the same rules in Python. A shared file of test cases keeps the two from drifting apart, or a chart and the Hub would count differently.
+- **A chart that can't run is not saved.** The editor previews each query as it is typed (`POST /dashboards/preview`) and says whether it can go on a TV.
+- **TV links** (read-only, no sign-in, revocable, recorded in the audit log, last use shown) accept only `status`, `severity` and `source` groupings, checked when the link is made and again at every refresh; a chart that fails shows as *unavailable*. The token is shown once and stored as a hash. A board computes with the access of the person who made the link and stops when that account is deactivated or loses the role. The TV receives titles and numbers, never the queries or the variables.
+- **One filter grammar.** The Hub filter runs in the browser (`frontend/src/filterQuery.js`); the API has the same rules in Python. `backend/tests/test_dashboards.py` and `e2e/tests/dashboards.spec.js` check the same cases on each side.
+- **No code from users.** Running user-written Python on the server would hand its author the API's database access, past the role and TV rules. More control over charts would come as more clauses, not code.
 
 ## 6. Open questions
 
-1. **Who writes queries:** everyone, for their own dashboards, or admins only, with everyone else choosing from shared dashboards?
-2. **"Open" as a word.** `status:sent,fixing,retesting` appears in almost every chart. Should `status:open` be a shortcut (in the Hub too)?
+Decided: who writes queries (admins and the dashboard role), no `status:open` shortcut, no SLA for now.
+
 3. **Comparisons:** "87 open, 5 more than last week" is a common TV need. A later `vs previous` clause could compare a period with the one before it.
 4. **Backlog over time:** "how many were open at the end of each week" is not a count of one date, so the grammar can't say it yet. A later `open … per week` measure could.
 5. **Several series from different dates** ("found vs fixed per month") would need two queries in one chart.
-6. **SLA targets.** If the organization has remediation deadlines per severity, a `within sla` measure (share fixed on time) would be the most useful chart of all. Does it have them?
-
-The prototype implements sections 2 and 3. Sections 4 and 5 are design only.
+6. **SLA targets** (none for now). With remediation deadlines per severity, a `within sla` measure (share fixed on time) would be the most useful chart of all.
+7. **Reports** (§4): chart blocks with frozen numbers.

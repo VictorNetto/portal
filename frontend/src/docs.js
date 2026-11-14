@@ -8,6 +8,8 @@
 const CREATORS = ['admin', 'write_all', 'write_restricted']
 // The defense team's guide; admins see it too, to know what that team sees.
 const DEFENSE = ['defense', 'admin']
+// D18: dashboards and their TV links.
+const DASHBOARD = ['dashboard', 'admin']
 
 const pt = [
   {
@@ -40,6 +42,7 @@ const pt = [
 - **Auditor:** vê tudo e consulta os logs de auditoria.
 - **Editor restrito:** cria vulnerabilidades e relatórios; vê e altera os que **criou** ou de que é **operador**; exclui apenas os que criou.
 - **Leitor restrito:** vê apenas o que criou, aquilo de que é operador e o que foi **compartilhado com ele** (campo *Compartilhado com*).
+- **Dashboards:** monta dashboards e links de TV. Vê só contagens, nunca as vulnerabilidades em si, e não acessa mais nada do portal.
 - **Defesa:** conta do time de defesa. Vê apenas as vulnerabilidades **enviadas**, sem notas internas, operadores nem relatórios; **aceita** cada uma e registra o **ID de RVS**. Não pode ser operador nem receber compartilhamentos.
 
 As vulnerabilidades de um relatório seguem o acesso do relatório.`,
@@ -953,6 +956,68 @@ Para liberar antes, use **Liberar bloqueio** na página do relatório. As altera
       },
     ],
   },
+  {
+    id: 'dashboards', title: 'Dashboards', roles: DASHBOARD,
+    subs: [
+      {
+        id: 'dash-inicio', title: 'O que são',
+        md: `Um **dashboard** é um conjunto de gráficos sobre as vulnerabilidades. Cada gráfico é **uma linha de texto**, a consulta, que diz o que contar, como agrupar e como desenhar. Os números são sempre **contagens e tempos**: nenhum gráfico mostra uma vulnerabilidade, um identificador ou um host.
+
+- Menu ➝ *Dashboards*: a lista, compartilhada entre administradores e contas **Dashboards**.
+- **Editar** abre o editor: o nome, as **variáveis** e as consultas, cada uma com a prévia ao lado, que se atualiza enquanto você escreve.
+- A página do dashboard se recalcula a cada 5 minutos, ou em **Atualizar**.
+- Um dashboard que tem uma consulta com erro não é salvo: a mensagem diz o que está errado e em que posição.`,
+      },
+      {
+        id: 'dash-consultas', title: 'Escrevendo consultas',
+        md: `\`\`\`
+<medida> [by <grupo>[, <grupo>]] [over <data> per <unidade>] [where <filtro>] [top N] [as <gráfico>] [title "…"]
+\`\`\`
+
+Só a medida é obrigatória; as outras partes vêm em qualquer ordem, cada uma uma vez.
+
+- **Medida:** \`count\` (quantas), ou um tempo entre duas datas da mesma vulnerabilidade: \`median days sent..fixed\` (também \`avg\`, \`min\`, \`max\`, \`p90\`…). Um tempo calculado com menos de 3 vulnerabilidades aparece como "—".
+- **by:** \`status\`, \`severity\` (pelo CVSS: crítica ≥ 9, alta ≥ 7, média ≥ 4, baixa > 0), \`source\`, \`report\`, \`operator\`. Com dois, \`by report, severity\`, as barras ficam empilhadas ou vira uma tabela cruzada.
+- **over:** um eixo de tempo: \`over fixed per month\` (\`day\`, \`week\`, \`month\`, \`quarter\`, \`year\`). O período é o do filtro na mesma data (\`where fixed:12m\`) e começa num mês (semana, trimestre) inteiro.
+- **where:** o **mesmo filtro de Operações**, com \`status:a,b\` para "um ou outro". Um filtro que não dá para ler é um erro (em Operações, ele é ignorado).
+- **top 6:** os 6 maiores grupos do primeiro \`by\`; o resto soma em "Outros".
+- **as:** \`number\`, \`bar\`, \`hbar\`, \`line\` ou \`table\`. Sem \`as\`, o portal escolhe.
+- **title:** o título, entre aspas.
+
+Datas: \`created\`, \`updated\`, \`sent\`, \`accepted\`, \`fixing\`, \`retesting\`, \`fixed\`, \`risk\`.`,
+      },
+      {
+        id: 'dash-exemplos', title: 'Exemplos',
+        md: `- \`count where status:sent,fixing,retesting title "Abertas"\`
+- \`count where status:sent -sent:15d title "Aguardando aceite há mais de 15 dias"\`
+- \`count by severity where status:sent,fixing,retesting\`
+- \`count by report, severity top 6 where status:sent,fixing,retesting as hbar\`
+- \`count by severity over fixed per month where fixed:12m as bar title "Corrigidas por mês"\`
+- \`median days sent..fixed by severity where fixed:1y as table\`
+- \`p90 days sent..accepted over sent per quarter\`: em quantos dias 9 de cada 10 enviadas foram aceitas, por trimestre`,
+      },
+      {
+        id: 'dash-variaveis', title: 'Variáveis',
+        md: `Uma variável guarda um trecho que se repete ou que muda com frequência. Crie-a no editor (por exemplo \`aberta\` = \`sent,fixing,retesting\`, ou \`periodo\` = \`3m\`) e escreva \`$nome\` na consulta:
+
+\`\`\`
+count where status:$aberta fixed:$periodo
+\`\`\`
+
+O valor entra no lugar de \`$nome\` antes de a consulta ser lida, inclusive dentro do título. Na página do dashboard, quem vê pode mudar os valores e clicar em **Aplicar**: a mudança vale só para aquela visualização. Para mudar de vez, edite o dashboard.`,
+      },
+      {
+        id: 'dash-tv', title: 'Links de TV',
+        md: `Na página do dashboard, **Novo link de TV** cria um endereço que mostra o dashboard **sem login**, em tela cheia e escuro, atualizado a cada minuto. Abra-o no navegador da TV.
+
+- O link aparece **uma única vez**: copie-o na hora. Se perder, crie outro e revogue o antigo.
+- Só aceita agrupamentos por **status**, **severidade** e **fonte**: nenhum nome de relatório ou de pessoa vai para a TV. O editor avisa quais consultas ficam de fora. Um gráfico que deixa de ser aceito depois de o link existir aparece como indisponível.
+- A TV não recebe as consultas nem as variáveis, só os números e os títulos.
+- **Revogar** desliga o link na hora. Ele também para se o dashboard for excluído ou se quem o criou perder o acesso.
+- Criar e revogar links fica na auditoria, e a lista mostra o último acesso de cada um.`,
+      },
+    ],
+  },
 ]
 
 const en = [
@@ -986,6 +1051,7 @@ const en = [
 - **Auditor:** sees everything and reads the audit logs.
 - **Restricted editor:** creates vulnerabilities and reports; sees and changes the ones they **created** or **operate**; deletes only the ones they created.
 - **Restricted reader:** sees only what they created, what they operate and what was **shared with them** (*Shared with* field).
+- **Dashboards:** builds dashboards and TV links. Sees only counts, never the vulnerabilities themselves, and reaches nothing else in the portal.
 - **Defense:** an account of the defense team. Sees only **sent** vulnerabilities, without internal notes, operators or reports; **accepts** each one and records its **RVS ID**. Cannot be an operator or be shared with.
 
 A report's vulnerabilities follow the report's access.`,
@@ -1896,6 +1962,68 @@ To release it sooner, use **Release lock** on the report page. The holder's unsa
       {
         id: 'adm-auditoria', title: 'Audit logs',
         md: `Menu ➝ *Audit Logs*. Records sign-ins, creations, changes, status changes, sends, exports, attachment reads and reservation releases, with who did it (a user, or \`api:<prefix>\` for keys), when and from which IP. Filter by type of action.`,
+      },
+    ],
+  },
+  {
+    id: 'dashboards', title: 'Dashboards', roles: DASHBOARD,
+    subs: [
+      {
+        id: 'dash-inicio', title: 'What they are',
+        md: `A **dashboard** is a set of charts about the vulnerabilities. Each chart is **one line of text**, the query, which says what to count, how to group it and how to draw it. The numbers are always **counts and durations**: no chart shows a vulnerability, an identifier or a host.
+
+- Menu ➝ *Dashboards*: the list, shared by administrators and **Dashboards** accounts.
+- **Edit** opens the editor: the name, the **variables** and the queries, each with its preview beside it, updated as you type.
+- The dashboard page recomputes every 5 minutes, or on **Refresh**.
+- A dashboard with a query in error is not saved: the message says what is wrong and where.`,
+      },
+      {
+        id: 'dash-consultas', title: 'Writing queries',
+        md: `\`\`\`
+<measure> [by <group>[, <group>]] [over <date> per <unit>] [where <filter>] [top N] [as <chart>] [title "…"]
+\`\`\`
+
+Only the measure is required; the other parts come in any order, each at most once.
+
+- **Measure:** \`count\`, or a time between two dates of the same vulnerability: \`median days sent..fixed\` (also \`avg\`, \`min\`, \`max\`, \`p90\`…). A time computed from fewer than 3 vulnerabilities shows as "—".
+- **by:** \`status\`, \`severity\` (from the CVSS: critical ≥ 9, high ≥ 7, medium ≥ 4, low > 0), \`source\`, \`report\`, \`operator\`. With two, \`by report, severity\`, the bars stack or it becomes a cross table.
+- **over:** a time axis: \`over fixed per month\` (\`day\`, \`week\`, \`month\`, \`quarter\`, \`year\`). The period is the filter's on the same date (\`where fixed:12m\`) and starts on a whole month (week, quarter).
+- **where:** the **same filter as Operations**, with \`status:a,b\` for "either". A filter that can't be read is an error (in Operations it is ignored).
+- **top 6:** the 6 largest groups of the first \`by\`; the rest add up to "Others".
+- **as:** \`number\`, \`bar\`, \`hbar\`, \`line\` or \`table\`. Without \`as\`, the portal picks one.
+- **title:** the title, in quotes.
+
+Dates: \`created\`, \`updated\`, \`sent\`, \`accepted\`, \`fixing\`, \`retesting\`, \`fixed\`, \`risk\`.`,
+      },
+      {
+        id: 'dash-exemplos', title: 'Examples',
+        md: `- \`count where status:sent,fixing,retesting title "Open"\`
+- \`count where status:sent -sent:15d title "Waiting for acceptance over 15 days"\`
+- \`count by severity where status:sent,fixing,retesting\`
+- \`count by report, severity top 6 where status:sent,fixing,retesting as hbar\`
+- \`count by severity over fixed per month where fixed:12m as bar title "Fixed per month"\`
+- \`median days sent..fixed by severity where fixed:1y as table\`
+- \`p90 days sent..accepted over sent per quarter\`: within how many days 9 in 10 sent were accepted, per quarter`,
+      },
+      {
+        id: 'dash-variaveis', title: 'Variables',
+        md: `A variable holds a piece that repeats or changes often. Create it in the editor (for example \`open\` = \`sent,fixing,retesting\`, or \`period\` = \`3m\`) and write \`$name\` in the query:
+
+\`\`\`
+count where status:$open fixed:$period
+\`\`\`
+
+The value replaces \`$name\` before the query is read, titles included. On the dashboard page, viewers can change the values and click **Apply**: the change applies to that view only. To change it for good, edit the dashboard.`,
+      },
+      {
+        id: 'dash-tv', title: 'TV links',
+        md: `On the dashboard page, **New TV link** creates an address that shows the dashboard **without signing in**, full screen and dark, refreshed every minute. Open it in the TV's browser.
+
+- The link is shown **once**: copy it right away. If you lose it, create another and revoke the old one.
+- It accepts only groupings by **status**, **severity** and **source**: no report or person name goes to the TV. The editor says which queries are left out. A chart that stops being accepted after the link exists shows as unavailable.
+- The TV receives neither the queries nor the variables, only the numbers and titles.
+- **Revoke** turns the link off at once. It also stops if the dashboard is deleted or its creator loses access.
+- Creating and revoking links is audited, and the list shows when each one was last opened.`,
       },
     ],
   },

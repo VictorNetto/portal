@@ -326,3 +326,33 @@ The UUID `id` is the database key; it stays out of the screens and appears in UR
   (→ *Em reteste*) or *Marcar como corrigida* (→ *Corrigida* with no retest; audited with
   `retest: skipped`, and the timeline leaves *Em reteste* empty). The retest's outcome (approve /
   fail) stays with the red team, which can also still request a retest.
+
+## D18 — Dashboards with a chart query language
+
+Decided 2026-11-13. Spec and examples: `docs/specs/DASHBOARDS.md`.
+
+- **One line per chart:** `<measure> [by …] [over …] [where <Hub filter>] [top N] [as …] [title "…"]`,
+  parsed and computed in the API (`services/dashboard_query.py`, `services/dashboard_engine.py`).
+  Results are aggregates only: no identifier, description or host ever leaves a chart.
+- **Role `dashboard`:** builds dashboards and TV links and reaches nothing else (like `defense`, it is
+  refused by `get_current_user`; `/dashboards` uses `get_dashboard_user`). Admins have the same
+  access. Every dashboard is shared by those accounts; counts cover every finding.
+- **Explicit statuses, no `status:open`:** the user prefers to write `status:sent,fixing,retesting`.
+  `status:a,b` (either) now also works in the Hub, so the two filters stay one language.
+- **Variables:** a dashboard's `$name = value` pairs, replaced as text before parsing (titles
+  included; values are not expanded again). Errors inside a value point at the `$name`. Viewers may
+  change values for their own view; saving changes them for everyone. They replace the `{period}`
+  placeholder of the draft.
+- **A chart that can't run is not saved;** in the editor, each query previews as it is typed.
+- **TV links:** read-only, no sign-in, token shown once and kept as a SHA-256 hash, revocable,
+  audited, last use recorded. Only the groupings status, severity and source; checked at creation
+  and at every refresh (a chart that fails shows as *unavailable*, without saying why). The board
+  computes with its creator's access and stops when that account is deactivated or loses the role.
+  The TV receives titles and numbers, never the queries or the variables.
+- **Not now:** SLA deadlines (the user has none yet), report blocks with frozen numbers, comparisons
+  with the previous period, backlog over time.
+- **No user-written Python on the server.** Proposed by the user as a way to edit the final chart.
+  Running submitted code in the API would give whoever writes it the API's database access (every
+  finding, every user), bypassing the role and the TV rules; sandboxing Python reliably is not
+  practical. The query language stays the only input; if charts need more control, the next step is
+  more clauses (or a declarative chart spec), not code.

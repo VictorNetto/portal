@@ -214,3 +214,19 @@ export async function downloadAuthed(path, fallbackName, { method = 'GET', body 
   link.click()
   setTimeout(() => URL.revokeObjectURL(url), 10000)
 }
+
+// --- Dashboards (D18) ---
+export const listDashboards = () => api('/dashboards')
+export const getDashboard = (id) => api(`/dashboards/${id}`)
+export const createDashboard = (body) => api('/dashboards', { method: 'POST', body })
+export const updateDashboard = (id, body) => api(`/dashboards/${id}`, { method: 'PATCH', body })
+export const deleteDashboard = (id) => api(`/dashboards/${id}`, { method: 'DELETE' })
+export const runDashboard = (id, variables) =>
+  api(`/dashboards/${id}/run`, { method: 'POST', body: { variables: variables || null } })
+export const previewChart = (query, variables) =>
+  api('/dashboards/preview', { method: 'POST', body: { query, variables } })
+export const listDashboardLinks = (id) => api(`/dashboards/${id}/links`)
+export const createDashboardLink = (id, label) => api(`/dashboards/${id}/links`, { method: 'POST', body: { label } })
+export const revokeDashboardLink = (id, linkId) =>
+  api(`/dashboards/${id}/links/${linkId}/revoke`, { method: 'POST' })
+export const tvBoard = (token) => api(`/tv/${encodeURIComponent(token)}`, { auth: false })

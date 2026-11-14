@@ -15,7 +15,8 @@ A self-hosted web platform for a professional red team to **manage, document, an
 | **Exports** | PDF, Excel and Word for reports; PDF/Word for a vulnerability; batch ZIP/Excel from the Hub. Internal notes are never exported |
 | **Dispatch** | Decoupled dispatcher: `stub` (default, logs only) or `smtp` (real email with PDF + Excel + non-image files) |
 | **Integration API** | `/api/v1` with scoped API keys: read vulnerabilities/reports, exports, RVS IDs, create vulnerabilities — see [docs/API.md](docs/API.md) |
-| **Administration** | Users and roles (admin · write_all · read_all · write_restricted · read_restricted · auditor · defense; see D10, D17), forced password change on first login, API keys, audit log viewer |
+| **Dashboards** | Charts written as one-line queries (counts and durations only), variables, live previews, read-only TV links — see [docs/specs/DASHBOARDS.md](docs/specs/DASHBOARDS.md), D18 |
+| **Administration** | Users and roles (admin · write_all · read_all · write_restricted · read_restricted · auditor · defense · dashboard; see D10, D17, D18), forced password change on first login, API keys, audit log viewer |
 | **Hub** | Vulnerabilities / Reports tabs, filter language, details drawer with timeline, row and batch actions |
 | **i18n** | PT-BR and EN (language selector in the profile menu) |
 
@@ -95,7 +96,7 @@ scripts/          backup.sh / restore.sh (database + attachments, optionally enc
                   selfsigned-cert.sh (a certificate when the PKI has none yet);
                   install-test/ (installs and runs the portal on SLES 15 and 16, in containers)
 docs/
-  specs/          Canonical specifications (SPEC.md, FRONTEND_SPEC.md); DASHBOARDS.md is a draft
+  specs/          Canonical specifications (SPEC.md, FRONTEND_SPEC.md); DASHBOARDS.md is the chart query language (D18)
                   (chart query language, with a prototype and example images in specs/dashboards/)
   DECISIONS.md    Resolved design decisions D1–D11 with rationale
   BACKLOG.md      Parked features and pending decisions (template management, constraints, …)

@@ -15,10 +15,10 @@ const route = useRoute()
 const router = useRouter()
 
 // A topic takes its section's `roles` when it has none of its own. Without any, it is for the
-// red team, so a defense account (D17) doesn't see it.
+// red team, so a defense (D17) or dashboard (D18) account doesn't see it.
 const allowed = (x, inherited) => {
   const roles = x.roles || inherited
-  return roles ? roles.includes(auth.user?.role) : auth.user?.role !== 'defense'
+  return roles ? roles.includes(auth.user?.role) : !['defense', 'dashboard'].includes(auth.user?.role)
 }
 const sections = computed(() => (DOCS[locale.value] || DOCS['pt-BR'])
   .filter((s) => allowed(s))

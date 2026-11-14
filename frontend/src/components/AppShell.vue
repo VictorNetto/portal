@@ -28,6 +28,7 @@ const allNavItems = [
     icon: 'M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8zM14 3v5h5M12 12v6M9 15h6', label: 'nav.reports', writer: true,
     children: [{ label: 'nav.createReport', to: '/reports/new' }, { label: 'nav.templates', to: '/templates' }],
   },
+  { icon: 'M4 4h7v9H4zM13 4h7v5h-7zM13 11h7v9h-7zM4 15h7v5H4z', label: 'nav.dashboards', to: '/dashboards', roles: ['admin'] },
   { icon: 'M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z', label: 'nav.audit', to: '/audit-logs', roles: ['auditor'] },
   { icon: 'M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0M14 4v4M8 10v4M16 16v4', label: 'nav.admin', to: '/audit-logs', adminOnly: true, bottom: true },
 ]
@@ -43,8 +44,10 @@ const adminItems = [
 const inAdmin = computed(() =>
   auth.user?.role === 'admin' && adminItems.some((i) => i.to !== '/hub' && i.to === route.path))
 const isDefense = computed(() => auth.user?.role === 'defense')
+// D18: a dashboard account has only the dashboards.
+const dashboardItems = [{ icon: 'M4 4h7v9H4zM13 4h7v5h-7zM13 11h7v9h-7zM4 15h7v5H4z', label: 'nav.dashboards', to: '/dashboards' }]
 const navItems = computed(() =>
-  isDefense.value ? defenseItems : inAdmin.value ? adminItems : allNavItems.filter((i) => {
+  isDefense.value ? defenseItems : auth.user?.role === 'dashboard' ? dashboardItems : inAdmin.value ? adminItems : allNavItems.filter((i) => {
     const role = auth.user?.role
     if (i.adminOnly && role !== 'admin') return false
     if (i.roles && !i.roles.includes(role)) return false
@@ -61,6 +64,7 @@ function isActive(item) {
     return route.path === '/hub' ||
       (route.path.startsWith('/vulnerabilities/') && route.path !== '/vulnerabilities/new')
   }
+  if (item.to === '/dashboards') return route.path.startsWith('/dashboards')
   return route.path === item.to
 }
 

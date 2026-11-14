@@ -17,7 +17,7 @@ const users = ref([])
 const loading = ref(true)
 const error = ref('')
 
-const ROLES = ['admin', 'write_all', 'read_all', 'write_restricted', 'read_restricted', 'auditor', 'defense']
+const ROLES = ['admin', 'write_all', 'read_all', 'write_restricted', 'read_restricted', 'auditor', 'defense', 'dashboard']
 const RESTRICTED = ['write_restricted', 'read_restricted']
 
 // --- list: search + filters ---------------------------------------------------
@@ -222,6 +222,7 @@ onMounted(async () => {
           <p v-if="accessError" class="err">{{ accessError }}</p>
           <p v-else-if="access && access.scope === 'all'" class="muted">{{ t('users.accessAll') }}</p>
           <p v-else-if="access && access.scope === 'sent'" class="muted">{{ t('users.accessSent') }}</p>
+          <p v-else-if="access && access.scope === 'aggregates'" class="muted">{{ t('users.accessAggregates') }}</p>
           <template v-else-if="access">
             <div class="tabs">
               <button class="tab" :class="{ active: accessTab === 'vulns' }" @click="accessTab = 'vulns'">

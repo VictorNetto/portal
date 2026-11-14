@@ -12,7 +12,14 @@ import ReportView from './views/ReportView.vue'
 import DocsView from './views/DocsView.vue'
 import DefenseInboxView from './views/DefenseInboxView.vue'
 import DefenseVulnView from './views/DefenseVulnView.vue'
+import DashboardsView from './views/DashboardsView.vue'
+import DashboardView from './views/DashboardView.vue'
+import DashboardEditView from './views/DashboardEditView.vue'
+import TvView from './views/TvView.vue'
 import { SECTIONS } from './defenseSections'
+
+// D18: who builds and sees dashboards.
+const DASH = ['admin', 'dashboard']
 
 // Routes follow FRONTEND_SPEC §4.1.
 const routes = [
@@ -35,11 +42,22 @@ const routes = [
   ...SECTIONS.map((s) => ({
     path: s.path, name: `defense-${s.key}`, component: DefenseInboxView, meta: { roles: ['defense'], section: s.key },
   })),
+  { path: '/dashboards', name: 'dashboards', component: DashboardsView, meta: { roles: DASH } },
+  { path: '/dashboards/new', name: 'dashboard-new', component: DashboardEditView, meta: { roles: DASH } },
+  { path: '/dashboards/:id', name: 'dashboard', component: DashboardView, meta: { roles: DASH } },
+  { path: '/dashboards/:id/edit', name: 'dashboard-edit', component: DashboardEditView, meta: { roles: DASH } },
+  // A TV link (D18): no sign-in, no app shell.
+  { path: '/tv/:token', name: 'tv', component: TvView, meta: { public: true, bare: true } },
   { path: '/defense/vulnerabilities/:id', name: 'defense-vuln', component: DefenseVulnView, meta: { roles: ['defense'] } },
 ]
 
 // D17: a defense account has its own pages and the profile, nothing else.
 const DEFENSE_ROUTES = ['defense', 'defense-vuln', 'profile', 'docs', ...SECTIONS.map((s) => `defense-${s.key}`)]
+// D18: a dashboard account has the dashboards and the profile, nothing else.
+const DASHBOARD_ROUTES = ['dashboards', 'dashboard-new', 'dashboard', 'dashboard-edit', 'profile', 'docs']
+/** Where an account starts. */
+export const homeOf = (user) =>
+  user?.role === 'defense' ? '/defense' : user?.role === 'dashboard' ? '/dashboards' : '/hub'
 
 const router = createRouter({
   history: createWebHistory(),
@@ -47,6 +65,7 @@ const router = createRouter({
 })
 
 router.beforeEach((to) => {
+  if (to.meta.bare) return // a TV link: no account involved
   const auth = useAuthStore()
   if (!to.meta.public && !auth.isAuthenticated) return { name: 'login' }
   // First-login rule: until the password is changed, the profile page is the
@@ -55,9 +74,10 @@ router.beforeEach((to) => {
     return { name: 'profile' }
   }
   if (auth.user?.role === 'defense' && !to.meta.public && !DEFENSE_ROUTES.includes(to.name)) return { name: 'defense' }
-  if (to.name === 'login' && auth.isAuthenticated) return { name: auth.user?.role === 'defense' ? 'defense' : 'hub' }
-  if (to.meta.adminOnly && auth.user?.role !== 'admin') return { name: 'hub' }
-  if (to.meta.roles && !to.meta.roles.includes(auth.user?.role)) return { name: 'hub' }
+  if (auth.user?.role === 'dashboard' && !to.meta.public && !DASHBOARD_ROUTES.includes(to.name)) return { name: 'dashboards' }
+  if (to.name === 'login' && auth.isAuthenticated) return homeOf(auth.user)
+  if (to.meta.adminOnly && auth.user?.role !== 'admin') return homeOf(auth.user)
+  if (to.meta.roles && !to.meta.roles.includes(auth.user?.role)) return homeOf(auth.user)
 })
 
 export default router

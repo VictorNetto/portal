@@ -1,4 +1,5 @@
 <script setup>
+import { homeOf } from '../router'
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
@@ -52,7 +53,7 @@ async function submit() {
     await auth.changePassword(current.value, next.value)
     current.value = next.value = confirm.value = ''
     done.value = true
-    if (wasForced) router.push(auth.user?.role === 'defense' ? '/defense' : '/hub')
+    if (wasForced) router.push(homeOf(auth.user))
   } catch (e) {
     error.value = serverError(e)
   } finally {

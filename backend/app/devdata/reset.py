@@ -24,6 +24,7 @@ from app.db import SessionLocal
 from app.devdata import content as c
 from app.models.attachment import Attachment
 from app.models.audit import AuditLog
+from app.models.dashboard import Dashboard
 from app.models.enums import AuditAction, ReportStatus, UserRole, VulnStatus
 from app.models.report import Report, ReportSection
 from app.models.report_template import ReportTemplate, ShareStatus
@@ -47,10 +48,11 @@ TEAM = [
     ("theodore", UserRole.write_restricted, True, False),
     ("victoria", UserRole.auditor, True, False),
     ("defesa", UserRole.defense, True, False),
+    ("painel", UserRole.dashboard, True, False),
 ]
 OPERATORS = ["jonathan", "michelle", "benjamin", "samantha", "theodore"]
 ORDER = list(VulnStatus)
-WIPED = ("audit_logs, attachments, api_keys, report_sections, report_operators, report_viewers, "
+WIPED = ("dashboard_links, dashboards, audit_logs, attachments, api_keys, report_sections, report_operators, report_viewers, "
          "vulnerability_operators, vulnerability_viewers, vulnerabilities, reports, report_templates")
 
 
@@ -274,6 +276,10 @@ def main() -> int:
         for spec in sorted(c.REPORTS, key=lambda r: -(r["sent"] or 0)):
             builder.report(spec)
         builder.standalone()
+        for name, desc, variables, charts in c.DASHBOARDS:
+            session.add(Dashboard(name=name, description=desc, created_by=builder.users["painel"].id,
+                                  variables=[{"name": k, "value": v} for k, v in variables],
+                                  charts=[{"query": q, "width": w} for q, w in charts]))
         session.commit()
         rows = session.execute(text(
             "SELECT (SELECT count(*) FROM users), (SELECT count(*) FROM reports), "

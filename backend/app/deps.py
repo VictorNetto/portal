@@ -83,7 +83,8 @@ def get_current_user(
             status_code=status.HTTP_403_FORBIDDEN, detail=PASSWORD_CHANGE_REQUIRED
         )
     # D17: defense accounts reach only /defense (get_defense_user), never the red team's API.
-    if user.role == UserRole.defense:
+    # D18: dashboard accounts reach only /dashboards (get_dashboard_user).
+    if user.role in (UserRole.defense, UserRole.dashboard):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient permissions")
     return user
 
@@ -97,6 +98,19 @@ def get_defense_user(
             status_code=status.HTTP_403_FORBIDDEN, detail=PASSWORD_CHANGE_REQUIRED
         )
     if user.role != UserRole.defense:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient permissions")
+    return user
+
+
+def get_dashboard_user(
+    user: User = Depends(get_current_user_allow_password_change),
+) -> User:
+    """The gate of the /dashboards routes (D18): admins and dashboard accounts."""
+    if user.must_change_password:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail=PASSWORD_CHANGE_REQUIRED
+        )
+    if user.role not in (UserRole.admin, UserRole.dashboard):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient permissions")
     return user
 

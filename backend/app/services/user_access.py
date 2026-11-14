@@ -35,6 +35,8 @@ def for_user(session: Session, user: User) -> UserAccess:
         return UserAccess(scope="all")
     if user.role == UserRole.defense:  # D17: every sent vuln, nothing else
         return UserAccess(scope="sent")
+    if user.role == UserRole.dashboard:  # D18: counts of every finding, never a finding itself
+        return UserAccess(scope="aggregates")
 
     reports = session.scalars(
         select(Report)

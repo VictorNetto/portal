@@ -138,3 +138,26 @@ TEMPLATES = [
     ("Avaliação de aplicativo móvel", "pending"),
     ("Modelo pessoal resumido", "private"),
 ]
+
+
+# Dashboards (D18): name, description, variables, [(query, width in columns)].
+DASHBOARDS = [
+    ("Remediação", "Para a TV da sala: só status, severidade e fonte.", [("aberta", "sent,fixing,retesting")], [
+        ('count where status:$aberta title "Abertas"', 1),
+        ('count where status:$aberta cvss:9 title "Críticas abertas"', 1),
+        ('count where status:sent -sent:15d title "Aguardando aceite há mais de 15 dias"', 1),
+        ('count by severity where status:$aberta title "Abertas por severidade"', 1),
+        ('count by severity over fixed per month where fixed:6m as bar title "Corrigidas por mês"', 2),
+        ('count by status where status:$aberta title "Em andamento"', 1),
+        ('count by source where status:$aberta title "Abertas por fonte"', 2),
+    ]),
+    ("Trimestre", "Para o relatório trimestral.", [("periodo", "3m"), ("aberta", "sent,fixing,retesting")], [
+        ('count where sent:$periodo title "Enviadas no período"', 1),
+        ('count where fixed:$periodo title "Corrigidas no período"', 1),
+        ('median days sent..fixed where fixed:$periodo title "Mediana de dias até a correção"', 1),
+        ('count by report, severity top 6 where status:$aberta as hbar title "Abertas por relatório"', 3),
+        ('median days sent..fixed by severity where fixed:1y as table title "Dias até a correção, por severidade (12 meses)"', 2),
+        ('count by operator where created:$periodo title "Encontradas por operador"', 1),
+        ('count by severity, status where -status:draft -status:ready as table title "Severidade × status"', 3),
+    ]),
+]

@@ -8,7 +8,7 @@
 //   report:"Rede do Data Center"   "texto com espaços"   -"sem rotação"
 //
 // Keys:
-//   status:<one of STATUSES>     exact status
+//   status:<s>[,<s>…]           one of these statuses (STATUSES), e.g. status:sent,fixing
 //   cvss:<x>                     CVSS >= x  (x: 0..10, at most 1 decimal)
 //   operator:<text>              an operator's username contains (ci)
 //   source:<text>                source contains (ci)
@@ -177,8 +177,10 @@ function makeToken(raw) {
   const key = body.slice(0, colon).toLowerCase()
   const value = unquote(body.slice(colon + 1))
 
-  if (key === 'status')
-    return { raw, negate, key, op: '=', value, valid: STATUS_SET.has(value) }
+  if (key === 'status') {
+    const list = value.split(',')
+    return { raw, negate, key, op: 'in', value: list, valid: list.every((s) => STATUS_SET.has(s)) }
+  }
   if (key === 'cvss')
     return { raw, negate, key, op: '>=', value: Number(value), valid: isValidCvss(value) }
   if (key === 'source' || key === 'operator' || key === 'report')
@@ -193,7 +195,7 @@ function makeToken(raw) {
 function baseMatch(tok, r) {
   switch (tok.key) {
     case 'status':
-      return r.status === tok.value
+      return tok.value.includes(r.status)
     case 'text':
       return (r.identifier || '').toLowerCase().includes(tok.value.toLowerCase())
     case 'source':

@@ -99,7 +99,9 @@ test.describe('date filters', () => {
     await filterHub(page, `e2e-date-${u} -created:1d`)
     expect(await rowCount(page)).toBe(0)
     // Explicit dates, d1.d2.d3 in Brazilian order.
-    const now = new Date()
+    // "Today" as the browser sees it (São Paulo), not as this test's container does (UTC).
+    const [y, m, d] = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' }).split('-').map(Number)
+    const now = new Date(y, m - 1, d)
     const pad = (n) => String(n).padStart(2, '0')
     const day = `${pad(now.getDate())}-${pad(now.getMonth() + 1)}-${now.getFullYear()}`
     const month = `${pad(now.getMonth() + 1)}-${now.getFullYear()}`

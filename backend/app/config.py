@@ -33,6 +33,9 @@ class Settings(BaseSettings):
     first_admin_username: str = "admin"
     first_admin_password: str | None = None
 
+    # The portal's time zone: dashboard periods and buckets (day, week, month) use it (D18).
+    portal_timezone: str = "America/Sao_Paulo"
+
     # --- Database (populated by Compose; see .env.example) ---
     # Async URL used by SQLAlchemy. Host "db" is the Compose service name.
     database_url: str = "postgresql+psycopg://portal:portal@db:5432/portal"

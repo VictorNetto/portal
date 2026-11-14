@@ -17,6 +17,8 @@ class UserRole(str, enum.Enum):
     read_restricted = "read_restricted"
     # D17: the defense team. Reads sent vulns only, accepts them and records their RVS ID.
     defense = "defense"
+    # D18: builds dashboards and TV links; reads aggregates of every finding, nothing else.
+    dashboard = "dashboard"
 
 
 class VulnStatus(str, enum.Enum):

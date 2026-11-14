@@ -6,6 +6,7 @@ Alembic's autogenerate see all tables. Keep new models added to the imports.
 
 from app.models.attachment import Attachment
 from app.models.audit import AuditLog
+from app.models.dashboard import Dashboard, DashboardLink
 from app.models.enums import (
     AuditAction,
     ReportStatus,
@@ -23,6 +24,8 @@ __all__ = [
     "AuditAction",
     "AuditLog",
     "AuthSession",
+    "Dashboard",
+    "DashboardLink",
     "Report",
     "ReportSection",
     "ReportStatus",

@@ -11,6 +11,7 @@ from app.routers import (
     attachments,
     audit,
     auth,
+    dashboards,
     defense,
     integration,
     report_templates,
@@ -64,6 +65,8 @@ app.include_router(integration.router)
 app.include_router(defense.router)
 app.include_router(reports.router)
 app.include_router(report_templates.router)
+app.include_router(dashboards.router)
+app.include_router(dashboards.tv_router)
 
 
 @app.get("/health")

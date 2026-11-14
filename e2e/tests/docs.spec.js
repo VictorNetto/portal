@@ -12,7 +12,7 @@ test.describe('documentation', () => {
     await page.click('.profileMenu .menuItem:has-text("Documentação")')
     await expect(page).toHaveURL(/\/docs$/)
     await expect(page.locator('.titleBlock h1')).toHaveText('Documentação')
-    const ALL = ['Informações Gerais', 'Vulnerabilidades', 'Relatórios e Templates', 'API', 'Time de defesa', 'Gerenciamento']
+    const ALL = ['Informações Gerais', 'Vulnerabilidades', 'Relatórios e Templates', 'API', 'Time de defesa', 'Gerenciamento', 'Dashboards']
     await expect(sectionTitles(page)).toHaveText(ALL)
     await expect(page.locator('.toc .tocSection')).toHaveText(ALL)
     await expect(subTitles(page, 'geral')).toContainText(['Primeiros passos', 'Sessão'])

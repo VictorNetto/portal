@@ -52,7 +52,7 @@ class AccessItem(BaseModel):
 class UserAccess(BaseModel):
     """What a user can read. Roles that read everything report scope "all" and no list."""
 
-    scope: str  # "all" | "restricted" | "sent" (defense, D17)
+    scope: str  # "all" | "restricted" | "sent" (defense, D17) | "aggregates" (dashboard, D18)
     vulnerabilities: list[AccessItem] = Field(default_factory=list)
     reports: list[AccessItem] = Field(default_factory=list)
 
