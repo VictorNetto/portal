@@ -125,6 +125,7 @@ test('a TV link shows the board without signing in, until revoked', async ({ pag
   await expect(tv.locator('.tile')).toHaveCount(3)
   await expect(tv.locator('.tile .dtitle').nth(2)).toHaveText('Corrigidas por mês')
   await expect(tv.locator('.screenTitle')).toHaveText('Tela 1')
+  await expect(tv.locator('.progress i')).toHaveCSS('animation-duration', '5s')   // the bar that fills until the next screen
   if (SHOTS) await tv.screenshot({ path: `${SHOTS}/dash-tv.png` })
   // It loops: the second screen after rotate_seconds, then back to the first.
   await expect(tv.locator('.screenTitle')).toHaveText('Tela 2', { timeout: 8000 })

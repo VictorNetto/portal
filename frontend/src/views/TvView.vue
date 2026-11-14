@@ -14,6 +14,8 @@ const board = ref(null)
 const gone = ref(false)
 const stale = ref(false)
 const index = ref(0)
+// Bumped whenever a screen's time starts again: it restarts the progress bar's animation.
+const cycle = ref(0)
 
 const screens = computed(() => board.value?.screens || [])
 const current = computed(() => screens.value[index.value] || null)
@@ -41,8 +43,10 @@ function scheduleRotate() {
   if (s === rotateEvery && rotateTimer) return
   rotateEvery = s
   clearInterval(rotateTimer)
+  cycle.value++
   rotateTimer = setInterval(() => {
     if (screens.value.length > 1) index.value = (index.value + 1) % screens.value.length
+    cycle.value++
   }, s * 1000)
 }
 
@@ -84,6 +88,10 @@ onUnmounted(() => {
           <DashChart :result="c.result" :error="c.error" dark big fill />
         </section>
       </div>
+      <!-- How long until the next screen: a thin line along the bottom that fills up. -->
+      <div v-if="screens.length > 1" class="progress" aria-hidden="true">
+        <i :key="cycle" :style="{ animationDuration: `${board.rotate_seconds}s` }"></i>
+      </div>
     </template>
   </div>
 </template>
@@ -107,5 +115,9 @@ onUnmounted(() => {
 .w2 { grid-column: span 2; }
 .w3 { grid-column: span 3; }
 .tile > :deep(.dchart) { flex: 1; min-height: 0; }
+.progress { position: absolute; left: 0; right: 0; bottom: 0; height: 3px; background: #131d29; }
+.progress i { display: block; height: 100%; width: 100%; background: #8b85ff; opacity: .55;
+  transform-origin: left; transform: scaleX(0); animation: fillUp linear forwards; }
+@keyframes fillUp { to { transform: scaleX(1); } }
 .gone { margin: auto; color: #8a9bb0; font-size: 22px; font-weight: 300; }
 </style>
