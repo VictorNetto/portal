@@ -78,7 +78,10 @@ onUnmounted(() => {
         </div>
         <div class="tvRight">
           <span v-if="screens.length > 1" class="dots" :aria-label="t('dash.screenOf', { n: index + 1, total: screens.length })">
-            <i v-for="(s, i) in screens" :key="i" :class="{ on: i === index }"></i>
+            <!-- The current screen's dot is a short bar that fills up until the next screen. -->
+            <i v-for="(s, i) in screens" :key="i" :class="{ on: i === index }">
+              <b v-if="i === index" :key="cycle" :style="{ animationDuration: `${board.rotate_seconds}s` }"></b>
+            </i>
           </span>
           <span class="when" :class="{ stale }">{{ t('dash.tvUpdated', { time: fmtTime(board.generated_at) }) }}</span>
         </div>
@@ -87,10 +90,6 @@ onUnmounted(() => {
         <section v-for="(c, i) in current.charts" :key="i" class="tile" :class="`w${c.width}`">
           <DashChart :result="c.result" :error="c.error" dark big fill />
         </section>
-      </div>
-      <!-- How long until the next screen: a thin line along the bottom that fills up. -->
-      <div v-if="screens.length > 1" class="progress" aria-hidden="true">
-        <i :key="cycle" :style="{ animationDuration: `${board.rotate_seconds}s` }"></i>
       </div>
     </template>
   </div>
@@ -104,9 +103,11 @@ onUnmounted(() => {
 .screenTitle { color: #8a9bb0; margin-left: 18px; font-size: 24px; font-weight: 300; }
 .screenTitle::before { content: '·'; margin-right: 18px; }
 .tvRight { display: flex; align-items: center; gap: 24px; }
-.dots { display: inline-flex; gap: 8px; }
-.dots i { width: 8px; height: 8px; border-radius: 50%; background: #2a3a4c; }
-.dots i.on { background: #8b85ff; }
+.dots { display: inline-flex; align-items: center; gap: 8px; }
+.dots i { width: 8px; height: 8px; border-radius: 4px; background: #2a3a4c; overflow: hidden; transition: width .3s ease; }
+.dots i.on { width: 32px; }
+.dots b { display: block; height: 100%; width: 100%; background: #8b85ff;
+  transform-origin: left; transform: scaleX(0); animation: fillUp linear forwards; }
 .when { color: #8a9bb0; font-size: 16px; font-variant-numeric: tabular-nums; }
 .when.stale { color: #f0a14a; }
 .tvGrid { flex: 1; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px; min-height: 0; animation: fadeIn .4s ease; }
@@ -115,9 +116,6 @@ onUnmounted(() => {
 .w2 { grid-column: span 2; }
 .w3 { grid-column: span 3; }
 .tile > :deep(.dchart) { flex: 1; min-height: 0; }
-.progress { position: absolute; left: 0; right: 0; bottom: 0; height: 3px; background: #131d29; }
-.progress i { display: block; height: 100%; width: 100%; background: #8b85ff; opacity: .55;
-  transform-origin: left; transform: scaleX(0); animation: fillUp linear forwards; }
 @keyframes fillUp { to { transform: scaleX(1); } }
 .gone { margin: auto; color: #8a9bb0; font-size: 22px; font-weight: 300; }
 </style>
