@@ -79,6 +79,8 @@ def bucket(d: datetime, unit: str) -> datetime:
         return datetime(d.year, d.month, 1)
     if unit == "quarter":
         return datetime(d.year, 3 * ((d.month - 1) // 3) + 1, 1)
+    if unit == "semester":
+        return datetime(d.year, 1 if d.month <= 6 else 7, 1)
     return datetime(d.year, 1, 1)
 
 
@@ -91,6 +93,8 @@ def next_bucket(b: datetime, unit: str) -> datetime:
         return add_months(b, 1)
     if unit == "quarter":
         return add_months(b, 3)
+    if unit == "semester":
+        return add_months(b, 6)
     return b.replace(year=b.year + 1)
 
 

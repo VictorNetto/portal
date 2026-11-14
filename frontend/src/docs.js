@@ -89,7 +89,7 @@ E o valor diz o período. Relativo a hoje:
 - \`created:7d\`: nos últimos 7 dias, contando hoje (\`1d\` é hoje)
 - \`created:3m\` e \`created:1y\`: nos últimos 3 meses, no último ano
 
-Ou com datas, até três separadas por pontos (\`d1.d2.d3\`), cada uma como dia (\`05-10-2026\`), mês (\`10-2026\`) ou ano (\`2026\`):
+Ou com datas, até três separadas por pontos (\`d1.d2.d3\`), cada uma como dia (\`05-10-2026\`), mês (\`10-2026\`), ano (\`2026\`), semestre (\`26S1\` ou \`2026S1\`) ou trimestre (\`26T3\`; também \`26Q3\`):
 
 - \`fixed:01-09-2026..30-09-2026\`: de d1 até d3, com os dois incluídos (\`fixed:09-2026..10-2026\`: setembro e outubro)
 - \`sent:01-10-2026..\`: d1 ou depois
@@ -886,7 +886,7 @@ O valor vai até o primeiro espaço. Para incluir espaços, use aspas: \`report:
 - \`fixed:10-2026\`: nesse mês (\`2026\`: nesse ano)
 - \`-sent:15d\`: o contrário: recebidas há mais de 15 dias
 
-Datas como dia (\`05-10-2026\`), mês (\`10-2026\`) ou ano (\`2026\`).`,
+Datas como dia (\`05-10-2026\`), mês (\`10-2026\`), ano (\`2026\`), semestre (\`26S1\`) ou trimestre (\`26T3\`).`,
       },
       {
         id: 'def-depois', title: 'Depois do RVS',
@@ -979,7 +979,7 @@ Só a medida é obrigatória; as outras partes vêm em qualquer ordem, cada uma 
 
 - **Medida:** \`count\` (quantas), ou um tempo entre duas datas da mesma vulnerabilidade: \`median days sent..fixed\` (também \`avg\`, \`min\`, \`max\`, \`p90\`…). Um tempo calculado com menos de 3 vulnerabilidades aparece como "—".
 - **by:** \`status\`, \`severity\` (pelo CVSS: crítica ≥ 9, alta ≥ 7, média ≥ 4, baixa > 0), \`source\`, \`report\`, \`operator\`. Com dois, \`by report, severity\`, as barras ficam empilhadas ou vira uma tabela cruzada.
-- **over:** um eixo de tempo: \`over fixed per month\` (\`day\`, \`week\`, \`month\`, \`quarter\`, \`year\`). O período é o do filtro na mesma data (\`where fixed:12m\`) e começa num mês (semana, trimestre) inteiro.
+- **over:** um eixo de tempo: \`over fixed per month\` (\`day\`, \`week\`, \`month\`, \`quarter\`, \`semester\`, \`year\`). O período é o do filtro na mesma data (\`where fixed:12m\`, \`where sent:25S2..26S2\`) e começa num mês (semana, trimestre, semestre) inteiro.
 - **where:** o **mesmo filtro de Operações**, com \`status:a,b\` para "um ou outro". Um filtro que não dá para ler é um erro (em Operações, ele é ignorado).
 - **top 6:** os 6 maiores grupos do primeiro \`by\`; o resto soma em "Outros".
 - **as:** \`number\`, \`bar\`, \`hbar\`, \`line\` ou \`table\`. Sem \`as\`, o portal escolhe.
@@ -995,7 +995,9 @@ Datas: \`created\`, \`updated\`, \`sent\`, \`accepted\`, \`fixing\`, \`retesting
 - \`count by report, severity top 6 where status:sent,fixing,retesting as hbar\`
 - \`count by severity over fixed per month where fixed:12m as bar title "Corrigidas por mês"\`
 - \`median days sent..fixed by severity where fixed:1y as table\`
-- \`p90 days sent..accepted over sent per quarter\`: em quantos dias 9 de cada 10 enviadas foram aceitas, por trimestre`,
+- \`p90 days sent..accepted over sent per quarter\`: em quantos dias 9 de cada 10 enviadas foram aceitas, por trimestre
+- \`count by severity over sent per semester where sent:25S2..26S2 as bar title "Enviadas por semestre"\`
+- \`count where sent:26S1 title "Enviadas em 26S1"\``,
       },
       {
         id: 'dash-variaveis', title: 'Variáveis',
@@ -1099,7 +1101,7 @@ And the value gives the period. Relative to today:
 - \`created:7d\`: in the last 7 days, today included (\`1d\` is today)
 - \`created:3m\` and \`created:1y\`: in the last 3 months, the last year
 
-Or with dates, up to three separated by dots (\`d1.d2.d3\`), each a day (\`05-10-2026\`), month (\`10-2026\`) or year (\`2026\`):
+Or with dates, up to three separated by dots (\`d1.d2.d3\`), each a day (\`05-10-2026\`), month (\`10-2026\`), year (\`2026\`), semester (\`26S1\` or \`2026S1\`) or quarter (\`26Q3\`; also \`26T3\`):
 
 - \`fixed:01-09-2026..30-09-2026\`: from d1 to d3, both included (\`fixed:09-2026..10-2026\`: September and October)
 - \`sent:01-10-2026..\`: d1 or later
@@ -1989,7 +1991,7 @@ Only the measure is required; the other parts come in any order, each at most on
 
 - **Measure:** \`count\`, or a time between two dates of the same vulnerability: \`median days sent..fixed\` (also \`avg\`, \`min\`, \`max\`, \`p90\`…). A time computed from fewer than 3 vulnerabilities shows as "—".
 - **by:** \`status\`, \`severity\` (from the CVSS: critical ≥ 9, high ≥ 7, medium ≥ 4, low > 0), \`source\`, \`report\`, \`operator\`. With two, \`by report, severity\`, the bars stack or it becomes a cross table.
-- **over:** a time axis: \`over fixed per month\` (\`day\`, \`week\`, \`month\`, \`quarter\`, \`year\`). The period is the filter's on the same date (\`where fixed:12m\`) and starts on a whole month (week, quarter).
+- **over:** a time axis: \`over fixed per month\` (\`day\`, \`week\`, \`month\`, \`quarter\`, \`semester\`, \`year\`). The period is the filter's on the same date (\`where fixed:12m\`, \`where sent:25S2..26S2\`) and starts on a whole month (week, quarter, semester).
 - **where:** the **same filter as Operations**, with \`status:a,b\` for "either". A filter that can't be read is an error (in Operations it is ignored).
 - **top 6:** the 6 largest groups of the first \`by\`; the rest add up to "Others".
 - **as:** \`number\`, \`bar\`, \`hbar\`, \`line\` or \`table\`. Without \`as\`, the portal picks one.
@@ -2005,7 +2007,9 @@ Dates: \`created\`, \`updated\`, \`sent\`, \`accepted\`, \`fixing\`, \`retesting
 - \`count by report, severity top 6 where status:sent,fixing,retesting as hbar\`
 - \`count by severity over fixed per month where fixed:12m as bar title "Fixed per month"\`
 - \`median days sent..fixed by severity where fixed:1y as table\`
-- \`p90 days sent..accepted over sent per quarter\`: within how many days 9 in 10 sent were accepted, per quarter`,
+- \`p90 days sent..accepted over sent per quarter\`: within how many days 9 in 10 sent were accepted, per quarter
+- \`count by severity over sent per semester where sent:25S2..26S2 as bar title "Sent per semester"\`
+- \`count where sent:26S1 title "Sent in 26S1"\``,
       },
       {
         id: 'dash-variaveis', title: 'Variables',

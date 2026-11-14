@@ -25,7 +25,7 @@ DATE_KEYS = {
 }
 DIMS = ["status", "severity", "source", "report", "operator"]
 TV_DIMS = {"status", "severity", "source"}  # no report name or person on a TV
-UNITS = ["day", "week", "month", "quarter", "year"]
+UNITS = ["day", "week", "month", "quarter", "semester", "year"]
 CHARTS = ["number", "bar", "hbar", "line", "table"]
 CLAUSES = ["by", "over", "where", "top", "as", "title"]
 AGGS = ["avg", "median", "min", "max"]
@@ -254,6 +254,14 @@ def _calendar_span(text: str):
         if int(m[1]) < 1:
             return None
         return datetime(int(m[1]), 1, 1), datetime(int(m[1]) + 1, 1, 1)
+    # A semester or a quarter: 26s1 / 2026s1, 26q3 / 26t3 (trimestre). Two digits mean 20xx.
+    if m := re.fullmatch(r"(\d{2}|\d{4})([sqt])(\d)", text):
+        year = int(m[1]) + (2000 if len(m[1]) == 2 else 0)
+        n, size = int(m[3]), (6 if m[2] == "s" else 3)
+        if not 1 <= n <= 12 // size:
+            return None
+        start = datetime(year, (n - 1) * size + 1, 1)
+        return start, add_months(start, size)
     return None
 
 

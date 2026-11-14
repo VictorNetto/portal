@@ -219,3 +219,29 @@ def test_intervals_and_screen_limits(painel):
         assert painel.patch(f"/dashboards/{d['id']}", bad).status_code == 422, bad
     r = painel.patch(f"/dashboards/{d['id']}", {"rotate_seconds": 45})
     assert r.json()["rotate_seconds"] == 45 and len(r.json()["screens"]) == 2
+
+
+@pytest.mark.parametrize("text,span", [
+    ("26S1", (datetime(2026, 1, 1), datetime(2026, 7, 1))),
+    ("2025s2", (datetime(2025, 7, 1), datetime(2026, 1, 1))),
+    ("26Q3", (datetime(2026, 7, 1), datetime(2026, 10, 1))),
+    ("26T4", (datetime(2026, 10, 1), datetime(2027, 1, 1))),
+    ("25S2..26S2", (datetime(2025, 7, 1), datetime(2027, 1, 1))),
+    ("26Q1..06-2026", (datetime(2026, 1, 1), datetime(2026, 7, 1))),
+    ("2026", (datetime(2026, 1, 1), datetime(2027, 1, 1))),
+])
+def test_semesters_and_quarters_as_periods(text, span):
+    assert parse_filter(f"sent:{text}", NOW)[0].value == span
+
+
+@pytest.mark.parametrize("text", ["26S3", "26S0", "26Q5", "26X1", "263S1", "26S2..25S2"])
+def test_impossible_semesters_and_quarters_are_errors(text):
+    assert err(f"count where sent:{text}").code == "bad_period"
+
+
+def test_per_semester_buckets():
+    rows = [row(sent_at=datetime(2025, 8, 1)), row(sent_at=datetime(2026, 3, 1)),
+            row(sent_at=datetime(2026, 6, 30, 23)), row(sent_at=datetime(2026, 7, 1)), row(sent_at=datetime(2024, 1, 1))]
+    r = evaluate(parse("count over sent per semester where sent:25S2..26S2", now=NOW), rows, NOW)
+    assert [x["key"] for x in r["x"]] == ["2025-07-01", "2026-01-01", "2026-07-01"]
+    assert r["values"] == [[1], [2], [1]]

@@ -14,7 +14,8 @@
 //   source:<text>                source contains (ci)
 //   report:<text>                report id or name contains (ci); report:none = not in a report
 //   <date key>:<when>            the row's date for that key falls in <when> (DATE_KEYS;
-//                                see parsePeriod): 7d, 3m, 1y, or d1.d2.d3 (dd-mm-aaaa, mm-aaaa, aaaa).
+//                                see parsePeriod): 7d, 3m, 1y, or d1.d2.d3 (dd-mm-aaaa, mm-aaaa, aaaa,
+//                                26S1 semester, 26Q3 / 26T3 quarter).
 //     A row without that date never matches, so -sent:15d also keeps the unsent ones.
 //
 // The "/" menu lists only the basic keys, plus "more filters" for the advanced ones
@@ -68,7 +69,8 @@ export const DEFENSE_FILTER_KEYS = [
 // All periods are in the browser's local time, like the dates the lists show.
 //
 // Relative: 7d, 3m, 2y = the last 7 days (today included; 1d = today), 3 months, 2 years.
-// Explicit: up to three dates separated by dots, d1.d2.d3, each dd-mm-aaaa, mm-aaaa or aaaa
+// Explicit: up to three dates separated by dots, d1.d2.d3, each dd-mm-aaaa, mm-aaaa, aaaa, a semester
+// (26S1, 2026S1) or a quarter (26Q3, 26T3; two-digit years are 20xx)
 // (one-digit days and months are fine):
 //   d1..d3    from the start of d1 to the end of d3
 //   d1..      d1 or later
@@ -78,6 +80,7 @@ export const DEFENSE_FILTER_KEYS = [
 const DAY_RE = /^(\d{1,2})-(\d{1,2})-(\d{4})$/
 const MONTH_RE = /^(\d{1,2})-(\d{4})$/
 const YEAR_RE = /^(\d{4})$/
+const PART_RE = /^(\d{2}|\d{4})([sqt])(\d)$/   // lower-cased by parsePeriod
 
 // One day, month or year as [start, end) local times; null when not a real date.
 function calendarSpan(text) {
@@ -93,6 +96,14 @@ function calendarSpan(text) {
     const [mo, y] = [Number(m[1]) - 1, Number(m[2])]
     if (mo < 0 || mo > 11) return null
     return [new Date(y, mo, 1), new Date(y, mo + 1, 1)]
+  }
+  m = PART_RE.exec(text)
+  if (m) {
+    const y = Number(m[1]) + (m[1].length === 2 ? 2000 : 0)
+    const n = Number(m[3])
+    const size = m[2] === 's' ? 6 : 3
+    if (n < 1 || n > 12 / size) return null
+    return [new Date(y, (n - 1) * size, 1), new Date(y, n * size, 1)]
   }
   m = YEAR_RE.exec(text)
   if (m) {

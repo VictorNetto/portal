@@ -162,6 +162,29 @@ test('the Hub accepts status:a,b as either', async ({ page }) => {
   expect(await rowCount(page)).toBe(0)
 })
 
+test('semesters and quarters work as periods in the Hub and as a chart unit', async ({ page }) => {
+  const v = await savedVuln(admin, { identifier: `e2e-sem-${tag()}` })
+  vulns.push(v.id)
+  // "Today" as the browser sees it (São Paulo).
+  const [y, m] = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' }).split('-').map(Number)
+  const yy = String(y).slice(2)
+  const half = m <= 6 ? 1 : 2
+  const other = half === 1 ? 2 : 1
+  const q = Math.floor((m - 1) / 3) + 1
+  await loginUI(page, 'admin', process.env.E2E_ADMIN_PASSWORD || 'admin')
+  const cases = {
+    [`${yy}S${half}`]: 1, [`${y}S${half}`]: 1, [`${yy}S${other}`]: 0,
+    [`${yy}T${q}`]: 1, [`${yy}Q${q}`]: 1, [`${Number(yy) - 1}S1..${yy}S${half}`]: 1,
+  }
+  for (const [when, n] of Object.entries(cases)) {
+    await filterHub(page, `${v.identifier} created:${when}`)
+    expect(await rowCount(page), when).toBe(n)
+  }
+  const d = await board([`count over created per semester where created:${Number(yy) - 1}S1..${yy}S2 as bar title "Por semestre"`])
+  await page.goto(`/dashboards/${d.id}`)
+  await expect(page.locator('.card svg .taxis', { hasText: `S${half} ${yy}` })).toHaveCount(1)
+})
+
 test('the example dashboards render', async ({ page }) => {
   const errors = collectPageErrors(page)
   await page.setViewportSize({ width: 1440, height: 1500 })

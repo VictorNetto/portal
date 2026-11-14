@@ -36,7 +36,7 @@ title    = "title" , quoted-string ;
 
 dim      = "status" | "severity" | "source" | "report" | "operator" ;
 date     = "created" | "updated" | "sent" | "accepted" | "fixing" | "retesting" | "fixed" | "risk" ;
-unit     = "day" | "week" | "month" | "quarter" | "year" ;
+unit     = "day" | "week" | "month" | "quarter" | "semester" | "year" ;
 chart    = "number" | "bar" | "hbar" | "line" | "table" ;
 ```
 

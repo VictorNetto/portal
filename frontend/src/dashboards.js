@@ -23,6 +23,7 @@ export function bucketLabel(iso, unit, short = false) {
   const loc = MONTHS[locale.value] || 'pt-BR'
   if (unit === 'year') return String(y)
   if (unit === 'quarter') return `T${Math.floor((m - 1) / 3) + 1} ${short ? String(y).slice(2) : y}`
+  if (unit === 'semester') return `S${m <= 6 ? 1 : 2} ${short ? String(y).slice(2) : y}`
   if (unit === 'month') {
     const name = date.toLocaleDateString(loc, { month: 'short' }).replace('.', '')
     return short ? name : `${name} ${y}`
