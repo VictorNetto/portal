@@ -75,3 +75,14 @@ export function errorText(e) {
   const msg = t(`dash.err.${e.code}`, e.params || {})
   return e.code === 'unavailable' || e.code === 'tv_dim' ? msg : `${msg} ${t('dash.err.position', { pos: e.pos + 1 })}`
 }
+
+// Intervals offered in the editor (seconds). Data: 30 s to 1 h; a TV screen: 5 s to 10 min.
+export const REFRESH_CHOICES = [30, 60, 120, 300, 600, 900, 1800, 3600]
+export const ROTATE_CHOICES = [10, 15, 20, 30, 45, 60, 120, 300]
+
+/** 45 → "45 s", 120 → "2 min", 3600 → "1 h". */
+export function fmtSeconds(n) {
+  if (n < 60) return `${n} s`
+  if (n < 3600) return n % 60 ? `${Math.floor(n / 60)} min ${n % 60} s` : `${n / 60} min`
+  return n % 3600 ? `${Math.floor(n / 3600)} h ${Math.round((n % 3600) / 60)} min` : `${n / 3600} h`
+}

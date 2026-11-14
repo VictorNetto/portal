@@ -26,9 +26,12 @@ async function loginDashboard(page) {
   await expect(page).toHaveURL(/\/dashboards$/)
 }
 
-async function board(charts, variables = []) {
+// `charts` is one screen's queries, or a list of screens (each a list of queries).
+async function board(charts, variables = [], extra = {}) {
+  const lists = Array.isArray(charts[0]) ? charts : [charts]
+  const screens = lists.map((qs, i) => ({ title: lists.length > 1 ? `Tela ${i + 1}` : null, charts: qs.map((query) => ({ query })) }))
   const { status, data } = await api('/dashboards', {
-    token: admin, body: { name: `e2e-${tag()}`, variables, charts: charts.map((query) => ({ query })) },
+    token: admin, body: { name: `e2e-${tag()}`, variables, screens, ...extra },
   })
   expect(status).toBe(201)
   boards.push(data.id)
@@ -99,11 +102,13 @@ test('variables can change for one view only', async ({ page }) => {
 
 test('a TV link shows the board without signing in, until revoked', async ({ page, browser }) => {
   autoDialogs(page)
-  const d = await board([
+  const d = await board([[
     'count where status:sent,fixing,retesting title "Abertas"',
     'count by severity where status:sent,fixing,retesting title "Por severidade"',
     'count by severity over fixed per month where fixed:6m as bar title "Corrigidas por mês"',
-  ])
+  ], [
+    'count by status title "Por status"',
+  ]], [], { rotate_seconds: 5, refresh_seconds: 30 })
   await loginDashboard(page)
   await page.goto(`/dashboards/${d.id}`)
   await expect(page.locator('.card svg, .card .dval').first()).toBeVisible()
@@ -119,7 +124,13 @@ test('a TV link shows the board without signing in, until revoked', async ({ pag
   await expect(tv.locator('.tvHead h1')).toHaveText(d.name)
   await expect(tv.locator('.tile')).toHaveCount(3)
   await expect(tv.locator('.tile .dtitle').nth(2)).toHaveText('Corrigidas por mês')
+  await expect(tv.locator('.screenTitle')).toHaveText('Tela 1')
   if (SHOTS) await tv.screenshot({ path: `${SHOTS}/dash-tv.png` })
+  // It loops: the second screen after rotate_seconds, then back to the first.
+  await expect(tv.locator('.screenTitle')).toHaveText('Tela 2', { timeout: 8000 })
+  await expect(tv.locator('.tile')).toHaveCount(1)
+  await expect(tv.locator('.dots i.on')).toHaveCount(1)
+  await expect(tv.locator('.screenTitle')).toHaveText('Tela 1', { timeout: 8000 })
 
   await page.click('button:has-text("Pronto")')
   await page.click('.links .link.danger')
@@ -165,4 +176,52 @@ test('the example dashboards render', async ({ page }) => {
     await expect(page.locator('.clickRow').first()).toBeVisible()
   }
   expect(errors).toEqual([])
+})
+
+test('the portal pages through the screens with Anterior and Próxima', async ({ page }) => {
+  const d = await board([['count title "Um"'], ['count title "Dois"', 'count title "Dois b"'], ['count title "Três"']])
+  await loginDashboard(page)
+  await page.goto(`/dashboards/${d.id}`)
+  const titles = page.locator('.card .dtitle')
+  await expect(titles).toHaveText(['Um'])
+  await expect(page.locator('.screenInfo')).toContainText('1 de 3')
+  await page.click('.screenNav button:has-text("Próxima")')
+  await expect(titles).toHaveText(['Dois', 'Dois b'])
+  await expect(page).toHaveURL(/tela=2/)
+  if (SHOTS) await page.screenshot({ path: `${SHOTS}/dash-screens.png` })
+  await page.reload()                                   // the URL keeps the screen
+  await expect(titles).toHaveText(['Dois', 'Dois b'])
+  await page.keyboard.press('ArrowRight')
+  await expect(titles).toHaveText(['Três'])
+  await page.click('.screenNav button:has-text("Próxima")')   // wraps around
+  await expect(titles).toHaveText(['Um'])
+  await page.click('.screenNav button:has-text("Anterior")')
+  await expect(titles).toHaveText(['Três'])
+})
+
+test('the editor adds screens, moves charts between them and sets the intervals', async ({ page }) => {
+  autoDialogs(page)
+  await loginDashboard(page)
+  await page.click('text=Novo dashboard')
+  await page.locator('.formCard input').first().fill(`e2e-${tag()}`)
+  await page.locator('select.isel').first().selectOption({ label: '5 min' })
+  await page.locator('select.isel').nth(1).selectOption({ label: '15 s' })
+  await page.click('text=Adicionar tela')
+  const screens = page.locator('section.screen')
+  await expect(screens).toHaveCount(2)
+  await screens.nth(1).locator('.screenTitle').fill('Segunda')
+  await screens.nth(1).locator('.chartEdit textarea').fill('count by status title "Na segunda"')
+  await screens.nth(0).locator('button:has-text("Adicionar gráfico")').click()
+  await screens.nth(0).locator('.chartEdit textarea').nth(1).fill('count title "Vai mudar"')
+  // move the new chart to screen 2
+  await screens.nth(0).locator('.chartEdit').nth(1).locator('select.wsel').nth(1).selectOption({ value: '1' })
+  await expect(screens.nth(1).locator('.chartEdit')).toHaveCount(2)
+  await page.click('button:has-text("Salvar")')
+  await expect(page).toHaveURL(/\/dashboards\/[0-9a-f-]+$/)
+  const id = page.url().split('/').pop()
+  boards.push(id)
+  const saved = (await api(`/dashboards/${id}`, { token: admin })).data
+  expect([saved.refresh_seconds, saved.rotate_seconds]).toEqual([300, 15])
+  expect(saved.screens.map((x) => [x.title, x.charts.length])).toEqual([[null, 1], ['Segunda', 2]])
+  await expect(page.locator('.gen')).toContainText('atualiza a cada 5 min')
 })

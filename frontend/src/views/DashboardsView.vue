@@ -44,7 +44,7 @@ onMounted(async () => {
               <div class="dname">{{ d.name }}</div>
               <div v-if="d.description" class="muted small">{{ d.description }}</div>
             </td>
-            <td class="muted">{{ t('dash.chartCount', { n: d.chart_count }) }}</td>
+            <td class="muted">{{ t('dash.chartCount', { n: d.chart_count }) }}<template v-if="d.screen_count > 1"> · {{ t('dash.screenCount', { n: d.screen_count }) }}</template></td>
             <td class="muted mono">{{ d.created_by }}</td>
             <td class="muted">{{ fmtDateTime(d.updated_at) }}</td>
           </tr>

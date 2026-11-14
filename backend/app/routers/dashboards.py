@@ -28,7 +28,8 @@ from app.services.dashboard_query import QueryError, check_tv, clean_variables, 
 router = APIRouter(prefix="/dashboards", tags=["dashboards"])
 tv_router = APIRouter(prefix="/tv", tags=["dashboards"])
 
-MAX_CHARTS = 24
+MAX_CHARTS = 24     # over all screens
+MAX_SCREENS = 10
 
 
 class Variable(BaseModel):
@@ -41,18 +42,32 @@ class Chart(BaseModel):
     width: int = Field(default=1, ge=1, le=3)
 
 
+class Screen(BaseModel):
+    title: str | None = Field(default=None, max_length=80)
+    charts: list[Chart] = Field(default_factory=list, max_length=MAX_CHARTS)
+
+
+# Data: every 30 s to 1 h. A TV screen: 5 s to 10 min.
+Refresh = Field(default=60, ge=30, le=3600)
+Rotate = Field(default=30, ge=5, le=600)
+
+
 class DashboardIn(BaseModel):
     name: str = Field(min_length=1, max_length=120)
     description: str | None = Field(default=None, max_length=500)
     variables: list[Variable] = Field(default_factory=list, max_length=20)
-    charts: list[Chart] = Field(default_factory=list, max_length=MAX_CHARTS)
+    screens: list[Screen] = Field(default_factory=lambda: [Screen()], min_length=1, max_length=MAX_SCREENS)
+    refresh_seconds: int = Refresh
+    rotate_seconds: int = Rotate
 
 
 class DashboardPatch(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=120)
     description: str | None = Field(default=None, max_length=500)
     variables: list[Variable] | None = Field(default=None, max_length=20)
-    charts: list[Chart] | None = Field(default=None, max_length=MAX_CHARTS)
+    screens: list[Screen] | None = Field(default=None, min_length=1, max_length=MAX_SCREENS)
+    refresh_seconds: int | None = Field(default=None, ge=30, le=3600)
+    rotate_seconds: int | None = Field(default=None, ge=5, le=600)
 
 
 class RunIn(BaseModel):
@@ -86,21 +101,36 @@ def _names(session: Session, ids) -> dict:
 def _out(d: Dashboard, names: dict) -> dict:
     return {
         "id": str(d.id), "name": d.name, "description": d.description,
-        "variables": d.variables, "charts": d.charts,
+        "variables": d.variables, "screens": d.screens,
+        "refresh_seconds": d.refresh_seconds, "rotate_seconds": d.rotate_seconds,
         "created_by": names.get(d.created_by), "updated_by": names.get(d.updated_by),
         "created_at": d.created_at.isoformat(), "updated_at": d.updated_at.isoformat(),
     }
 
 
-def _validate(charts: list[dict], variables: dict, now: datetime) -> None:
+def _charts(screens: list[dict]):
+    """(screen index, chart index, chart) over every screen."""
+    for s, screen in enumerate(screens):
+        for i, c in enumerate(screen.get("charts", [])):
+            yield s, i, c
+
+
+def _screens(items: list[Screen]) -> list[dict]:
+    out = [{"title": (s.title or "").strip() or None, "charts": [c.model_dump() for c in s.charts]} for s in items]
+    if sum(len(s["charts"]) for s in out) > MAX_CHARTS:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, f"At most {MAX_CHARTS} charts in a dashboard")
+    return out
+
+
+def _validate(screens: list[dict], variables: dict, now: datetime) -> None:
     """Every chart must parse with the dashboard's variables: a saved chart that can't run
     would only show an error on the screen (or the TV)."""
     errors = []
-    for i, c in enumerate(charts):
+    for s, i, c in _charts(screens):
         try:
             parse(c["query"], variables, now)
         except QueryError as e:
-            errors.append({"chart": i, **e.as_dict()})
+            errors.append({"screen": s, "chart": i, **e.as_dict()})
     if errors:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, {"code": "invalid_charts", "errors": errors})
 
@@ -112,18 +142,22 @@ def _get(session: Session, dashboard_id: uuid.UUID) -> Dashboard:
     return d
 
 
-def _run(charts: list[dict], variables: dict, rows: list[dict], now: datetime, tv: bool = False) -> list[dict]:
+def _run(screens: list[dict], variables: dict, rows: list[dict], now: datetime, tv: bool = False) -> list[dict]:
     out = []
-    for c in charts:
-        item = {"width": c.get("width", 1)}
-        try:
-            q = parse(c["query"], variables, now)
-            if tv:
-                check_tv(q)
-            item["result"] = evaluate(q, rows, now)
-        except QueryError as e:
-            item["error"] = e.as_dict()
-        out.append(item)
+    for screen in screens:
+        charts = []
+        for c in screen.get("charts", []):
+            item = {"width": c.get("width", 1)}
+            try:
+                q = parse(c["query"], variables, now)
+                if tv:
+                    check_tv(q)
+                item["result"] = evaluate(q, rows, now)
+            except QueryError as e:
+                # a TV never shows why a chart failed
+                item["error"] = {"code": "unavailable", "pos": 0, "params": {}} if tv else e.as_dict()
+            charts.append(item)
+        out.append({"title": screen.get("title"), "charts": charts})
     return out
 
 
@@ -133,17 +167,19 @@ def _run(charts: list[dict], variables: dict, rows: list[dict], now: datetime, t
 def list_dashboards(_: User = Depends(get_dashboard_user), session: Session = Depends(get_session)) -> list:
     items = list(session.scalars(select(Dashboard).order_by(Dashboard.name)))
     names = _names(session, [d.created_by for d in items] + [d.updated_by for d in items])
-    return [{**_out(d, names), "chart_count": len(d.charts)} for d in items]
+    return [{**_out(d, names), "chart_count": sum(1 for _ in _charts(d.screens)),
+             "screen_count": len(d.screens)} for d in items]
 
 
 @router.post("", status_code=status.HTTP_201_CREATED)
 def create_dashboard(body: DashboardIn, request: Request, user: User = Depends(get_dashboard_user),
                      session: Session = Depends(get_session)) -> dict:
     variables = _vars(body.variables)
-    charts = [c.model_dump() for c in body.charts]
-    _validate(charts, variables, local_now())
+    screens = _screens(body.screens)
+    _validate(screens, variables, local_now())
     d = Dashboard(name=body.name.strip(), description=body.description, created_by=user.id,
-                  variables=[v.model_dump() for v in body.variables], charts=charts)
+                  variables=[v.model_dump() for v in body.variables], screens=screens,
+                  refresh_seconds=body.refresh_seconds, rotate_seconds=body.rotate_seconds)
     session.add(d)
     session.flush()
     audit.record(session, action=AuditAction.create, user_id=user.id, entity_type="dashboard",
@@ -181,8 +217,8 @@ def update_dashboard(dashboard_id: uuid.UUID, body: DashboardPatch, request: Req
                      user: User = Depends(get_dashboard_user), session: Session = Depends(get_session)) -> dict:
     d = _get(session, dashboard_id)
     variables = _vars(body.variables if body.variables is not None else d.variables)
-    charts = [c.model_dump() for c in body.charts] if body.charts is not None else d.charts
-    _validate(charts, variables, local_now())
+    screens = _screens(body.screens) if body.screens is not None else d.screens
+    _validate(screens, variables, local_now())
     changed = []
     if body.name is not None and body.name.strip() != d.name:
         d.name = body.name.strip()
@@ -195,9 +231,14 @@ def update_dashboard(dashboard_id: uuid.UUID, body: DashboardPatch, request: Req
         if new != d.variables:
             d.variables = new
             changed.append("variables")
-    if body.charts is not None and charts != d.charts:
-        d.charts = charts
-        changed.append("charts")
+    if body.screens is not None and screens != d.screens:
+        d.screens = screens
+        changed.append("screens")
+    for field in ("refresh_seconds", "rotate_seconds"):
+        value = getattr(body, field)
+        if value is not None and value != getattr(d, field):
+            setattr(d, field, value)
+            changed.append(field)
     if changed:
         d.updated_by = user.id
         d.updated_at = datetime.now(UTC).replace(tzinfo=None)
@@ -227,7 +268,7 @@ def run_dashboard(dashboard_id: uuid.UUID, body: RunIn | None = None, _: User = 
         variables.update(_vars(body.variables))
     now = local_now()
     return {"generated_at": datetime.now(UTC).isoformat(timespec="seconds"),
-            "charts": _run(d.charts, variables, load_rows(session), now)}
+            "screens": _run(d.screens, variables, load_rows(session), now)}
 
 
 # --- TV links -----------------------------------------------------------------------------
@@ -259,11 +300,11 @@ def create_link(dashboard_id: uuid.UUID, body: LinkIn, request: Request, user: U
     d = _get(session, dashboard_id)
     variables, now = _vars(d.variables), local_now()
     errors = []
-    for i, c in enumerate(d.charts):
+    for s, i, c in _charts(d.screens):
         try:
             check_tv(parse(c["query"], variables, now))
         except QueryError as e:
-            errors.append({"chart": i, **e.as_dict()})
+            errors.append({"screen": s, "chart": i, **e.as_dict()})
     if errors:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, {"code": "not_for_tv", "errors": errors})
     token = secrets.token_urlsafe(32)
@@ -310,8 +351,6 @@ def tv(token: str, session: Session = Depends(get_session)) -> dict:
     link.last_used_at = datetime.now(UTC).replace(tzinfo=None)
     session.commit()
     now = local_now()
-    charts = _run(d.charts, _vars(d.variables), load_rows(session), now, tv=True)
-    for c in charts:  # a TV never shows why a chart failed
-        if "error" in c:
-            c["error"] = {"code": "unavailable", "pos": 0, "params": {}}
-    return {"name": d.name, "generated_at": datetime.now(UTC).isoformat(timespec="seconds"), "charts": charts}
+    return {"name": d.name, "generated_at": datetime.now(UTC).isoformat(timespec="seconds"),
+            "refresh_seconds": d.refresh_seconds, "rotate_seconds": d.rotate_seconds,
+            "screens": _run(d.screens, _vars(d.variables), load_rows(session), now, tv=True)}

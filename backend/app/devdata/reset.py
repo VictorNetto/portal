@@ -276,10 +276,13 @@ def main() -> int:
         for spec in sorted(c.REPORTS, key=lambda r: -(r["sent"] or 0)):
             builder.report(spec)
         builder.standalone()
-        for name, desc, variables, charts in c.DASHBOARDS:
-            session.add(Dashboard(name=name, description=desc, created_by=builder.users["painel"].id,
-                                  variables=[{"name": k, "value": v} for k, v in variables],
-                                  charts=[{"query": q, "width": w} for q, w in charts]))
+        for name, desc, variables, screens in c.DASHBOARDS:
+            session.add(Dashboard(
+                name=name, description=desc, created_by=builder.users["painel"].id,
+                variables=[{"name": k, "value": v} for k, v in variables],
+                screens=[{"title": title, "charts": [{"query": q, "width": w} for q, w in charts]}
+                         for title, charts in screens],
+                refresh_seconds=60, rotate_seconds=20))
         session.commit()
         rows = session.execute(text(
             "SELECT (SELECT count(*) FROM users), (SELECT count(*) FROM reports), "

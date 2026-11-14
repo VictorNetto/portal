@@ -965,7 +965,8 @@ Para liberar antes, use **Liberar bloqueio** na página do relatório. As altera
 
 - Menu ➝ *Dashboards*: a lista, compartilhada entre administradores e contas **Dashboards**.
 - **Editar** abre o editor: o nome, as **variáveis** e as consultas, cada uma com a prévia ao lado, que se atualiza enquanto você escreve.
-- A página do dashboard se recalcula a cada 5 minutos, ou em **Atualizar**.
+- Um dashboard tem uma ou mais **telas**, cada uma com seus gráficos e um título opcional. Na página do dashboard, **Anterior** e **Próxima** (ou as setas ← →) passam de uma tela para outra; o endereço guarda a tela (\`?tela=2\`).
+- No editor, **Atualizar os números a cada** define de quanto em quanto tempo a página e a TV recalculam (30 s a 1 h), e **Na TV, trocar de tela a cada**, quanto tempo a TV mostra cada tela (5 s a 10 min). **Atualizar** recalcula na hora.
 - Um dashboard que tem uma consulta com erro não é salvo: a mensagem diz o que está errado e em que posição.`,
       },
       {
@@ -1008,7 +1009,7 @@ O valor entra no lugar de \`$nome\` antes de a consulta ser lida, inclusive dent
       },
       {
         id: 'dash-tv', title: 'Links de TV',
-        md: `Na página do dashboard, **Novo link de TV** cria um endereço que mostra o dashboard **sem login**, em tela cheia e escuro, atualizado a cada minuto. Abra-o no navegador da TV.
+        md: `Na página do dashboard, **Novo link de TV** cria um endereço que mostra o dashboard **sem login**, em tela cheia e escuro. Abra-o no navegador da TV: ela passa pelas telas em sequência e recalcula os números nos intervalos do dashboard. Uma mudança no dashboard chega à TV na atualização seguinte.
 
 - O link aparece **uma única vez**: copie-o na hora. Se perder, crie outro e revogue o antigo.
 - Só aceita agrupamentos por **status**, **severidade** e **fonte**: nenhum nome de relatório ou de pessoa vai para a TV. O editor avisa quais consultas ficam de fora. Um gráfico que deixa de ser aceito depois de o link existir aparece como indisponível.
@@ -1974,7 +1975,8 @@ To release it sooner, use **Release lock** on the report page. The holder's unsa
 
 - Menu ➝ *Dashboards*: the list, shared by administrators and **Dashboards** accounts.
 - **Edit** opens the editor: the name, the **variables** and the queries, each with its preview beside it, updated as you type.
-- The dashboard page recomputes every 5 minutes, or on **Refresh**.
+- A dashboard has one or more **screens**, each with its charts and an optional title. On the dashboard page, **Previous** and **Next** (or the ← → keys) move between screens; the address keeps the screen (\`?tela=2\`).
+- In the editor, **Refresh the numbers every** sets how often the page and the TV recompute (30 s to 1 h), and **On a TV, change screens every** how long a TV shows each screen (5 s to 10 min). **Refresh** recomputes at once.
 - A dashboard with a query in error is not saved: the message says what is wrong and where.`,
       },
       {
@@ -2017,7 +2019,7 @@ The value replaces \`$name\` before the query is read, titles included. On the d
       },
       {
         id: 'dash-tv', title: 'TV links',
-        md: `On the dashboard page, **New TV link** creates an address that shows the dashboard **without signing in**, full screen and dark, refreshed every minute. Open it in the TV's browser.
+        md: `On the dashboard page, **New TV link** creates an address that shows the dashboard **without signing in**, full screen and dark. Open it in the TV's browser: it goes through the screens in turn and recomputes the numbers at the dashboard's intervals. A change to the dashboard reaches the TV at its next refresh.
 
 - The link is shown **once**: copy it right away. If you lose it, create another and revoke the old one.
 - It accepts only groupings by **status**, **severity** and **source**: no report or person name goes to the TV. The editor says which queries are left out. A chart that stops being accepted after the link exists shows as unavailable.

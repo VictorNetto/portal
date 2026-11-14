@@ -1,6 +1,7 @@
 <script setup>
-// One dashboard (D18): its charts, its variables (changeable for this view only) and its TV links.
-import { computed, onMounted, onUnmounted, ref } from 'vue'
+// One dashboard (D18): its screens of charts (Anterior / Próxima), its variables (changeable for
+// this view only) and its TV links. The numbers refresh at the dashboard's own interval.
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
   ApiError, createDashboardLink, deleteDashboard, getDashboard, listDashboardLinks, revokeDashboardLink, runDashboard,
@@ -8,7 +9,7 @@ import {
 import { t } from '../i18n'
 import { fmtDateTime } from '../dates'
 import { confirmDialog } from '../dialog'
-import { errorText } from '../dashboards'
+import { errorText, fmtSeconds } from '../dashboards'
 import AppShell from '../components/AppShell.vue'
 import DashChart from '../components/DashChart.vue'
 
@@ -20,6 +21,25 @@ const run = ref(null)
 const values = ref({})   // the variables as this view uses them
 const error = ref('')
 const running = ref(false)
+
+// The screen on view, kept in the URL (?tela=2) so a reload or a shared link stays on it.
+const screens = computed(() => run.value?.screens || [])
+const screen = computed(() => {
+  const n = Number(route.query.tela) || 1
+  return Math.min(Math.max(n, 1), Math.max(screens.value.length, 1)) - 1
+})
+const current = computed(() => screens.value[screen.value] || null)
+function go(delta) {
+  const n = screens.value.length
+  if (n < 2) return
+  router.replace({ query: { ...route.query, tela: ((screen.value + delta + n) % n) + 1 } })
+}
+function onKey(e) {
+  if (e.target.closest('input, textarea, select') || e.altKey || e.ctrlKey || e.metaKey) return
+  if (e.key === 'ArrowRight') go(1)
+  if (e.key === 'ArrowLeft') go(-1)
+}
+const chartCount = computed(() => (board.value?.screens || []).reduce((a, s) => a + s.charts.length, 0))
 
 const changed = computed(() => (board.value?.variables || []).some((v) => values.value[v.name] !== v.value))
 
@@ -54,14 +74,18 @@ async function remove() {
   catch { error.value = t('errors.delete') }
 }
 
-// Refresh every 5 minutes while the page is open.
+// Recompute at the dashboard's interval while the page is open.
 let timer
+watch(() => board.value?.refresh_seconds, (s) => {
+  clearInterval(timer)
+  if (s) timer = setInterval(() => { if (!document.hidden) compute() }, s * 1000)
+})
 onMounted(() => {
   document.documentElement.removeAttribute('data-entity')
+  window.addEventListener('keydown', onKey)
   load()
-  timer = setInterval(() => { if (!document.hidden) compute() }, 5 * 60 * 1000)
 })
-onUnmounted(() => clearInterval(timer))
+onUnmounted(() => { clearInterval(timer); window.removeEventListener('keydown', onKey) })
 
 // --- TV links ---------------------------------------------------------------------------
 const links = ref([])
@@ -82,7 +106,7 @@ async function createLink() {
     await loadLinks()
   } catch (e) {
     linkError.value = e?.detail?.code === 'not_for_tv'
-      ? t('dash.tvRefused') + ' ' + e.detail.errors.map((x) => `${t('dash.chart', { n: x.chart + 1 })}: ${errorText(x)}`).join('; ')
+      ? t('dash.tvRefused') + ' ' + e.detail.errors.map((x) => `${t('dash.screenN', { n: x.screen + 1 })}, ${t('dash.chart', { n: x.chart + 1 })}: ${errorText(x)}`).join('; ')
       : t('errors.create')
   }
 }
@@ -123,13 +147,26 @@ async function revoke(l) {
       <p class="muted hint">{{ t('dash.viewVariablesHint') }}</p>
     </section>
 
-    <p v-if="board && !board.charts.length" class="muted">{{ t('dash.noCharts') }}</p>
-    <div v-if="run" class="grid">
-      <section v-for="(c, i) in run.charts" :key="i" class="panel card" :class="`w${c.width}`">
+    <p v-if="board && !chartCount" class="muted">{{ t('dash.noCharts') }}</p>
+    <nav v-if="screens.length > 1" class="screenNav" :aria-label="t('dash.screens')">
+      <button class="btn" @click="go(-1)">{{ t('dash.prev') }}</button>
+      <div class="screenInfo">
+        <span class="screenTitle">{{ current?.title || t('dash.screenN', { n: screen + 1 }) }}</span>
+        <span class="muted">{{ t('dash.screenOf', { n: screen + 1, total: screens.length }) }}</span>
+      </div>
+      <button class="btn" @click="go(1)">{{ t('dash.next') }}</button>
+    </nav>
+    <h2 v-else-if="current?.title" class="soloTitle">{{ current.title }}</h2>
+    <div v-if="current" class="grid">
+      <section v-for="(c, i) in current.charts" :key="`${screen}-${i}`" class="panel card" :class="`w${c.width}`">
         <DashChart :result="c.result" :error="c.error" />
       </section>
     </div>
-    <p v-if="run" class="muted gen">{{ t('dash.generatedAt', { at: fmtDateTime(run.generated_at) }) }}</p>
+    <p v-if="current && !current.charts.length" class="muted">{{ t('dash.emptyScreen') }}</p>
+    <p v-if="run" class="muted gen">
+      {{ t('dash.generatedAt', { at: fmtDateTime(run.generated_at) }) }} ·
+      {{ t('dash.refreshesEvery', { every: fmtSeconds(board.refresh_seconds) }) }}
+    </p>
 
     <section v-if="board" class="panel links">
       <div class="linksTop">
@@ -180,6 +217,11 @@ async function revoke(l) {
 .varActions { display: flex; gap: 8px; }
 .vars .hint { flex-basis: 100%; margin: 0; }
 .hint { font-size: 12px; }
+.screenNav { display: flex; align-items: center; gap: 16px; margin-bottom: 14px; }
+.screenInfo { flex: 1; display: flex; align-items: baseline; justify-content: center; gap: 12px; }
+.screenTitle { font-size: 16px; color: var(--text); }
+.screenInfo .muted { font-size: 12px; }
+.soloTitle { font-size: 16px; font-weight: 400; color: var(--text); margin: 0 0 14px; }
 .grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
 .card { padding: 16px 18px; overflow: visible; }
 .w2 { grid-column: span 2; }

@@ -344,6 +344,10 @@ Decided 2026-11-13. Spec and examples: `docs/specs/DASHBOARDS.md`.
   change values for their own view; saving changes them for everyone. They replace the `{period}`
   placeholder of the draft.
 - **A chart that can't run is not saved;** in the editor, each query previews as it is typed.
+- **Screens and intervals** (2026-11-14): a dashboard is a list of screens (title optional, up to
+  10, 24 charts in all). The portal pages through them (*Anterior* / *Próxima*, ← →, `?tela=N`); a
+  TV loops over them. Each dashboard sets `refresh_seconds` (30 s – 1 h; page and TV) and
+  `rotate_seconds` (5 s – 10 min; TV). The user may want another way to browse screens later.
 - **TV links:** read-only, no sign-in, token shown once and kept as a SHA-256 hash, revocable,
   audited, last use recorded. Only the groupings status, severity and source; checked at creation
   and at every refresh (a chart that fails shows as *unavailable*, without saying why). The board

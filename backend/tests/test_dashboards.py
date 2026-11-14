@@ -106,10 +106,16 @@ def painel(admin):
     return make_user(admin, "dashboard")
 
 
+def one(*queries):
+    """One screen with these charts."""
+    return [{"charts": [{"query": q} for q in queries]}]
+
+
 def board(c, **kw):
     body = {"name": f"pytest-{tag()}", "variables": [{"name": "open", "value": "sent,fixing,retesting"}],
-            "charts": [{"query": 'count where status:$open title "Abertas"'},
-                       {"query": "count by severity where status:$open", "width": 2}], **kw}
+            "screens": [{"title": "Agora", "charts": [{"query": 'count where status:$open title "Abertas"'},
+                                                       {"query": "count by severity where status:$open", "width": 2}]},
+                        {"charts": [{"query": "count by status"}]}], **kw}
     r = c.post("/dashboards", body)
     assert r.status_code == 201, r.text
     return r.json()
@@ -130,9 +136,10 @@ def test_dashboard_accounts_reach_nothing_else(painel):
 
 
 def test_saving_refuses_a_chart_that_cannot_run(painel):
-    r = painel.post("/dashboards", {"name": f"pytest-{tag()}", "charts": [{"query": "count"}, {"query": "count by host"}]})
+    r = painel.post("/dashboards", {"name": f"pytest-{tag()}", "screens": [{"charts": [{"query": "count"}]},
+                                                                {"charts": [{"query": "count"}, {"query": "count by host"}]}]})
     assert r.status_code == 422
-    assert r.json()["detail"]["errors"] == [{"chart": 1, "code": "bad_dim", "pos": 9,
+    assert r.json()["detail"]["errors"] == [{"screen": 1, "chart": 1, "code": "bad_dim", "pos": 9,
                                              "params": {"got": "host", "dims": "status, severity, source, report, operator"}}]
     d = board(painel)
     assert painel.patch(f"/dashboards/{d['id']}", {"variables": []}).status_code == 422  # $open now undefined
@@ -142,10 +149,11 @@ def test_run_and_preview_return_aggregates_only(painel, writer):
     saved_vuln(writer, cvss_score=9.1)
     d = board(painel)
     out = painel.post(f"/dashboards/{d['id']}/run", {}).json()
-    assert [c["width"] for c in out["charts"]] == [1, 2]
-    assert out["charts"][0]["result"]["chart"] == "number"
+    assert [s["title"] for s in out["screens"]] == ["Agora", None]
+    assert [c["width"] for c in out["screens"][0]["charts"]] == [1, 2]
+    assert out["screens"][0]["charts"][0]["result"]["chart"] == "number"
     ready = painel.post(f"/dashboards/{d['id']}/run", {"variables": [{"name": "open", "value": "ready"}]}).json()
-    assert ready["charts"][0]["result"]["value"] >= 1
+    assert ready["screens"][0]["charts"][0]["result"]["value"] >= 1
     p = painel.post("/dashboards/preview", {"query": "count by report where status:ready"}).json()
     assert p["tv_error"]["code"] == "tv_dim" and "identifier" not in str(p)
     r = painel.post("/dashboards/preview", {"query": "count by host"})
@@ -172,7 +180,8 @@ def test_tv_link_shows_the_board_without_signing_in(painel):
     r = tv_get(link["token"])
     assert r.status_code == 200
     body = r.json()
-    assert body["name"] == d["name"] and len(body["charts"]) == 2
+    assert body["name"] == d["name"] and [len(x["charts"]) for x in body["screens"]] == [2, 1]
+    assert (body["refresh_seconds"], body["rotate_seconds"]) == (60, 30)
     assert "query" not in str(body) and "open" not in str(body)          # no query text, no variables
     listed = painel.get(f"/dashboards/{d['id']}/links").json()
     assert "token" not in listed[0] and listed[0]["last_used_at"]
@@ -182,14 +191,14 @@ def test_tv_link_shows_the_board_without_signing_in(painel):
 
 
 def test_tv_refuses_names_of_reports_and_people(painel):
-    d = board(painel, charts=[{"query": "count by operator"}])
+    d = board(painel, screens=one("count", "count by operator"))
     r = painel.post(f"/dashboards/{d['id']}/links", {"label": "Sala"})
     assert r.status_code == 422 and r.json()["detail"]["errors"][0]["code"] == "tv_dim"
     # a chart added after the link is hidden on the TV, not shown
     ok = board(painel)
     link = painel.post(f"/dashboards/{ok['id']}/links", {"label": "Sala"}).json()
-    painel.patch(f"/dashboards/{ok['id']}", {"charts": [{"query": "count by report"}]})
-    chart = tv_get(link["token"]).json()["charts"][0]
+    painel.patch(f"/dashboards/{ok['id']}", {"screens": one("count by report")})
+    chart = tv_get(link["token"]).json()["screens"][0]["charts"][0]
     assert "result" not in chart and chart["error"]["code"] == "unavailable"
 
 
@@ -200,3 +209,13 @@ def test_tv_stops_when_its_maker_loses_access(admin):
     assert tv_get(link["token"]).status_code == 200
     admin.patch(f"/users/{maker.user['id']}", {"is_active": False})
     assert tv_get(link["token"]).status_code == 404
+
+
+def test_intervals_and_screen_limits(painel):
+    d = board(painel, refresh_seconds=300, rotate_seconds=15)
+    assert (d["refresh_seconds"], d["rotate_seconds"]) == (300, 15)
+    for bad in ({"refresh_seconds": 10}, {"refresh_seconds": 4000}, {"rotate_seconds": 2}, {"screens": []},
+                {"screens": one("count") * 11}, {"screens": [{"charts": [{"query": "count"}] * 25}]}):
+        assert painel.patch(f"/dashboards/{d['id']}", bad).status_code == 422, bad
+    r = painel.patch(f"/dashboards/{d['id']}", {"rotate_seconds": 45})
+    assert r.json()["rotate_seconds"] == 45 and len(r.json()["screens"]) == 2
