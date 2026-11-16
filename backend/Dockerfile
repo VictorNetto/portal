@@ -12,8 +12,8 @@ WORKDIR /app
 # Install dependencies first, separately from the app code. Docker caches this
 # layer, so changing your code doesn't trigger a full dependency reinstall.
 COPY pyproject.toml ./
-RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir .
+# No pip self-upgrade: the image's pip is recent, and some corporate networks refuse it.
+RUN pip install --no-cache-dir .
 
 # Now copy the application code.
 COPY app ./app

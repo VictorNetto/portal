@@ -11,8 +11,8 @@ WORKDIR /app
 
 # Dependencies first (cached layer); only pyproject.toml is present at this point.
 COPY pyproject.toml ./
-RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir .
+# No pip self-upgrade: the image's pip is recent, and some corporate networks refuse it.
+RUN pip install --no-cache-dir .
 
 COPY app ./app
 RUN rm -rf app/devdata
