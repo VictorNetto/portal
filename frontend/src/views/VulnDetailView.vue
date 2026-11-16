@@ -12,7 +12,7 @@ import { fmtTime } from '../dates'
 import { t } from '../i18n'
 import { confirmDialog, promptDialog } from '../dialog'
 import { isDiscarding, useUnsaved } from '../session'
-import { vField } from '../directives'
+import { vField, vSideColumn } from '../directives'
 import { useAuthStore } from '../stores/auth'
 import AppShell from '../components/AppShell.vue'
 import MarkdownEditor from '../components/MarkdownEditor.vue'
@@ -80,7 +80,7 @@ const selectedViewers = ref(new Set())
 const sevClass = (score) => { const n = Number(score); return n >= 7 ? 'hi' : n >= 4 ? 'me' : 'lo' }
 const namesOf = (ids) => knownUsers.value.filter((u) => ids.has(u.id)).map((u) => u.username).join(', ')
 // The required mark only matters while the field can be typed into.
-const req = (field) => (canEdit(field) ? ' *' : '')
+const req = (field) => (REQUIRED.includes(field) && canEdit(field) ? ' *' : '')
 const knownUsers = computed(() => {
   const byId = new Map(allUsers.value.map((u) => [u.id, u]))
   for (const u of [...(vuln.value?.operators || []), ...(vuln.value?.viewers || [])]) if (!byId.has(u.id)) byId.set(u.id, u)
@@ -641,6 +641,25 @@ watch(() => route.fullPath, () => {
             <small v-if="fieldError('mitigation')" class="fieldErr">{{ t('vform.required') }}</small>
           </section>
 
+        </div>
+
+        <div v-side-column class="stack side">
+          <section class="panel card">
+            <h2 class="secTitle">{{ t('attach.title') }}</h2>
+            <p v-if="attachEditable" class="hint">{{ t('attach.hint') }}</p>
+            <AttachmentsPanel :attachments="attachments" :disabled="!attachEditable"
+                              :uploading="uploading" :error="attachError"
+                              @upload="onPanelUpload" @remove="removeAttachment"
+                              @download="downloadAttachment" @copy-markdown="copyMarkdown" />
+          </section>
+
+          <section class="panel card">
+            <h2 class="secTitle">{{ t('vform.notes') }}</h2>
+            <p class="hint">{{ t('vform.notesHint') }}</p>
+            <MarkdownEditor v-if="canEdit('internal_notes')" v-model="form.internal_notes" />
+            <MarkdownView v-else :source="form.internal_notes || '—'" />
+          </section>
+
           <section class="panel card">
             <h2 class="secTitle">{{ t('vform.references') }}</h2>
             <template v-if="!canEdit('references')">
@@ -669,24 +688,6 @@ watch(() => route.fullPath, () => {
               {{ t('vform.addRef') }}
             </button>
             </template>
-          </section>
-        </div>
-
-        <div class="stack">
-          <section class="panel card">
-            <h2 class="secTitle">{{ t('attach.title') }}</h2>
-            <p v-if="attachEditable" class="hint">{{ t('attach.hint') }}</p>
-            <AttachmentsPanel :attachments="attachments" :disabled="!attachEditable"
-                              :uploading="uploading" :error="attachError"
-                              @upload="onPanelUpload" @remove="removeAttachment"
-                              @download="downloadAttachment" @copy-markdown="copyMarkdown" />
-          </section>
-
-          <section class="panel card">
-            <h2 class="secTitle">{{ t('vform.notes') }}</h2>
-            <p class="hint">{{ t('vform.notesHint') }}</p>
-            <MarkdownEditor v-if="canEdit('internal_notes')" v-model="form.internal_notes" />
-            <MarkdownView v-else :source="form.internal_notes || '—'" />
           </section>
         </div>
       </div>
@@ -730,6 +731,9 @@ input.invalid { border-color: var(--danger); }
 
 .layout { display: grid; grid-template-columns: minmax(0, 1.45fr) minmax(340px, .9fr); gap: 16px; align-items: start; }
 .stack { min-width: 0; }
+/* The right column scrolls on its own (vSideColumn); cards keep their bottom gap inside it. */
+.side { overscroll-behavior: contain; scrollbar-width: thin; }
+.side > .card:last-child { margin-bottom: 0; }
 
 .refs { display: grid; gap: 8px; }
 .refRow { display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: start; }

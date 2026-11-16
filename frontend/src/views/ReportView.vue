@@ -18,7 +18,7 @@ import { t } from '../i18n'
 import { reportPillClass, reportProgress, reportStatusLabel } from '../reportState'
 import { confirmDialog, promptDialog } from '../dialog'
 import { isDiscarding, useUnsaved } from '../session'
-import { vField } from '../directives'
+import { vField, vSideColumn } from '../directives'
 import { fmtDateTime, fmtTime, fmtPlainDate } from '../dates'
 import { useAuthStore } from '../stores/auth'
 import AppShell from '../components/AppShell.vue'
@@ -661,7 +661,7 @@ async function saveTemplate() {
               <button class="link addRef" @click="addSection">{{ t('rpt.addSection') }}</button>
             </section>
           </div>
-          <div class="stack">
+          <div v-side-column class="stack side">
             <!-- Vulnerabilities -->
             <section class="panel card">
               <div class="secRow">
@@ -781,6 +781,9 @@ async function saveTemplate() {
 .roVal.pre { white-space: pre-wrap; }
 .layout { display: grid; grid-template-columns: minmax(0, 1.45fr) minmax(340px, .9fr); gap: 16px; align-items: start; }
 .stack { min-width: 0; }
+/* The right column scrolls on its own (vSideColumn); cards keep their bottom gap inside it. */
+.side { overscroll-behavior: contain; scrollbar-width: thin; }
+.side > .card:last-child { margin-bottom: 0; }
 .secTitle { margin: 0 0 12px; font-size: 14px; font-weight: 400; color: var(--text); }
 .secRow { display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px; }
 .hint { margin: -6px 0 12px; color: var(--muted); font-size: 12px; }

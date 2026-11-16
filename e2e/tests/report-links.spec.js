@@ -86,7 +86,43 @@ test.describe('long texts', () => {
     vulns.push(v.id)
     await loginUI(page, alice.username, alice.password)
     await page.goto(`/vulnerabilities/${v.id}`)
+    await expect(page.locator('.secTitle', { hasText: 'Mitigação' })).toHaveText('Mitigação / Solução')   // no asterisk
+    await expect(page.locator('.secTitle', { hasText: 'Descrição' })).toHaveText('Descrição *')
     await page.getByRole('button', { name: 'Concluir' }).click()
     await expect.poll(async () => (await api(`/vulnerabilities/${v.id}`, { token: alice.token })).data.status).toBe('ready')
+  })
+})
+
+test.describe('page layout', () => {
+  test('the right column scrolls on its own and ends with the references', async ({ page }) => {
+    const long = Array.from({ length: 80 }, (_, i) => `linha ${i + 1}`).join('\n')
+    const notes = Array.from({ length: 60 }, (_, i) => `nota ${i + 1}`).join('\n\n')
+    const v = await newVuln(alice.token, { identifier: `e2e-cols-${tag()}`, finding_detail: long, internal_notes: notes,
+      references: ['https://owasp.org/'] })
+    vulns.push(v.id)
+    await loginUI(page, alice.username, alice.password)
+    await page.goto(`/vulnerabilities/${v.id}`)
+    const side = page.locator('.side')
+    await expect(side.locator('> section').last().locator('.secTitle')).toHaveText('Referências')
+
+    const state = () => page.evaluate(() => {
+      const m = document.querySelector('.main'); const s = document.querySelector('.side')
+      return { main: m.scrollTop, side: s.scrollTop, sideTop: s.getBoundingClientRect().top,
+        sideBottom: s.getBoundingClientRect().bottom, headerBottom: document.querySelector('.stickyTop').getBoundingClientRect().bottom,
+        scrolls: s.scrollHeight > s.clientHeight }
+    })
+    // Scrolling the page leaves the right column in view, under the header.
+    await page.evaluate(() => { document.querySelector('.main').scrollTop = 99999 })
+    let s = await state()
+    expect(s.main).toBeGreaterThan(0)
+    expect(s.scrolls).toBe(true)
+    expect(s.sideTop).toBeGreaterThanOrEqual(s.headerBottom)
+    expect(s.sideBottom).toBeLessThanOrEqual(1000)
+    if (process.env.E2E_SHOTS) await page.screenshot({ path: `${process.env.E2E_SHOTS}/side-column.png` })
+    // Scrolling the right column does not move the page.
+    await side.hover()
+    await page.mouse.wheel(0, 600)
+    await expect.poll(async () => (await state()).side).toBeGreaterThan(0)
+    expect((await state()).main).toBe(s.main)
   })
 })
