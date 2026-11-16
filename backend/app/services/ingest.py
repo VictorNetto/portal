@@ -14,7 +14,7 @@ from app.schemas.ingest import IngestVuln
 from app.services.vulnerability import _next_vuln_internal_id
 
 # Same fields the UI requires before a vuln can be sent (FRONTEND_SPEC §8.8).
-_REQUIRED_FOR_READY = ("identifier", "description", "finding_detail", "mitigation")
+_REQUIRED_FOR_READY = ("identifier", "description", "finding_detail")  # mitigation may stay blank
 
 
 def _blank(value: str | None) -> bool:

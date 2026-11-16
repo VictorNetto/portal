@@ -475,3 +475,80 @@ def create_vuln(
     session.commit()
     session.refresh(vuln)
     return vuln
+
+
+# Only a vuln not yet sent can join a report: it is then sent with the report.
+LINKABLE_STATUSES = (VulnStatus.draft, VulnStatus.ready)
+
+
+def link_vulns(
+    session: Session, report_id: uuid.UUID, ids: list[uuid.UUID], user: User, request: Request
+) -> ReportOut:
+    """Bring standalone vulns into a draft report. A `ready` one goes back to draft: inside a
+    report a vuln is edited under the report's lock and sent with it. Its internal ID stays."""
+    report = _locked_draft(session, report_id, user)
+    vulns = []
+    for vid in dict.fromkeys(ids):
+        vuln = session.scalar(select(Vulnerability).where(Vulnerability.id == vid).with_for_update())
+        if vuln is None or vuln.deleted_at is not None:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "Vulnerability not found")
+        access.require_write_vuln(session, user, vuln)
+        if vuln.report_id is not None:
+            raise HTTPException(
+                status.HTTP_409_CONFLICT,
+                f"{vuln.identifier or vuln.id} already belongs to a report",
+            )
+        if vuln.status not in LINKABLE_STATUSES:
+            raise HTTPException(
+                status.HTTP_409_CONFLICT,
+                f"{vuln.identifier or vuln.id} was already sent (status: {vuln.status.value})",
+            )
+        vulns.append(vuln)
+    for vuln in vulns:
+        was = vuln.status
+        vuln.report_id = report.id
+        vuln.status = VulnStatus.draft
+        vuln.ready_at = None
+        vuln.version += 1
+        audit.record(
+            session, action=AuditAction.update, user_id=user.id,
+            entity_type="vulnerability", entity_id=vuln.id,
+            detail={"linked_to_report": str(report.id), "from": was.value}, request=request,
+        )
+    audit.record(
+        session, action=AuditAction.update, user_id=user.id,
+        entity_type="report", entity_id=report.id,
+        detail={"vulns_linked": [str(v.id) for v in vulns]}, request=request,
+    )
+    session.commit()
+    session.refresh(report)
+    return to_out(session, report, user)
+
+
+def unlink_vuln(
+    session: Session, report_id: uuid.UUID, vuln_id: uuid.UUID, user: User, request: Request
+) -> ReportOut:
+    """Take a vuln out of a draft report: it becomes a standalone draft again."""
+    report = _locked_draft(session, report_id, user)
+    vuln = session.scalar(select(Vulnerability).where(Vulnerability.id == vuln_id).with_for_update())
+    if vuln is None or vuln.deleted_at is not None or vuln.report_id != report.id:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Vulnerability not found in this report")
+    # Out of the report, the vuln keeps only its own access. Someone who reaches it only
+    # through the report would lose it, so they may not take it out.
+    if not (access.writes_all(user) or access._involved(user, vuln)):
+        raise HTTPException(status.HTTP_403_FORBIDDEN, access.FORBIDDEN)
+    vuln.report_id = None
+    vuln.version += 1
+    audit.record(
+        session, action=AuditAction.update, user_id=user.id,
+        entity_type="vulnerability", entity_id=vuln.id,
+        detail={"unlinked_from_report": str(report.id)}, request=request,
+    )
+    audit.record(
+        session, action=AuditAction.update, user_id=user.id,
+        entity_type="report", entity_id=report.id,
+        detail={"vuln_unlinked": str(vuln.id)}, request=request,
+    )
+    session.commit()
+    session.refresh(report)
+    return to_out(session, report, user)

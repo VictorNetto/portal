@@ -86,11 +86,12 @@ def test_extra_fields_are_kept_as_metadata(key):
 
 
 def test_ready_needs_the_ui_required_fields_and_gets_an_id(key):
-    full = {"identifier": f"pytest-{tag()}", "description": "d", "finding_detail": "f", "mitigation": "m", "status": "ready"}
+    full = {"identifier": f"pytest-{tag()}", "description": "d", "finding_detail": "f", "status": "ready"}  # mitigation optional
     r = post(key, full)
     assert r.status_code == 201 and r.json()["status"] == "ready" and r.json()["internal_id"].startswith("VULN-")
     partial = post(key, {"identifier": f"pytest-{tag()}", "status": "ready"})
     assert partial.status_code == 422 and "description" in partial.json()["detail"]
+    assert "mitigation" not in partial.json()["detail"]
 
 
 def test_cannot_ingest_beyond_ready(key):

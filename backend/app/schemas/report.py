@@ -43,6 +43,12 @@ class SectionReorder(BaseModel):
     ids: list[uuid.UUID]
 
 
+class VulnLink(BaseModel):
+    """Standalone vulnerabilities to bring into a draft report."""
+
+    ids: list[uuid.UUID] = Field(min_length=1, max_length=200)
+
+
 def _check_dates(start: date | None, end: date | None) -> None:
     if start and end and end < start:
         raise ValueError("end_date must not be before start_date")

@@ -3,6 +3,9 @@
 // toolbar, a line-number gutter that stays aligned with wrapped lines, and a
 // height that grows with the content (up to 12 lines, then scrolls).
 //
+// `expandable`: an Expandir / Recolher button makes the editor as tall as the window, to
+// focus on one long text. Esc collapses it.
+//
 // Images: when `imageUploader` is provided, images can be pasted, dropped or
 // picked; each is uploaded by the parent and inserted as ![name](url).
 import { ref, computed, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
@@ -16,6 +19,7 @@ const props = defineProps({
   invalid: { type: Boolean, default: false },
   // async (file: File) => { id, name } | null
   imageUploader: { type: Function, default: null },
+  expandable: { type: Boolean, default: false },
 })
 const emit = defineEmits(['update:modelValue'])
 
@@ -36,6 +40,26 @@ const height = ref(LINE_H * 3 + V_PAD)
 const lineHeights = ref([LINE_H])
 const scrolls = ref(false)
 const busy = ref(false)
+const expanded = ref(false)
+// Expanded: what is left of the window under the page's sticky header (title and buttons),
+// less the toolbar and a margin. `room().top` is where the editor's top stops when scrolled:
+// low enough to keep the title just above it (a section heading or title input) in view.
+function room() {
+  const main = root.value?.closest('.main')
+  const sticky = main?.querySelector('.stickyTop')
+  const css = sticky && getComputedStyle(sticky)
+  // A stuck header sits at the container's top padding plus its own (negative) `top`.
+  const covered = css?.position === 'sticky'
+    ? sticky.offsetHeight + parseFloat(css.top || 0) + parseFloat(getComputedStyle(main).paddingTop || 0) : 0
+  const top = main ? main.getBoundingClientRect().top : 0
+  const prev = root.value?.previousElementSibling
+  const title = prev ? Math.max(root.value.getBoundingClientRect().top - prev.getBoundingClientRect().top, 0) : 0
+  return { top: Math.max(top, 0) + covered + 12 + Math.min(title, 80) }
+}
+const tallHeight = () => {
+  const toolbar = root.value?.querySelector('.toolbar')?.offsetHeight || 40
+  return Math.max(window.innerHeight - room().top - toolbar - 16, LINE_H * MAX_VISIBLE + V_PAD)
+}
 
 const readOnlyEdit = computed(() => props.disabled)
 
@@ -46,7 +70,7 @@ function sync() {
   if (!ta || !m || mode.value !== 'edit') return
   const lines = (props.modelValue || '').split('\n')
   const count = lines.length
-  const viewport = Math.min(count + 2, MAX_VISIBLE) * LINE_H + V_PAD
+  const viewport = expanded.value ? tallHeight() : Math.min(count + 2, MAX_VISIBLE) * LINE_H + V_PAD
   height.value = viewport
 
   // Each logical line's rendered height (wrapped lines are taller), so the
@@ -58,8 +82,27 @@ function sync() {
   })
   lineHeights.value = heights
   const content = heights.reduce((a, b) => a + b, 0) + V_PAD
-  scrolls.value = count >= MAX_VISIBLE - 1 || content > viewport
+  scrolls.value = content > viewport || (!expanded.value && count >= MAX_VISIBLE - 1)
 }
+
+async function toggleExpand() {
+  expanded.value = !expanded.value
+  await nextTick()
+  sync()
+  await nextTick()   // the new height must be on the page before scrolling, or the scroll stops short
+  if (expanded.value) {
+    // Bring the editor's top just under the sticky header (scroll the page's own container).
+    const main = root.value.closest('.main')
+    const delta = root.value.getBoundingClientRect().top - room().top
+    if (main) main.scrollBy({ top: delta, behavior: 'smooth' })
+    else window.scrollBy({ top: delta, behavior: 'smooth' })
+    if (mode.value === 'edit') textarea.value?.focus({ preventScroll: true })
+  }
+}
+function onKeydown(e) {
+  if (e.key === 'Escape' && expanded.value) { e.stopPropagation(); toggleExpand() }
+}
+const onWindowResize = () => { if (expanded.value) sync() }
 
 function syncGutterScroll() {
   if (gutter.value && textarea.value) gutter.value.scrollTop = textarea.value.scrollTop
@@ -78,8 +121,12 @@ onMounted(() => {
     observer = new ResizeObserver(() => sync())
     observer.observe(root.value)
   }
+  window.addEventListener('resize', onWindowResize)
 })
-onBeforeUnmount(() => observer?.disconnect())
+onBeforeUnmount(() => {
+  observer?.disconnect()
+  window.removeEventListener('resize', onWindowResize)
+})
 
 // --- Modes ----------------------------------------------------------------
 async function setMode(next) {
@@ -181,7 +228,8 @@ function onDrop(e) {
 </script>
 
 <template>
-  <div ref="root" class="mdEditor" :class="{ invalid, preview: mode === 'preview', disabled }">
+  <div ref="root" class="mdEditor" :class="{ invalid, preview: mode === 'preview', disabled, expanded }"
+       @keydown="onKeydown">
     <div class="toolbar">
       <div class="modes">
         <button type="button" class="tool" :class="{ active: mode === 'edit' }" @click="setMode('edit')">
@@ -202,6 +250,9 @@ function onDrop(e) {
       </button>
       <input ref="filePicker" type="file" accept="image/png,image/jpeg,image/gif,image/webp"
              multiple hidden @change="onPicked" />
+      <button v-if="expandable" type="button" class="tool expand" :aria-pressed="expanded" @click="toggleExpand">
+        {{ expanded ? t('md.collapse') : t('md.expand') }}
+      </button>
     </div>
 
     <div v-show="mode === 'edit'" class="pane">
@@ -215,7 +266,8 @@ function onDrop(e) {
       <div ref="measurer" class="measurer" aria-hidden="true"></div>
     </div>
 
-    <div v-show="mode === 'preview'" ref="preview" class="previewPane" v-html="html"></div>
+    <div v-show="mode === 'preview'" ref="preview" class="previewPane" v-html="html"
+         :style="expanded ? { height: tallHeight() + 'px' } : null"></div>
   </div>
 </template>
 
@@ -235,6 +287,7 @@ function onDrop(e) {
 .tool:hover:not(:disabled):not(.active) { background: var(--hover); border-color: var(--line-2); }
 .tool.active { background: var(--accent-soft); color: var(--accent); }
 .tool:disabled { opacity: .35; cursor: not-allowed; }
+.tool.expand { margin-left: auto; }
 
 .pane { display: flex; position: relative; }
 .gutter {

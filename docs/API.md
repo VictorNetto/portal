@@ -79,8 +79,8 @@ system in sync. Times are UTC. `updated_at` is maintained by the DB on every row
 | *(any other field)* | any | stored in metadata |
 
 - At least one of `identifier`, `description`, `finding_detail` must be non-blank.
-- `ready` also requires `identifier`, `description`, `finding_detail` and `mitigation` (as the
-  UI's *Concluir*) and assigns the `VULN-xxxx` number.
+- `ready` also requires `identifier`, `description` and `finding_detail` (as the UI's
+  *Concluir*; `mitigation` may stay blank) and assigns the `VULN-xxxx` number.
 - Never creates a `sent` (or later) vulnerability.
 
 Response `201 {"id": "…", "internal_id": null, "status": "draft"}`.

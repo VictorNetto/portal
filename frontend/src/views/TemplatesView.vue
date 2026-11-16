@@ -301,11 +301,11 @@ onMounted(async () => {
           <div v-else class="content">
             <section class="block">
               <h3 class="blockTitle">{{ t('rpt.summary') }}</h3>
-              <MarkdownEditor v-model="draft.executive_summary_md" />
+              <MarkdownEditor v-model="draft.executive_summary_md" expandable />
             </section>
             <section class="block">
               <h3 class="blockTitle">{{ t('rpt.intro') }}</h3>
-              <MarkdownEditor v-model="draft.introduction_md" />
+              <MarkdownEditor v-model="draft.introduction_md" expandable />
             </section>
             <section class="block">
               <h3 class="blockTitle">{{ t('rpt.extras') }} ({{ draft.sections.length }})</h3>
@@ -318,7 +318,7 @@ onMounted(async () => {
                     <button class="link danger" @click="removeSection(i)">{{ t('vform.removeRef') }}</button>
                   </div>
                 </div>
-                <MarkdownEditor v-model="s.content_markdown" />
+                <MarkdownEditor v-model="s.content_markdown" expandable />
               </div>
               <button class="link addSection" @click="addSection">{{ t('rpt.addSection') }}</button>
             </section>

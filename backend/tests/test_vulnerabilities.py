@@ -10,8 +10,9 @@ def test_send_requires_the_mandatory_fields(writer):
     v = writer.post("/vulnerabilities", {"identifier": f"pytest-{tag()}"}).json()
     r = writer.post(f"/vulnerabilities/{v['id']}/complete")
     assert r.status_code == 422
-    for field in ("description", "finding_detail", "mitigation"):
+    for field in ("description", "finding_detail"):
         assert field in r.json()["detail"]
+    assert "mitigation" not in r.json()["detail"]   # it may stay blank
 
 
 def test_a_draft_can_be_saved_incomplete(writer):

@@ -178,6 +178,10 @@ export const reorderReportSections = (id, ids) =>
   api(`/reports/${id}/sections/reorder`, { method: 'POST', body: { ids } })
 export const createReportVuln = (id, body) =>
   api(`/reports/${id}/vulnerabilities`, { method: 'POST', body })
+export const linkReportVulns = (id, ids) =>
+  api(`/reports/${id}/vulnerabilities/link`, { method: 'POST', body: { ids } })
+export const unlinkReportVuln = (id, vid) =>
+  api(`/reports/${id}/vulnerabilities/${vid}/unlink`, { method: 'POST' })
 
 // Best-effort lock release while the page is closing (a normal fetch may be cancelled).
 export function releaseReportLockOnExit(id) {

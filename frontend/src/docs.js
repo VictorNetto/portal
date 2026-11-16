@@ -128,7 +128,7 @@ Nos relatórios, valem \`created\`, \`updated\` e \`sent\`. As datas seguem o fu
     subs: [
       {
         id: 'vuln-criar', title: 'Criar uma vulnerabilidade',
-        md: `Menu ➝ *Criar Vulnerabilidade*. Identificador, Descrição, Detalhes do Achado e Mitigação são obrigatórios para concluir. Você é o operador padrão; use **+** para adicionar outros operadores ou pessoas em *Compartilhado com*. Clique em um nome para removê-lo.
+        md: `Menu ➝ *Criar Vulnerabilidade*. Identificador, Descrição e Detalhes do Achado são obrigatórios para concluir; Mitigação / Solução pode ficar em branco. Você é o operador padrão; use **+** para adicionar outros operadores ou pessoas em *Compartilhado com*. Clique em um nome para removê-lo.
 
 **CVSS:** digite a nota e o vetor, ou use **Calculadora** ao lado do *Vetor CVSS*: escolha as oito métricas base da CVSS v3.1 (vetor de ataque, complexidade, privilégios, interação, escopo e os três impactos), e a nota, a severidade e o vetor são calculados como na calculadora oficial da FIRST. **Aplicar** preenche a nota e o vetor; se já houver um vetor, a calculadora abre com ele.`,
       },
@@ -172,7 +172,14 @@ Para o Red Team, a linha do tempo de cada vulnerabilidade mostra o RVS (ou a jus
       },
       {
         id: 'rel-conteudo', title: 'Conteúdo',
-        md: `Informações Gerais, Dados do Relatório, Sumário Executivo, Introdução, Seções Adicionais (com títulos próprios, reordenáveis), as vulnerabilidades do relatório, evidências e notas internas. Fora da edição, a página mostra o conteúdo como ele aparece no relatório.`,
+        md: `Informações Gerais, Dados do Relatório, Sumário Executivo, Introdução, Seções Adicionais (com títulos próprios, reordenáveis), as vulnerabilidades do relatório, evidências e notas internas. Fora da edição, a página mostra o conteúdo como ele aparece no relatório.
+
+Durante a edição, em *Vulnerabilidades*:
+- **Adicionar vulnerabilidade** cria uma nova dentro do relatório.
+- **Vincular** traz vulnerabilidades avulsas que ainda não foram enviadas. Uma vulnerabilidade *Pronta* volta a *Rascunho* (mantém seu ID interno) e passa a ser editada e enviada com o relatório.
+- **Desvincular** tira uma vulnerabilidade do relatório: ela volta a ser avulsa, em rascunho.
+
+Nos textos longos (Sumário Executivo, Introdução, seções, Descrição, Detalhes do Achado, Mitigação / Solução), **Expandir** deixa o editor da altura da janela; **Recolher** ou *Esc* volta ao normal.`,
       },
       {
         id: 'rel-envio', title: 'Envio, progresso e exclusão',
@@ -569,7 +576,7 @@ Corpo JSON de até **1 MB**. Todos os campos são opcionais, respeitando as regr
 Regras:
 
 - Pelo menos um entre \`identifier\`, \`description\` e \`finding_detail\` deve ser preenchido.
-- \`"ready"\` exige \`identifier\`, \`description\`, \`finding_detail\` e \`mitigation\` (os mesmos campos do botão *Concluir*) e já atribui o ID interno \`VULN-xxxx\`.
+- \`"ready"\` exige \`identifier\`, \`description\` e \`finding_detail\` (os mesmos campos do botão *Concluir*) e já atribui o ID interno \`VULN-xxxx\`.
 
 Resposta \`201\`:
 
@@ -771,7 +778,7 @@ curl -sS https://<portal>/api/health
 - \`422\`: dados ou parâmetros inválidos (inclusive \`cursor\` inválido). Exemplos:
 
 \`\`\`
-{"detail": "Required for status 'ready': description, finding_detail, mitigation"}
+{"detail": "Required for status 'ready': description, finding_detail"}
 {"detail": "unknown operator(s): nobody; operator(s) not active writers: isabella"}
 {"detail": [{"loc": ["body", "cvss_score"], "msg": "Input should be less than or equal to 10", ...}]}
 \`\`\``,
@@ -1140,7 +1147,7 @@ For reports, \`created\`, \`updated\` and \`sent\` apply. Dates follow your brow
     subs: [
       {
         id: 'vuln-criar', title: 'Create a vulnerability',
-        md: `Menu ➝ *Create Vulnerability*. Identifier, Description, Finding Details and Mitigation are required to complete it. You are the default operator; use **+** to add operators or people in *Shared with*. Click a name to remove it.
+        md: `Menu ➝ *Create Vulnerability*. Identifier, Description and Finding Details are required to complete it; Mitigation / Solution may be left blank. You are the default operator; use **+** to add operators or people in *Shared with*. Click a name to remove it.
 
 **CVSS:** type the score and vector, or use **Calculator** next to *CVSS Vector*: choose the eight CVSS v3.1 base metrics (attack vector, complexity, privileges, interaction, scope and the three impacts), and the score, severity and vector are computed as in FIRST's official calculator. **Apply** fills the score and the vector; if there is a vector already, the calculator opens with it.`,
       },
@@ -1184,7 +1191,14 @@ For the Red Team, each vulnerability's timeline shows the RVS (or the reason for
       },
       {
         id: 'rel-conteudo', title: 'Content',
-        md: `General Information, Report Data, Executive Summary, Introduction, Additional Sections (with their own titles, reorderable), the report's vulnerabilities, evidence and internal notes. Outside editing, the page shows the content as it reads in the report.`,
+        md: `General Information, Report Data, Executive Summary, Introduction, Additional Sections (with their own titles, reorderable), the report's vulnerabilities, evidence and internal notes. Outside editing, the page shows the content as it reads in the report.
+
+While editing, under *Vulnerabilities*:
+- **Add vulnerability** creates a new one inside the report.
+- **Link** brings in standalone vulnerabilities not sent yet. A *Ready* one goes back to *Draft* (keeping its internal ID) and is then edited and sent with the report.
+- **Unlink** takes a vulnerability out of the report: it becomes a standalone draft again.
+
+In the long texts (Executive Summary, Introduction, sections, Description, Finding Details, Mitigation / Solution), **Expand** makes the editor as tall as the window; **Collapse** or *Esc* brings it back.`,
       },
       {
         id: 'rel-envio', title: 'Sending, progress and deletion',
@@ -1581,7 +1595,7 @@ JSON body of up to **1 MB**. Every field is optional, under the rules below:
 Rules:
 
 - At least one of \`identifier\`, \`description\` and \`finding_detail\` must be filled in.
-- \`"ready"\` needs \`identifier\`, \`description\`, \`finding_detail\` and \`mitigation\` (the same fields as the *Complete* button) and assigns the \`VULN-xxxx\` internal ID at once.
+- \`"ready"\` needs \`identifier\`, \`description\` and \`finding_detail\` (the same fields as the *Complete* button) and assigns the \`VULN-xxxx\` internal ID at once.
 
 \`201\` response:
 
@@ -1783,7 +1797,7 @@ curl -sS https://<portal>/api/health
 - \`422\`: invalid data or parameters (an invalid \`cursor\` included). Examples:
 
 \`\`\`
-{"detail": "Required for status 'ready': description, finding_detail, mitigation"}
+{"detail": "Required for status 'ready': description, finding_detail"}
 {"detail": "unknown operator(s): nobody; operator(s) not active writers: isabella"}
 {"detail": [{"loc": ["body", "cvss_score"], "msg": "Input should be less than or equal to 10", ...}]}
 \`\`\``,

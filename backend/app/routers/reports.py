@@ -17,6 +17,7 @@ from app.schemas.report import (
     SectionCreate,
     SectionReorder,
     SectionUpdate,
+    VulnLink,
 )
 from app.schemas.vulnerability import BatchExport, VulnCreate, VulnOut
 from app.services import report as svc
@@ -222,3 +223,25 @@ def create_report_vuln(
     session: Session = Depends(get_session),
 ):
     return svc.create_vuln(session, report_id, body, user, request)
+
+
+@router.post("/{report_id}/vulnerabilities/link", response_model=ReportOut)
+def link_report_vulns(
+    report_id: uuid.UUID,
+    body: VulnLink,
+    request: Request,
+    user: User = Depends(_writer),
+    session: Session = Depends(get_session),
+):
+    return svc.link_vulns(session, report_id, body.ids, user, request)
+
+
+@router.post("/{report_id}/vulnerabilities/{vuln_id}/unlink", response_model=ReportOut)
+def unlink_report_vuln(
+    report_id: uuid.UUID,
+    vuln_id: uuid.UUID,
+    request: Request,
+    user: User = Depends(_writer),
+    session: Session = Depends(get_session),
+):
+    return svc.unlink_vuln(session, report_id, vuln_id, user, request)

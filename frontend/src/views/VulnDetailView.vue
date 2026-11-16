@@ -112,7 +112,7 @@ const attachEditable = computed(() =>
   inReport.value ? lockMine.value : (isNew.value || ['draft', 'ready'].includes(vuln.value?.status)))
 
 // --- Validation -----------------------------------------------------------
-const REQUIRED = ['identifier', 'description', 'finding_detail', 'mitigation']
+const REQUIRED = ['identifier', 'description', 'finding_detail']   // mitigation may stay blank
 const URL_RE = /^https?:\/\/\S+$/i
 const blank = (v) => !String(v ?? '').trim()
 const missing = computed(() => REQUIRED.filter((f) => blank(form.value[f])))
@@ -617,7 +617,7 @@ watch(() => route.fullPath, () => {
           <section class="panel card">
             <h2 class="secTitle">{{ t('vform.description') }}{{ req('description') }}</h2>
             <MarkdownView v-if="!canEdit('description')" :source="form.description || '—'" />
-            <MarkdownEditor v-else v-model="form.description"
+            <MarkdownEditor v-else v-model="form.description" expandable
                             :invalid="fieldError('description')"
                             :image-uploader="attachEditable ? uploadEditorImage : null" />
             <small v-if="fieldError('description')" class="fieldErr">{{ t('vform.required') }}</small>
@@ -626,7 +626,7 @@ watch(() => route.fullPath, () => {
           <section class="panel card">
             <h2 class="secTitle">{{ t('vform.finding') }}{{ req('finding_detail') }}</h2>
             <MarkdownView v-if="!canEdit('finding_detail')" :source="form.finding_detail || '—'" />
-            <MarkdownEditor v-else v-model="form.finding_detail"
+            <MarkdownEditor v-else v-model="form.finding_detail" expandable
                             :invalid="fieldError('finding_detail')"
                             :image-uploader="attachEditable ? uploadEditorImage : null" />
             <small v-if="fieldError('finding_detail')" class="fieldErr">{{ t('vform.required') }}</small>
@@ -635,7 +635,7 @@ watch(() => route.fullPath, () => {
           <section class="panel card">
             <h2 class="secTitle">{{ t('vform.mitigation') }}{{ req('mitigation') }}</h2>
             <MarkdownView v-if="!canEdit('mitigation')" :source="form.mitigation || '—'" />
-            <MarkdownEditor v-else v-model="form.mitigation"
+            <MarkdownEditor v-else v-model="form.mitigation" expandable
                             :invalid="fieldError('mitigation')"
                             :image-uploader="attachEditable ? uploadEditorImage : null" />
             <small v-if="fieldError('mitigation')" class="fieldErr">{{ t('vform.required') }}</small>

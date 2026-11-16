@@ -11,7 +11,7 @@ import {
   acquireReportLock, heartbeatReport, releaseReportLock, releaseReportLockOnExit, forceReleaseReport,
   addReportSection, updateReportSection, deleteReportSection, reorderReportSections,
   sendReport, listReportAttachments, uploadReportAttachment, deleteAttachment,
-  fetchAttachmentBlob, downloadAuthed, ApiError,
+  fetchAttachmentBlob, downloadAuthed, ApiError, listVulns, linkReportVulns, unlinkReportVuln,
 } from '../api'
 import { attachmentPath } from '../markdown'
 import { t } from '../i18n'
@@ -379,6 +379,45 @@ async function addVuln() {
   if (error.value) return
   router.push(`/reports/${id.value}/vulnerabilities/new`)
 }
+// Bring existing standalone vulns (not sent yet) into the report, or take one out. Only the
+// vulnerability list changes, so unsaved edits elsewhere on the page stay as they are.
+const linkModal = ref({ open: false, loading: false, saving: false, error: '', items: [], picked: new Set(), q: '' })
+const linkable = (v) => !v.report && ['draft', 'ready'].includes(v.status) && canWriteRecord(auth.user, v)
+const linkShown = computed(() => {
+  const q = linkModal.value.q.trim().toLowerCase()
+  return linkModal.value.items.filter((v) => !q || `${v.identifier || ''} ${v.internal_id || ''}`.toLowerCase().includes(q))
+})
+async function openLink() {
+  linkModal.value = { open: true, loading: true, saving: false, error: '', items: [], picked: new Set(), q: '' }
+  try { linkModal.value.items = (await listVulns()).filter(linkable) }
+  catch (e) { linkModal.value.error = e instanceof ApiError ? e.detail : t('errors.load') }
+  finally { linkModal.value.loading = false }
+}
+function togglePick(v) {
+  const p = new Set(linkModal.value.picked)
+  if (p.has(v.id)) p.delete(v.id)
+  else p.add(v.id)
+  linkModal.value.picked = p
+}
+const takeVulns = (r) => {
+  report.value = { ...report.value, vulnerabilities: r.vulnerabilities, vuln_count: r.vuln_count, max_cvss: r.max_cvss, lock: r.lock }
+}
+async function doLink() {
+  linkModal.value.saving = true; linkModal.value.error = ''
+  try {
+    takeVulns(await linkReportVulns(id.value, [...linkModal.value.picked]))
+    linkModal.value.open = false
+  } catch (e) { linkModal.value.error = e instanceof ApiError ? e.detail : t('errors.save') }
+  finally { linkModal.value.saving = false }
+}
+// Out of the report, a vuln keeps only its own access: offered to whoever may still edit it then.
+const canUnlink = (v) => editing.value && canWriteRecord(auth.user, v)
+async function unlink(v) {
+  const name = v.identifier || t('rpt.unnamedVuln')
+  if (!(await confirmDialog(t('rpt.confirmUnlink', { name }), { ok: t('rpt.unlink') }))) return
+  try { takeVulns(await unlinkReportVuln(id.value, v.id)) }
+  catch (e) { error.value = e instanceof ApiError ? e.detail : t('errors.save') }
+}
 const sevClass = (s) => (Number(s) >= 7 ? 'hi' : Number(s) >= 4 ? 'me' : 'lo')
 const opNames = (v) => (v.operators?.length ? v.operators.map((o) => o.username).join(', ') : '—')
 
@@ -589,12 +628,12 @@ async function saveTemplate() {
           <div class="stack">
             <section class="panel card">
               <h2 class="secTitle">{{ t('rpt.summary') }}</h2>
-              <MarkdownEditor v-if="editing" v-model="form.executive_summary_md" :image-uploader="uploadEditorImage" />
+              <MarkdownEditor v-if="editing" v-model="form.executive_summary_md" expandable :image-uploader="uploadEditorImage" />
               <MarkdownView v-else :source="form.executive_summary_md || '—'" />
             </section>
             <section class="panel card">
               <h2 class="secTitle">{{ t('rpt.intro') }}</h2>
-              <MarkdownEditor v-if="editing" v-model="form.introduction_md" :image-uploader="uploadEditorImage" />
+              <MarkdownEditor v-if="editing" v-model="form.introduction_md" expandable :image-uploader="uploadEditorImage" />
               <MarkdownView v-else :source="form.introduction_md || '—'" />
             </section>
             <!-- Free-form sections. Read: one card each, as in the report. Edit: one card to manage them. -->
@@ -617,7 +656,7 @@ async function saveTemplate() {
                     <button class="link danger" @click="removeSection(i)">{{ t('vform.removeRef') }}</button>
                   </div>
                 </div>
-                <MarkdownEditor v-model="s.content_markdown" :image-uploader="uploadEditorImage" />
+                <MarkdownEditor v-model="s.content_markdown" expandable :image-uploader="uploadEditorImage" />
               </div>
               <button class="link addRef" @click="addSection">{{ t('rpt.addSection') }}</button>
             </section>
@@ -627,12 +666,15 @@ async function saveTemplate() {
             <section class="panel card">
               <div class="secRow">
                 <h2 class="secTitle">{{ t('rpt.vulns') }} ({{ report.vulnerabilities.length }})</h2>
-                <button v-if="editing" class="btn" @click="addVuln">{{ t('rpt.addVuln') }}</button>
+                <div v-if="editing" class="secActs">
+                  <button class="btn" @click="openLink">{{ t('rpt.linkVuln') }}</button>
+                  <button class="btn" @click="addVuln">{{ t('rpt.addVuln') }}</button>
+                </div>
               </div>
               <p v-if="!report.vulnerabilities.length" class="muted small">{{ t('rpt.noVulns') }}</p>
               <table v-else class="vt">
                 <thead>
-                  <tr><th>{{ t('cols.identifier') }}</th><th>{{ t('cols.status') }}</th><th>{{ t('cols.cvss') }}</th><th>{{ t('cols.operators') }}</th></tr>
+                  <tr><th>{{ t('cols.identifier') }}</th><th>{{ t('cols.status') }}</th><th>{{ t('cols.cvss') }}</th><th>{{ t('cols.operators') }}</th><th v-if="editing"></th></tr>
                 </thead>
                 <tbody>
                   <tr v-for="v in report.vulnerabilities" :key="v.id" @click="openVuln(v)">
@@ -640,6 +682,9 @@ async function saveTemplate() {
                     <td><span class="pill" :class="'s-' + v.status">{{ t('status.' + v.status) }}</span></td>
                     <td><span v-if="v.cvss_score != null" class="cvss" :class="sevClass(v.cvss_score)">{{ v.cvss_score }}</span><span v-else>—</span></td>
                     <td>{{ opNames(v) }}</td>
+                    <td v-if="editing" class="actCell">
+                      <button v-if="canUnlink(v)" class="link" @click.stop="unlink(v)">{{ t('rpt.unlink') }}</button>
+                    </td>
                   </tr>
                 </tbody>
               </table>
@@ -663,6 +708,34 @@ async function saveTemplate() {
         </div>
       </template>
     </template>
+
+    <!-- Link existing vulnerabilities -->
+    <div v-if="linkModal.open" class="modalBack" @click.self="linkModal.open = false" @keydown.esc="linkModal.open = false">
+      <section class="panel modal linkModal" role="dialog" aria-modal="true" :aria-label="t('rpt.linkTitle')">
+        <h2 class="secTitle">{{ t('rpt.linkTitle') }}</h2>
+        <p class="hint">{{ t('rpt.linkHint') }}</p>
+        <input v-model="linkModal.q" class="linkSearch" :placeholder="t('rpt.linkSearch')" />
+        <p v-if="linkModal.loading" class="muted small">{{ t('vuln.loading') }}</p>
+        <p v-else-if="!linkModal.items.length" class="muted small">{{ t('rpt.linkNone') }}</p>
+        <ul v-else class="linkList">
+          <li v-for="v in linkShown" :key="v.id">
+            <label>
+              <input type="checkbox" :checked="linkModal.picked.has(v.id)" @change="togglePick(v)" />
+              <span class="idcell">{{ v.identifier || t('rpt.unnamedVuln') }}</span>
+              <span class="pill" :class="'s-' + v.status">{{ t('status.' + v.status) }}</span>
+              <span v-if="v.cvss_score != null" class="cvss" :class="sevClass(v.cvss_score)">{{ v.cvss_score }}</span>
+            </label>
+          </li>
+        </ul>
+        <p v-if="linkModal.error" class="err msg">{{ linkModal.error }}</p>
+        <div class="modalActions">
+          <button class="btn" @click="linkModal.open = false">{{ t('vform.cancel') }}</button>
+          <button class="btn primary" :disabled="linkModal.saving || !linkModal.picked.size" @click="doLink">
+            {{ t('rpt.linkDo', { n: linkModal.picked.size }) }}
+          </button>
+        </div>
+      </section>
+    </div>
 
     <!-- Save as template -->
     <div v-if="tplModal.open" class="modalBack" @click.self="tplModal.open = false" @keydown.esc="tplModal.open = false">
@@ -734,6 +807,18 @@ async function saveTemplate() {
 .addRef { margin: 4px 0 0; }
 
 .vt td { cursor: pointer; }
+.secActs { display: flex; gap: 8px; margin-left: auto; }
+.secRow:has(.secActs) { flex-wrap: wrap; gap: 8px; }
+.secRow .secTitle { white-space: nowrap; }
+.actCell { text-align: right; white-space: nowrap; padding-left: 4px; }
+.actCell .link { font-size: 12px; }
+.linkModal { width: min(620px, 100%); }
+.linkSearch { width: 100%; }
+.linkList { list-style: none; margin: 0; padding: 0; max-height: 50vh; overflow: auto; border: 1px solid var(--line); border-radius: var(--radius); }
+.linkList li + li { border-top: 1px solid var(--line); }
+.linkList label { display: flex; align-items: center; gap: 10px; padding: 8px 12px; cursor: pointer; font-size: 13px; }
+.linkList label:hover { background: var(--hover); }
+.linkList .idcell { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--mono); }
 .vt .idcell { font-family: var(--mono); }
 
 @media (max-width: 1100px) { .grid4 { grid-template-columns: 1fr 1fr; } .layout { grid-template-columns: 1fr; } }
