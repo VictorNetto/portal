@@ -55,8 +55,8 @@ test.describe('reports', () => {
     await page.fill('input[placeholder="infra, web, mobile, API"]', 'web')
     await page.click('button:has-text("Adicionar seção")')
     await page.click('button:has-text("Adicionar seção")')
-    await page.locator('.extraHead input').nth(0).fill('Metodologia')
-    await page.locator('.extraHead input').nth(1).fill('Limitações')
+    await page.locator('.extraHead > input').nth(0).fill('Metodologia')
+    await page.locator('.extraHead > input').nth(1).fill('Limitações')
     await page.locator('.extra').nth(0).locator('textarea').fill('OWASP')
     await page.locator('.extra').nth(0).locator('button:has-text("Descer")').click()
     await page.click('.pageActions button:text-is("Salvar")')
@@ -65,8 +65,8 @@ test.describe('reports', () => {
     await page.reload()                          // leaving releases the lock: take it again
     await page.click('.pageActions button:has-text("Editar")')
     await expect(page.locator('.banner.mine')).toBeVisible()
-    await expect(page.locator('.extraHead input')).toHaveCount(2)
-    expect(await page.locator('.extraHead input').evaluateAll((els) => els.map((e) => e.value))).toEqual(['Limitações', 'Metodologia'])
+    await expect(page.locator('.extraHead > input')).toHaveCount(2)
+    expect(await page.locator('.extraHead > input').evaluateAll((els) => els.map((e) => e.value))).toEqual(['Limitações', 'Metodologia'])
     await expect(page.locator('textarea[maxlength="5000"]')).toHaveValue(/API/)
 
     // a vulnerability inside the report

@@ -15,8 +15,9 @@ from sqlalchemy import (
     Text,
     UniqueConstraint,
     text,
+    true,
 )
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db import Base
@@ -90,6 +91,11 @@ class Report(UUIDPK, Timestamps, Base):
 
     # Editable even after dispatch; excluded from exports.
     internal_notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Sections left out of its documents (export and send): executive_summary, introduction,
+    # report_data. Free-form sections carry their own `exported` flag.
+    export_hidden: Mapped[list] = mapped_column(
+        JSONB, nullable=False, server_default=text("'[]'::jsonb")
+    )
 
     sent_at: Mapped[datetime | None] = mapped_column(nullable=True)
 
@@ -133,5 +139,6 @@ class ReportSection(UUIDPK, Timestamps, Base):
     position: Mapped[int] = mapped_column(Integer, nullable=False)  # 1-based
     title: Mapped[str] = mapped_column(Text, nullable=False)
     content_markdown: Mapped[str | None] = mapped_column(Text, nullable=True)
+    exported: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=true())
 
     report: Mapped["Report"] = relationship(back_populates="sections")

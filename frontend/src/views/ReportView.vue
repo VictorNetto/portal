@@ -23,6 +23,7 @@ import { fmtDateTime, fmtTime, fmtPlainDate } from '../dates'
 import { useAuthStore } from '../stores/auth'
 import AppShell from '../components/AppShell.vue'
 import MarkdownEditor from '../components/MarkdownEditor.vue'
+import ExportToggle from '../components/ExportToggle.vue'
 import AttachmentsPanel from '../components/AttachmentsPanel.vue'
 import OperatorPicker from '../components/OperatorPicker.vue'
 import TemplatePicker from '../components/TemplatePicker.vue'
@@ -65,7 +66,7 @@ const knownUsers = computed(() => {
 const blankForm = () => ({
   name: '', client_name: '', start_date: '', end_date: '',
   test_type: '', demand_origin: '', environment: '', test_model: '', scope: '',
-  executive_summary_md: '', introduction_md: '', internal_notes: '',
+  executive_summary_md: '', introduction_md: '', internal_notes: '', export_hidden: [],
 })
 const form = ref(blankForm())
 const sections = ref([]) // { key, id|null, title, content_markdown }
@@ -91,11 +92,12 @@ function sync() {
   const r = report.value
   const f = blankForm()
   for (const k of Object.keys(f)) f[k] = r[k] ?? ''
+  f.export_hidden = [...(r.export_hidden || [])]
   form.value = f
   selectedOps.value = new Set((r.operators || []).map((o) => o.id))
   selectedViewers.value = new Set((r.viewers || []).map((o) => o.id))
   sections.value = (r.sections || []).map((s) => ({
-    key: newKey(), id: s.id, title: s.title, content_markdown: s.content_markdown || '',
+    key: newKey(), id: s.id, title: s.title, content_markdown: s.content_markdown || '', exported: s.exported !== false,
   }))
   snapshot.value = snapshotOf()
 }
@@ -168,6 +170,7 @@ async function save() {
         executive_summary_md: nullIfBlank(form.value.executive_summary_md),
         introduction_md: nullIfBlank(form.value.introduction_md),
         internal_notes: nullIfBlank(form.value.internal_notes),
+        export_hidden: [...form.value.export_hidden],
         operator_ids: [...selectedOps.value],
         viewer_ids: [...selectedViewers.value],
       })
@@ -193,14 +196,14 @@ async function saveSections(r) {
   const keep = new Set(sections.value.filter((s) => s.id).map((s) => s.id))
   for (const s of r.sections) if (!keep.has(s.id)) r = await deleteReportSection(id.value, s.id)
   for (const s of sections.value.filter((x) => !x.id)) {
-    r = await addReportSection(id.value, { title: s.title, content_markdown: nullIfBlank(s.content_markdown) })
+    r = await addReportSection(id.value, { title: s.title, content_markdown: nullIfBlank(s.content_markdown), exported: s.exported })
     s.id = r.sections[r.sections.length - 1].id
   }
   const byId = Object.fromEntries(r.sections.map((s) => [s.id, s]))
   for (const s of sections.value) {
     const srv = byId[s.id]
-    if (srv && (srv.title !== s.title || (srv.content_markdown || '') !== s.content_markdown)) {
-      r = await updateReportSection(id.value, s.id, { title: s.title, content_markdown: nullIfBlank(s.content_markdown) })
+    if (srv && (srv.title !== s.title || (srv.content_markdown || '') !== s.content_markdown || srv.exported !== s.exported)) {
+      r = await updateReportSection(id.value, s.id, { title: s.title, content_markdown: nullIfBlank(s.content_markdown), exported: s.exported })
     }
   }
   const desired = sections.value.map((s) => s.id)
@@ -215,7 +218,13 @@ async function reloadKeepingForm() {
 }
 
 // --- Sections UI -----------------------------------------------------------
-function addSection() { sections.value.push({ key: newKey(), id: null, title: '', content_markdown: '' }) }
+function addSection() { sections.value.push({ key: newKey(), id: null, title: '', content_markdown: '', exported: true }) }
+// Which typed sections go into the documents (Exportar, and the report sent).
+const inDoc = (key) => !form.value.export_hidden.includes(key)
+function setInDoc(key, on) {
+  const rest = form.value.export_hidden.filter((k) => k !== key)
+  form.value.export_hidden = on ? rest : [...rest, key]
+}
 function removeSection(i) { sections.value.splice(i, 1) }
 function moveSection(i, d) {
   const j = i + d
@@ -597,8 +606,11 @@ async function saveTemplate() {
         </section>
 
         <!-- Report data -->
-        <section class="panel card">
-          <h2 class="secTitle">{{ t('rpt.data') }}</h2>
+        <section class="panel card" :class="{ offDoc: !inDoc('report_data') }">
+          <div class="secHead">
+            <h2 class="secTitle">{{ t('rpt.data') }}</h2>
+            <ExportToggle :model-value="inDoc('report_data')" :editable="editing" @update:model-value="setInDoc('report_data', $event)" />
+          </div>
           <div class="grid4">
             <div class="f"><label>{{ t('rpt.testType') }}</label>
               <input v-if="editing" v-field v-model="form.test_type" placeholder="infra, web, mobile, API" />
@@ -626,20 +638,29 @@ async function saveTemplate() {
 
         <div class="layout">
           <div class="stack">
-            <section class="panel card">
-              <h2 class="secTitle">{{ t('rpt.summary') }}</h2>
+            <section class="panel card" :class="{ offDoc: !inDoc('executive_summary') }">
+              <div class="secHead">
+                <h2 class="secTitle">{{ t('rpt.summary') }}</h2>
+                <ExportToggle :model-value="inDoc('executive_summary')" :editable="editing" @update:model-value="setInDoc('executive_summary', $event)" />
+              </div>
               <MarkdownEditor v-if="editing" v-model="form.executive_summary_md" expandable :image-uploader="uploadEditorImage" />
               <MarkdownView v-else :source="form.executive_summary_md || '—'" />
             </section>
-            <section class="panel card">
-              <h2 class="secTitle">{{ t('rpt.intro') }}</h2>
+            <section class="panel card" :class="{ offDoc: !inDoc('introduction') }">
+              <div class="secHead">
+                <h2 class="secTitle">{{ t('rpt.intro') }}</h2>
+                <ExportToggle :model-value="inDoc('introduction')" :editable="editing" @update:model-value="setInDoc('introduction', $event)" />
+              </div>
               <MarkdownEditor v-if="editing" v-model="form.introduction_md" expandable :image-uploader="uploadEditorImage" />
               <MarkdownView v-else :source="form.introduction_md || '—'" />
             </section>
             <!-- Free-form sections. Read: one card each, as in the report. Edit: one card to manage them. -->
             <template v-if="!editing">
-              <section v-for="s in sections" :key="s.key" class="panel card">
-                <h2 class="secTitle">{{ s.title || '—' }}</h2>
+              <section v-for="s in sections" :key="s.key" class="panel card" :class="{ offDoc: !s.exported }">
+                <div class="secHead">
+                  <h2 class="secTitle">{{ s.title || '—' }}</h2>
+                  <ExportToggle :model-value="s.exported" />
+                </div>
                 <MarkdownView :source="s.content_markdown || '—'" />
               </section>
             </template>
@@ -651,6 +672,7 @@ async function saveTemplate() {
                 <div class="extraHead">
                   <input v-model="s.title" :placeholder="t('rpt.sectionTitle')" maxlength="200" />
                   <div class="extraActs">
+                    <ExportToggle v-model="s.exported" editable />
                     <button class="link" :disabled="i === 0" @click="moveSection(i, -1)">{{ t('rpt.up') }}</button>
                     <button class="link" :disabled="i === sections.length - 1" @click="moveSection(i, 1)">{{ t('rpt.down') }}</button>
                     <button class="link danger" @click="removeSection(i)">{{ t('vform.removeRef') }}</button>
@@ -659,6 +681,12 @@ async function saveTemplate() {
                 <MarkdownEditor v-model="s.content_markdown" expandable :image-uploader="uploadEditorImage" />
               </div>
               <button class="link addRef" @click="addSection">{{ t('rpt.addSection') }}</button>
+            </section>
+            <section class="panel card">
+              <h2 class="secTitle">{{ t('vform.notes') }}</h2>
+              <p class="hint">{{ t('vform.notesHint') }}</p>
+              <MarkdownEditor v-if="canEditNotes" v-model="form.internal_notes" expandable />
+              <MarkdownView v-else :source="form.internal_notes || '—'" />
             </section>
           </div>
           <div v-side-column class="stack side">
@@ -698,12 +726,6 @@ async function saveTemplate() {
                                 @download="downloadEvidence" @copy-markdown="copyEvidenceMarkdown" />
             </section>
 
-            <section class="panel card">
-              <h2 class="secTitle">{{ t('vform.notes') }}</h2>
-              <p class="hint">{{ t('vform.notesHint') }}</p>
-              <MarkdownEditor v-if="canEditNotes" v-model="form.internal_notes" />
-              <MarkdownView v-else :source="form.internal_notes || '—'" />
-            </section>
           </div>
         </div>
       </template>
@@ -806,6 +828,7 @@ async function saveTemplate() {
 .extraHead input { flex: 1; }
 .extraActs { display: flex; flex: 0 0 auto; }
 .extraActs .link { margin-left: 14px; }
+.extraActs { align-items: center; }
 .extraActs .link:disabled { opacity: .35; cursor: default; text-decoration: none; }
 .addRef { margin: 4px 0 0; }
 

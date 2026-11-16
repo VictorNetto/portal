@@ -44,7 +44,7 @@ Liste as ações prioritárias recomendadas.
 _DRAFT_FIELDS = {
     "name", "client_name", "start_date", "end_date", "executive_summary_md",
     "introduction_md", "test_type", "demand_origin", "environment", "scope",
-    "test_model", "internal_notes", "operators",
+    "test_model", "internal_notes", "operators", "export_hidden",
 }
 
 
@@ -131,6 +131,7 @@ def to_out(session: Session, report: Report, user: User) -> ReportOut:
         test_type=report.test_type, demand_origin=report.demand_origin,
         environment=report.environment, scope=report.scope, test_model=report.test_model,
         internal_notes=report.internal_notes,
+        export_hidden=report.export_hidden or [],
         sections=[SectionOut.model_validate(s) for s in sections],
         vulnerabilities=[VulnListItem.model_validate(v) for v in vulns],
     )
@@ -369,7 +370,7 @@ def add_section(
     position = max((s.position for s in report.sections), default=0) + 1
     report.sections.append(
         ReportSection(position=position, title=body.title.strip(),
-                      content_markdown=body.content_markdown)
+                      content_markdown=body.content_markdown, exported=body.exported)
     )
     audit.record(
         session, action=AuditAction.update, user_id=user.id,
@@ -394,6 +395,8 @@ def update_section(
         section.title = changes["title"].strip()
     if "content_markdown" in changes:
         section.content_markdown = changes["content_markdown"]
+    if changes.get("exported") is not None:
+        section.exported = changes["exported"]
     audit.record(
         session, action=AuditAction.update, user_id=user.id,
         entity_type="report", entity_id=report.id,

@@ -441,6 +441,11 @@ const messages = {
       keyPlaceholder: 'ex.: scanner-ci',
       records: 'registros',
     },
+    doc: {
+      inDocument: 'No documento',
+      notInDocument: 'Fora do documento',
+      toggleHint: 'Incluir esta seção nos documentos: Exportar (PDF, Word, Excel) e o relatório enviado.',
+    },
     md: {
       edit: 'Editar',
       preview: 'Visualizar',
@@ -1095,6 +1100,11 @@ const messages = {
       confirmRevoke: 'Revoke the key "{label}"?',
       keyPlaceholder: 'e.g. scanner-ci',
       records: 'records',
+    },
+    doc: {
+      inDocument: 'In document',
+      notInDocument: 'Not in document',
+      toggleHint: 'Include this section in the documents: Export (PDF, Word, Excel) and the report sent.',
     },
     md: {
       edit: 'Edit',

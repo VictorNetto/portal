@@ -63,7 +63,7 @@ test.describe('linking vulnerabilities to a report', () => {
 })
 
 test.describe('long texts', () => {
-  test('an editor expands to the window and collapses again; notes do not expand', async ({ page }) => {
+  test('an editor expands to the window and collapses again; the notes expand too', async ({ page }) => {
     const v = await newVuln(alice.token, { identifier: `e2e-expand-${tag()}` })
     vulns.push(v.id)
     await loginUI(page, alice.username, alice.password)
@@ -76,8 +76,8 @@ test.describe('long texts', () => {
     if (process.env.E2E_SHOTS) { await page.waitForTimeout(800); await page.screenshot({ path: `${process.env.E2E_SHOTS}/editor-expanded.png` }) }
     await area.press('Escape')
     await expect.poll(async () => (await area.boundingBox()).height).toBe(before)
-    // Mitigação / Solução expands too; the internal notes editor has no button
-    await expect(page.getByRole('button', { name: 'Expandir' })).toHaveCount(3)
+    // description, finding details, mitigation and the internal notes (now at the end of the left column)
+    await expect(page.getByRole('button', { name: 'Expandir' })).toHaveCount(4)
   })
 
   test('mitigation can be left blank when completing', async ({ page }) => {
@@ -96,14 +96,14 @@ test.describe('long texts', () => {
 test.describe('page layout', () => {
   test('the right column scrolls on its own and ends with the references', async ({ page }) => {
     const long = Array.from({ length: 80 }, (_, i) => `linha ${i + 1}`).join('\n')
-    const notes = Array.from({ length: 60 }, (_, i) => `nota ${i + 1}`).join('\n\n')
-    const v = await newVuln(alice.token, { identifier: `e2e-cols-${tag()}`, finding_detail: long, internal_notes: notes,
-      references: ['https://owasp.org/'] })
+    const refs = Array.from({ length: 40 }, (_, i) => `https://owasp.org/ref-${i + 1}`)
+    const v = await newVuln(alice.token, { identifier: `e2e-cols-${tag()}`, finding_detail: long, references: refs })
     vulns.push(v.id)
     await loginUI(page, alice.username, alice.password)
     await page.goto(`/vulnerabilities/${v.id}`)
     const side = page.locator('.side')
     await expect(side.locator('> section').last().locator('.secTitle')).toHaveText('Referências')
+    await expect(page.locator('.layout > .stack').first().locator('> section').last().locator('.secTitle')).toHaveText('Notas Internas')
 
     const state = () => page.evaluate(() => {
       const m = document.querySelector('.main'); const s = document.querySelector('.side')
@@ -124,5 +124,40 @@ test.describe('page layout', () => {
     await page.mouse.wheel(0, 600)
     await expect.poll(async () => (await state()).side).toBeGreaterThan(0)
     expect((await state()).main).toBe(s.main)
+  })
+})
+
+test.describe('sections in the documents', () => {
+  test('a vulnerability section can be left out of the documents', async ({ page }) => {
+    const v = await newVuln(alice.token, { identifier: `e2e-doc-${tag()}` })
+    vulns.push(v.id)
+    await loginUI(page, alice.username, alice.password)
+    await page.goto(`/vulnerabilities/${v.id}`)
+    const card = page.locator('section', { has: page.locator('.secTitle', { hasText: 'Mitigação' }) })
+    await card.getByLabel('No documento').uncheck()
+    await expect(card).toHaveClass(/offDoc/)
+    if (process.env.E2E_SHOTS) await page.screenshot({ path: `${process.env.E2E_SHOTS}/export-toggle.png` })
+    await page.getByRole('button', { name: 'Salvar rascunho' }).click()
+    await expect.poll(async () => (await api(`/vulnerabilities/${v.id}`, { token: alice.token })).data.export_hidden).toEqual(['mitigation'])
+  })
+
+  test('report sections can be left out of the documents, and read-only pages say so', async ({ page }) => {
+    const report = await newReport(alice.token, { name: `e2e-doc-${tag()}` })
+    reports.push(report.id)
+    await loginUI(page, alice.username, alice.password)
+    await page.goto(`/reports/${report.id}`)
+    await expect(page.locator('.banner.mine')).toBeVisible()
+    await page.locator('section', { has: page.locator('.secTitle', { hasText: 'Sumário Executivo' }) }).getByLabel('No documento').uncheck()
+    await page.getByRole('button', { name: 'Adicionar seção' }).click()
+    const extra = page.locator('.extra').last()
+    await extra.locator('.extraHead input[maxlength="200"]').fill('Bastidores')
+    await extra.getByLabel('No documento').uncheck()
+    await page.getByRole('button', { name: 'Salvar', exact: true }).click()
+    await expect.poll(async () => (await api(`/reports/${report.id}`, { token: alice.token })).data.export_hidden).toEqual(['executive_summary'])
+    const saved = (await api(`/reports/${report.id}`, { token: alice.token })).data
+    expect(saved.sections.map((s) => [s.title, s.exported])).toEqual([['Bastidores', false]])
+
+    await page.getByRole('button', { name: 'Parar de editar' }).click()
+    await expect(page.locator('section', { has: page.locator('.secTitle', { hasText: 'Bastidores' }) }).locator('.exportToggle')).toHaveText('Fora do documento')
   })
 })

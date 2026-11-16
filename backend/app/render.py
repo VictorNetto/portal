@@ -349,6 +349,27 @@ def _score(v) -> str:
     return f"{float(v):.1f}" if v is not None else "—"
 
 
+def shown(rec, key: str) -> bool:
+    """Is this section of a vulnerability / report in its documents? (export and send)"""
+    return key not in (getattr(rec, "export_hidden", None) or [])
+
+
+def _vuln_texts(v) -> list[tuple[str, str | None]]:
+    return [(heading, text) for key, heading, text in (
+        ("description", "Descrição", v.description),
+        ("finding_detail", "Detalhes do achado", v.finding_detail),
+        ("mitigation", "Mitigação / Solução", v.mitigation),
+    ) if shown(v, key)]
+
+
+def _vuln_refs(v) -> list[str]:
+    return [r for r in (v.references or []) if r] if shown(v, "references") else []
+
+
+def _report_sections(report) -> list:
+    return [s for s in sorted(report.sections, key=lambda x: x.position) if s.exported is not False]
+
+
 def _vuln_story(v, st: dict, load_image: ImageLoader, *, title_style: str = "H2") -> list[Any]:
     """One vulnerability, all structured fields (internal notes excluded)."""
     story: list[Any] = []
@@ -364,13 +385,12 @@ def _vuln_story(v, st: dict, load_image: ImageLoader, *, title_style: str = "H2"
         ("Operadores", ops),
     ], st))
     story.append(Spacer(1, 6))
-    for heading, text in (("Descrição", v.description), ("Detalhes do achado", v.finding_detail),
-                          ("Mitigação / Solução", v.mitigation)):
+    for heading, text in _vuln_texts(v):
         body = md_flowables(text, st, load_image)
         if body:
             story.append(Paragraph(heading, st["H3"]))
             story.extend(body)
-    refs = [r for r in (v.references or []) if r]
+    refs = _vuln_refs(v)
     if refs:
         story.append(Paragraph("Referências", st["H3"]))
         for r in refs:
@@ -426,35 +446,39 @@ def report_pdf(report, vulns: list, load_image: ImageLoader) -> bytes:
     story.append(toc)
     story.append(PageBreak())
 
-    # 2. Executive summary
-    story.append(Paragraph("Sumário Executivo", st["H1"]))
-    story.extend(md_flowables(report.executive_summary_md, st, load_image)
-                 or [Paragraph("—", st["body"])])
+    # 2. Executive summary (each typed section can be left out of the documents)
+    if shown(report, "executive_summary"):
+        story.append(Paragraph("Sumário Executivo", st["H1"]))
+        story.extend(md_flowables(report.executive_summary_md, st, load_image)
+                     or [Paragraph("—", st["body"])])
+        story.append(PageBreak())
 
     # 4. Introduction
-    story.append(PageBreak())
-    story.append(Paragraph("Introdução", st["H1"]))
-    story.extend(md_flowables(report.introduction_md, st, load_image) or [Paragraph("—", st["body"])])
+    if shown(report, "introduction"):
+        story.append(Paragraph("Introdução", st["H1"]))
+        story.extend(md_flowables(report.introduction_md, st, load_image) or [Paragraph("—", st["body"])])
 
     # 5. Report data
-    story.append(Paragraph("Dados do Relatório", st["H1"]))
-    story.append(_kv_table([
-        ("Tipo de teste", report.test_type or ""),
-        ("Modelo de teste", report.test_model or ""),
-        ("Ambiente", report.environment or ""),
-        ("Origem da demanda", report.demand_origin or ""),
-        ("Escopo", (report.scope or "").replace("\n", "  ")),
-    ], st))
+    if shown(report, "report_data"):
+        story.append(Paragraph("Dados do Relatório", st["H1"]))
+        story.append(_kv_table([
+            ("Tipo de teste", report.test_type or ""),
+            ("Modelo de teste", report.test_model or ""),
+            ("Ambiente", report.environment or ""),
+            ("Origem da demanda", report.demand_origin or ""),
+            ("Escopo", (report.scope or "").replace("\n", "  ")),
+        ], st))
 
     # 6. Free-form extras, in operator order
     story.append(CondPageBreak(60 * mm))
-    for section in sorted(report.sections, key=lambda x: x.position):
+    for section in _report_sections(report):
         story.append(CondPageBreak(60 * mm))  # start a new page only when little room is left
         story.append(Paragraph(_esc(section.title), st["H1"]))
         story.extend(md_flowables(section.content_markdown, st, load_image))
 
     # 7. Vulnerabilities, CVSS descending
-    story.append(PageBreak())
+    if not isinstance(story[-1], PageBreak):
+        story.append(PageBreak())
     story.append(Paragraph("Vulnerabilidades", st["H1"]))
     if not vulns:
         story.append(Paragraph("Nenhuma vulnerabilidade registrada neste relatório.", st["body"]))
@@ -493,8 +517,11 @@ def vulnerabilities_xlsx(report, vulns: list) -> bytes:
             v.cvss_vector or "", v.source or "",
             ", ".join(sorted(o.username for o in v.operators)),
             v.status.value if hasattr(v.status, "value") else str(v.status),
-            v.description or "", v.finding_detail or "", v.mitigation or "",
-            "\n".join(r for r in (v.references or []) if r),
+            # A section left out of the documents is an empty cell.
+            *((text or "") if shown(v, key) else "" for key, text in (
+                ("description", v.description), ("finding_detail", v.finding_detail),
+                ("mitigation", v.mitigation))),
+            "\n".join(_vuln_refs(v)),
         ])
     header_fill = PatternFill("solid", fgColor="4F46E5")
     for cell in ws[1]:
@@ -668,12 +695,11 @@ def _docx_vuln(doc, v, load_image: ImageLoader, *, level: int = 2) -> None:
         ("Fonte", v.source or "—"),
         ("Operadores", ", ".join(sorted(o.username for o in v.operators)) or "—"),
     ])
-    for heading, text in (("Descrição", v.description), ("Detalhes do achado", v.finding_detail),
-                          ("Mitigação / Solução", v.mitigation)):
+    for heading, text in _vuln_texts(v):
         if (text or "").strip():
             doc.add_heading(heading, level=level + 1)
             _docx_markdown(doc, text, load_image)
-    refs = [r for r in (v.references or []) if r]
+    refs = _vuln_refs(v)
     if refs:
         doc.add_heading("Referências", level=level + 1)
         for r in refs:
@@ -705,7 +731,9 @@ def report_docx(report, vulns: list, load_image: ImageLoader) -> bytes:
     from docx.shared import Pt
 
     doc = _docx_base(_report_label(report))
-    extras = sorted(report.sections, key=lambda x: x.position)
+    extras = _report_sections(report)
+    typed = [title for key, title in (("executive_summary", "Sumário Executivo"), ("introduction", "Introdução"),
+                                      ("report_data", "Dados do Relatório")) if shown(report, key)]
 
     # Cover
     for _ in range(6):
@@ -729,22 +757,25 @@ def report_docx(report, vulns: list, load_image: ImageLoader) -> bytes:
     # Table of contents: a real Word field. Until it is updated (right-click ->
     # Update field) it lists the section titles.
     doc.add_heading("Sumário", level=1)
-    titles = ["Sumário Executivo", "Introdução", "Dados do Relatório",
+    titles = [*typed,
               *[s.title for s in extras], "Vulnerabilidades",
               *[(v.identifier or v.internal_id or "Vulnerabilidade") for v in vulns]]
     _docx_field(doc.add_paragraph(), 'TOC \\o "1-2" \\h \\z \\u', "\n".join(_xml(t) for t in titles))
     doc.add_page_break()
 
-    doc.add_heading("Sumário Executivo", level=1)
-    _docx_markdown(doc, report.executive_summary_md, load_image)
-    doc.add_heading("Introdução", level=1)
-    _docx_markdown(doc, report.introduction_md, load_image)
-    doc.add_heading("Dados do Relatório", level=1)
-    _docx_kv(doc, [
-        ("Tipo de teste", report.test_type or ""), ("Modelo de teste", report.test_model or ""),
-        ("Ambiente", report.environment or ""), ("Origem da demanda", report.demand_origin or ""),
-        ("Escopo", (report.scope or "").replace("\n", "  ")),
-    ])
+    if shown(report, "executive_summary"):
+        doc.add_heading("Sumário Executivo", level=1)
+        _docx_markdown(doc, report.executive_summary_md, load_image)
+    if shown(report, "introduction"):
+        doc.add_heading("Introdução", level=1)
+        _docx_markdown(doc, report.introduction_md, load_image)
+    if shown(report, "report_data"):
+        doc.add_heading("Dados do Relatório", level=1)
+        _docx_kv(doc, [
+            ("Tipo de teste", report.test_type or ""), ("Modelo de teste", report.test_model or ""),
+            ("Ambiente", report.environment or ""), ("Origem da demanda", report.demand_origin or ""),
+            ("Escopo", (report.scope or "").replace("\n", "  ")),
+        ])
     for section in extras:
         doc.add_heading(_xml(section.title), level=1)
         _docx_markdown(doc, section.content_markdown, load_image)

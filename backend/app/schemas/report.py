@@ -3,8 +3,9 @@
 import uuid
 from datetime import date, datetime
 from decimal import Decimal
+from typing import Literal
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 from app.models.enums import ReportStatus
 from app.schemas.vulnerability import OperatorRef, VulnListItem
@@ -25,6 +26,7 @@ class SectionOut(BaseModel):
     position: int
     title: str
     content_markdown: str | None
+    exported: bool = True
 
     model_config = {"from_attributes": True}
 
@@ -32,11 +34,17 @@ class SectionOut(BaseModel):
 class SectionCreate(BaseModel):
     title: str = Field(min_length=1, max_length=200)
     content_markdown: str | None = Field(default=None, max_length=200_000)
+    exported: bool = True
 
 
 class SectionUpdate(BaseModel):
     title: str | None = Field(default=None, min_length=1, max_length=200)
     content_markdown: str | None = Field(default=None, max_length=200_000)
+    exported: bool | None = None
+
+
+# Typed sections of a report that can be left out of its documents.
+ReportExportKey = Literal["executive_summary", "introduction", "report_data"]
 
 
 class SectionReorder(BaseModel):
@@ -86,8 +94,14 @@ class ReportUpdate(BaseModel):
     scope: str | None = Field(default=None, max_length=5000)
     test_model: str | None = Field(default=None, max_length=200)
     internal_notes: str | None = Field(default=None, max_length=200_000)
+    export_hidden: list[ReportExportKey] | None = None
     operator_ids: list[uuid.UUID] | None = None
     viewer_ids: list[uuid.UUID] | None = None
+
+    @field_validator("export_hidden")
+    @classmethod
+    def _hidden(cls, v: list[str] | None) -> list[str]:
+        return sorted(set(v or []))  # an explicit null clears the list
 
 
 class ReportListItem(BaseModel):
@@ -122,5 +136,6 @@ class ReportOut(ReportListItem):
     scope: str | None
     test_model: str | None
     internal_notes: str | None
+    export_hidden: list[str] = Field(default_factory=list)
     sections: list[SectionOut] = Field(default_factory=list)
     vulnerabilities: list[VulnListItem] = Field(default_factory=list)

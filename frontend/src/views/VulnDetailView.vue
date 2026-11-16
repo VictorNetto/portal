@@ -16,6 +16,7 @@ import { vField, vSideColumn } from '../directives'
 import { useAuthStore } from '../stores/auth'
 import AppShell from '../components/AppShell.vue'
 import MarkdownEditor from '../components/MarkdownEditor.vue'
+import ExportToggle from '../components/ExportToggle.vue'
 import CvssInput from '../components/CvssInput.vue'
 import CvssCalculator from '../components/CvssCalculator.vue'
 import MultiValueInput from '../components/MultiValueInput.vue'
@@ -47,6 +48,7 @@ const blankForm = () => ({
   identifier: '', cwe: '', cvss_score: null, cvss_vector: '', source: '',
   description: '', finding_detail: '', mitigation: '', internal_notes: '',
   references: [''],
+  export_hidden: [],
 })
 
 const vuln = ref(null)
@@ -94,7 +96,7 @@ const attachError = ref('')
 
 // --- Field-lock rules (SPEC §4), mirrored for UX; the server enforces anyway.
 const ALL_FIELDS = ['identifier', 'cwe', 'description', 'finding_detail', 'mitigation',
-  'references', 'cvss_score', 'cvss_vector', 'source', 'internal_notes', 'operators']
+  'references', 'cvss_score', 'cvss_vector', 'source', 'internal_notes', 'operators', 'export_hidden']
 const editableFields = computed(() => {
   if (!isWriter.value) return new Set()                  // read-only roles never edit
   if (inReport.value) {
@@ -106,6 +108,12 @@ const editableFields = computed(() => {
   return new Set(['internal_notes', 'operators'])
 })
 const canEdit = (f) => editableFields.value.has(f)
+// Which sections go into the documents (Exportar, and the report it is sent in).
+const inDoc = (key) => !form.value.export_hidden.includes(key)
+function setInDoc(key, on) {
+  const rest = form.value.export_hidden.filter((k) => k !== key)
+  form.value.export_hidden = on ? rest : [...rest, key]
+}
 const isDraft = computed(() => !inReport.value && (isNew.value || vuln.value?.status === 'draft'))
 const isReady = computed(() => vuln.value?.status === 'ready')
 const attachEditable = computed(() =>
@@ -132,6 +140,7 @@ function syncForm() {
   const f = blankForm()
   for (const k of Object.keys(f)) {
     if (k === 'references') f.references = v.references?.length ? [...v.references] : ['']
+    else if (k === 'export_hidden') f.export_hidden = [...(v.export_hidden || [])]
     else if (k === 'cvss_score') f.cvss_score = v.cvss_score == null ? null : Number(v.cvss_score)
     else f[k] = v[k] ?? ''
   }
@@ -211,6 +220,7 @@ function bodyFromForm(fields) {
     if (f === 'operators') continue // sent separately as operator_ids
     const val = form.value[f]
     if (f === 'references') body.references = val.map((r) => r.trim()).filter(Boolean)
+    else if (f === 'export_hidden') body.export_hidden = [...val]
     else if (f === 'cvss_score') body.cvss_score = val === '' || val == null ? null : Number(val)
     else body[f] = String(val).trim() === '' ? null : val
   }
@@ -614,8 +624,11 @@ watch(() => route.fullPath, () => {
 
       <div class="layout">
         <div class="stack">
-          <section class="panel card">
-            <h2 class="secTitle">{{ t('vform.description') }}{{ req('description') }}</h2>
+          <section class="panel card" :class="{ offDoc: !inDoc('description') }">
+            <div class="secHead">
+              <h2 class="secTitle">{{ t('vform.description') }}{{ req('description') }}</h2>
+              <ExportToggle :model-value="inDoc('description')" :editable="canEdit('export_hidden')" @update:model-value="setInDoc('description', $event)" />
+            </div>
             <MarkdownView v-if="!canEdit('description')" :source="form.description || '—'" />
             <MarkdownEditor v-else v-model="form.description" expandable
                             :invalid="fieldError('description')"
@@ -623,8 +636,11 @@ watch(() => route.fullPath, () => {
             <small v-if="fieldError('description')" class="fieldErr">{{ t('vform.required') }}</small>
           </section>
 
-          <section class="panel card">
-            <h2 class="secTitle">{{ t('vform.finding') }}{{ req('finding_detail') }}</h2>
+          <section class="panel card" :class="{ offDoc: !inDoc('finding_detail') }">
+            <div class="secHead">
+              <h2 class="secTitle">{{ t('vform.finding') }}{{ req('finding_detail') }}</h2>
+              <ExportToggle :model-value="inDoc('finding_detail')" :editable="canEdit('export_hidden')" @update:model-value="setInDoc('finding_detail', $event)" />
+            </div>
             <MarkdownView v-if="!canEdit('finding_detail')" :source="form.finding_detail || '—'" />
             <MarkdownEditor v-else v-model="form.finding_detail" expandable
                             :invalid="fieldError('finding_detail')"
@@ -632,13 +648,23 @@ watch(() => route.fullPath, () => {
             <small v-if="fieldError('finding_detail')" class="fieldErr">{{ t('vform.required') }}</small>
           </section>
 
-          <section class="panel card">
-            <h2 class="secTitle">{{ t('vform.mitigation') }}{{ req('mitigation') }}</h2>
+          <section class="panel card" :class="{ offDoc: !inDoc('mitigation') }">
+            <div class="secHead">
+              <h2 class="secTitle">{{ t('vform.mitigation') }}{{ req('mitigation') }}</h2>
+              <ExportToggle :model-value="inDoc('mitigation')" :editable="canEdit('export_hidden')" @update:model-value="setInDoc('mitigation', $event)" />
+            </div>
             <MarkdownView v-if="!canEdit('mitigation')" :source="form.mitigation || '—'" />
             <MarkdownEditor v-else v-model="form.mitigation" expandable
                             :invalid="fieldError('mitigation')"
                             :image-uploader="attachEditable ? uploadEditorImage : null" />
             <small v-if="fieldError('mitigation')" class="fieldErr">{{ t('vform.required') }}</small>
+          </section>
+
+          <section class="panel card">
+            <h2 class="secTitle">{{ t('vform.notes') }}</h2>
+            <p class="hint">{{ t('vform.notesHint') }}</p>
+            <MarkdownEditor v-if="canEdit('internal_notes')" v-model="form.internal_notes" expandable />
+            <MarkdownView v-else :source="form.internal_notes || '—'" />
           </section>
 
         </div>
@@ -653,15 +679,11 @@ watch(() => route.fullPath, () => {
                               @download="downloadAttachment" @copy-markdown="copyMarkdown" />
           </section>
 
-          <section class="panel card">
-            <h2 class="secTitle">{{ t('vform.notes') }}</h2>
-            <p class="hint">{{ t('vform.notesHint') }}</p>
-            <MarkdownEditor v-if="canEdit('internal_notes')" v-model="form.internal_notes" />
-            <MarkdownView v-else :source="form.internal_notes || '—'" />
-          </section>
-
-          <section class="panel card">
-            <h2 class="secTitle">{{ t('vform.references') }}</h2>
+          <section class="panel card" :class="{ offDoc: !inDoc('references') }">
+            <div class="secHead">
+              <h2 class="secTitle">{{ t('vform.references') }}</h2>
+              <ExportToggle :model-value="inDoc('references')" :editable="canEdit('export_hidden')" @update:model-value="setInDoc('references', $event)" />
+            </div>
             <template v-if="!canEdit('references')">
               <ul v-if="form.references.some((r) => r.trim())" class="refList">
                 <li v-for="r in form.references.filter((x) => x.trim())" :key="r">
