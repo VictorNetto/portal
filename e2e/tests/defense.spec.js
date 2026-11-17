@@ -67,8 +67,8 @@ test('the defense team accepts a received vuln and records its RVS id', async ({
   await expect(page.locator('h1')).toHaveText(id)
   await expect(page.locator('body')).not.toContainText(`segredo-${id}`)
   const img = page.locator('.mdView img')
-  await expect(img).toHaveJSProperty('complete', true)
-  expect(await img.evaluate((el) => el.naturalWidth)).toBeGreaterThan(0)
+  // The image is fetched with the token and swapped in; until then it has no src (yet "complete").
+  await expect.poll(() => img.evaluate((el) => el.naturalWidth)).toBeGreaterThan(0)
 
   // No RVS before accepting.
   await expect(page.locator('.rvsForm')).toHaveCount(0)

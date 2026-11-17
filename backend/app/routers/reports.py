@@ -10,7 +10,9 @@ from app.deps import get_current_user, require_roles
 from app.models.enums import UserRole
 from app.models.user import User
 from app.schemas.report import (
+    ExportSectionsOut,
     ReportCreate,
+    ReportExportSections,
     ReportListItem,
     ReportOut,
     ReportUpdate,
@@ -104,6 +106,17 @@ def send_report(
 ):
     """Two-phase send (D2). Calling it again retries a failed delivery."""
     return report_dispatch.send(session, report_id, user, request)
+
+
+@router.put("/{report_id}/export-sections", response_model=ExportSectionsOut)
+def set_export_sections(
+    report_id: uuid.UUID,
+    body: ReportExportSections,
+    request: Request,
+    user: User = Depends(_writer),
+    session: Session = Depends(get_session),
+):
+    return svc.set_export_sections(session, report_id, body.hidden, body.sections, user, request)
 
 
 @router.get("/{report_id}/export")

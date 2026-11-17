@@ -5,7 +5,7 @@ import {
   getVuln, createVuln, updateVuln, completeVuln, sendVuln, deleteVuln, listUsers,
   listAttachments, uploadAttachment, deleteAttachment, fetchAttachmentBlob,
   transitionVuln, correctVuln, getReport, createReportVuln, acquireReportLock,
-  heartbeatReport, releaseReportLock, downloadAuthed, ApiError,
+  heartbeatReport, releaseReportLock, downloadAuthed, ApiError, setVulnExportSections,
 } from '../api'
 import { attachmentPath } from '../markdown'
 import { fmtTime } from '../dates'
@@ -48,7 +48,6 @@ const blankForm = () => ({
   identifier: '', cwe: '', cvss_score: null, cvss_vector: '', source: '',
   description: '', finding_detail: '', mitigation: '', internal_notes: '',
   references: [''],
-  export_hidden: [],
 })
 
 const vuln = ref(null)
@@ -96,7 +95,7 @@ const attachError = ref('')
 
 // --- Field-lock rules (SPEC §4), mirrored for UX; the server enforces anyway.
 const ALL_FIELDS = ['identifier', 'cwe', 'description', 'finding_detail', 'mitigation',
-  'references', 'cvss_score', 'cvss_vector', 'source', 'internal_notes', 'operators', 'export_hidden']
+  'references', 'cvss_score', 'cvss_vector', 'source', 'internal_notes', 'operators']
 const editableFields = computed(() => {
   if (!isWriter.value) return new Set()                  // read-only roles never edit
   if (inReport.value) {
@@ -108,11 +107,18 @@ const editableFields = computed(() => {
   return new Set(['internal_notes', 'operators'])
 })
 const canEdit = (f) => editableFields.value.has(f)
-// Which sections go into the documents (Exportar, and the report it is sent in).
-const inDoc = (key) => !form.value.export_hidden.includes(key)
-function setInDoc(key, on) {
-  const rest = form.value.export_hidden.filter((k) => k !== key)
-  form.value.export_hidden = on ? rest : [...rest, key]
+// Which sections go into the documents (Exportar, and the report it is sent in). Not content:
+// any writer may change it in any status, and each click is saved at once (on a new, unsaved
+// record it goes with the first save).
+const exportHidden = ref([])
+const inDoc = (key) => !exportHidden.value.includes(key)
+async function setInDoc(key, on) {
+  const before = exportHidden.value
+  const rest = before.filter((k) => k !== key)
+  exportHidden.value = on ? rest : [...rest, key]
+  if (isNew.value || !vuln.value) return
+  try { exportHidden.value = (await setVulnExportSections(vuln.value.id, exportHidden.value)).hidden }
+  catch (e) { exportHidden.value = before; error.value = e instanceof ApiError ? e.detail : t('errors.save') }
 }
 const isDraft = computed(() => !inReport.value && (isNew.value || vuln.value?.status === 'draft'))
 const isReady = computed(() => vuln.value?.status === 'ready')
@@ -140,19 +146,20 @@ function syncForm() {
   const f = blankForm()
   for (const k of Object.keys(f)) {
     if (k === 'references') f.references = v.references?.length ? [...v.references] : ['']
-    else if (k === 'export_hidden') f.export_hidden = [...(v.export_hidden || [])]
     else if (k === 'cvss_score') f.cvss_score = v.cvss_score == null ? null : Number(v.cvss_score)
     else f[k] = v[k] ?? ''
   }
   form.value = f
   selectedOps.value = new Set((v.operators || []).map((o) => o.id))
   selectedViewers.value = new Set((v.viewers || []).map((o) => o.id))
+  exportHidden.value = [...(v.export_hidden || [])]
   markClean()
 }
 
 function resetForNew() {
   vuln.value = null
   form.value = blankForm()
+  exportHidden.value = []
   selectedOps.value = new Set(auth.user?.id ? [auth.user.id] : [])
   selectedViewers.value = new Set()
   attachments.value = []
@@ -220,7 +227,6 @@ function bodyFromForm(fields) {
     if (f === 'operators') continue // sent separately as operator_ids
     const val = form.value[f]
     if (f === 'references') body.references = val.map((r) => r.trim()).filter(Boolean)
-    else if (f === 'export_hidden') body.export_hidden = [...val]
     else if (f === 'cvss_score') body.cvss_score = val === '' || val == null ? null : Number(val)
     else body[f] = String(val).trim() === '' ? null : val
   }
@@ -234,6 +240,7 @@ async function persist() {
     const body = bodyFromForm(ALL_FIELDS)
     body.operator_ids = [...selectedOps.value]
     body.viewer_ids = [...selectedViewers.value]
+    body.export_hidden = [...exportHidden.value]
     const created = inReport.value
       ? await createReportVuln(reportId.value, body)
       : await createVuln(body)
@@ -627,7 +634,7 @@ watch(() => route.fullPath, () => {
           <section class="panel card" :class="{ offDoc: !inDoc('description') }">
             <div class="secHead">
               <h2 class="secTitle">{{ t('vform.description') }}{{ req('description') }}</h2>
-              <ExportToggle :model-value="inDoc('description')" :editable="canEdit('export_hidden')" @update:model-value="setInDoc('description', $event)" />
+              <ExportToggle :model-value="inDoc('description')" :editable="isWriter" @update:model-value="setInDoc('description', $event)" />
             </div>
             <MarkdownView v-if="!canEdit('description')" :source="form.description || '—'" />
             <MarkdownEditor v-else v-model="form.description" expandable
@@ -639,7 +646,7 @@ watch(() => route.fullPath, () => {
           <section class="panel card" :class="{ offDoc: !inDoc('finding_detail') }">
             <div class="secHead">
               <h2 class="secTitle">{{ t('vform.finding') }}{{ req('finding_detail') }}</h2>
-              <ExportToggle :model-value="inDoc('finding_detail')" :editable="canEdit('export_hidden')" @update:model-value="setInDoc('finding_detail', $event)" />
+              <ExportToggle :model-value="inDoc('finding_detail')" :editable="isWriter" @update:model-value="setInDoc('finding_detail', $event)" />
             </div>
             <MarkdownView v-if="!canEdit('finding_detail')" :source="form.finding_detail || '—'" />
             <MarkdownEditor v-else v-model="form.finding_detail" expandable
@@ -651,7 +658,7 @@ watch(() => route.fullPath, () => {
           <section class="panel card" :class="{ offDoc: !inDoc('mitigation') }">
             <div class="secHead">
               <h2 class="secTitle">{{ t('vform.mitigation') }}{{ req('mitigation') }}</h2>
-              <ExportToggle :model-value="inDoc('mitigation')" :editable="canEdit('export_hidden')" @update:model-value="setInDoc('mitigation', $event)" />
+              <ExportToggle :model-value="inDoc('mitigation')" :editable="isWriter" @update:model-value="setInDoc('mitigation', $event)" />
             </div>
             <MarkdownView v-if="!canEdit('mitigation')" :source="form.mitigation || '—'" />
             <MarkdownEditor v-else v-model="form.mitigation" expandable
@@ -682,7 +689,7 @@ watch(() => route.fullPath, () => {
           <section class="panel card" :class="{ offDoc: !inDoc('references') }">
             <div class="secHead">
               <h2 class="secTitle">{{ t('vform.references') }}</h2>
-              <ExportToggle :model-value="inDoc('references')" :editable="canEdit('export_hidden')" @update:model-value="setInDoc('references', $event)" />
+              <ExportToggle :model-value="inDoc('references')" :editable="isWriter" @update:model-value="setInDoc('references', $event)" />
             </div>
             <template v-if="!canEdit('references')">
               <ul v-if="form.references.some((r) => r.trim())" class="refList">

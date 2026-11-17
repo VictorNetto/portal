@@ -40,7 +40,6 @@ class SectionCreate(BaseModel):
 class SectionUpdate(BaseModel):
     title: str | None = Field(default=None, min_length=1, max_length=200)
     content_markdown: str | None = Field(default=None, max_length=200_000)
-    exported: bool | None = None
 
 
 # Typed sections of a report that can be left out of its documents.
@@ -94,14 +93,27 @@ class ReportUpdate(BaseModel):
     scope: str | None = Field(default=None, max_length=5000)
     test_model: str | None = Field(default=None, max_length=200)
     internal_notes: str | None = Field(default=None, max_length=200_000)
-    export_hidden: list[ReportExportKey] | None = None
     operator_ids: list[uuid.UUID] | None = None
     viewer_ids: list[uuid.UUID] | None = None
 
-    @field_validator("export_hidden")
+
+class ReportExportSections(BaseModel):
+    """Which sections a report leaves out of its documents. Not content: saved at once, in any
+    status, without the lock. `hidden` replaces the typed sections' list when given; `sections`
+    sets free-form sections' `exported` by id."""
+
+    hidden: list[ReportExportKey] | None = None
+    sections: dict[uuid.UUID, bool] = Field(default_factory=dict, max_length=200)
+
+    @field_validator("hidden")
     @classmethod
-    def _hidden(cls, v: list[str] | None) -> list[str]:
-        return sorted(set(v or []))  # an explicit null clears the list
+    def _hidden(cls, v: list[str] | None) -> list[str] | None:
+        return None if v is None else sorted(set(v))
+
+
+class ExportSectionsOut(BaseModel):
+    export_hidden: list[str]
+    sections: dict[uuid.UUID, bool] = Field(default_factory=dict)
 
 
 class ReportListItem(BaseModel):

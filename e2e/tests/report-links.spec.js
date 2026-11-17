@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test'
-import { adminToken, api, cleanup, createUser, login, newReport, newVuln, savedVuln, tag } from '../support/api.js'
+import { adminToken, api, cleanup, createUser, fixingVuln, login, newReport, newVuln, savedVuln, tag } from '../support/api.js'
 import { autoDialogs, collectPageErrors, loginUI } from '../support/ui.js'
 
 let admin
@@ -128,36 +128,54 @@ test.describe('page layout', () => {
 })
 
 test.describe('sections in the documents', () => {
-  test('a vulnerability section can be left out of the documents', async ({ page }) => {
-    const v = await newVuln(alice.token, { identifier: `e2e-doc-${tag()}` })
+  test('a vulnerability section is left out at once, also after it was sent', async ({ page }) => {
+    const v = await fixingVuln(alice.token, { identifier: `e2e-doc-${tag()}` })
     vulns.push(v.id)
     await loginUI(page, alice.username, alice.password)
     await page.goto(`/vulnerabilities/${v.id}`)
     const card = page.locator('section', { has: page.locator('.secTitle', { hasText: 'Mitigação' }) })
-    await card.getByLabel('No documento').uncheck()
+    await expect(card.locator('.mdEditor')).toHaveCount(0)                    // read-only content…
+    await card.getByLabel('No documento').uncheck()                            // …but the choice is still offered
     await expect(card).toHaveClass(/offDoc/)
     if (process.env.E2E_SHOTS) await page.screenshot({ path: `${process.env.E2E_SHOTS}/export-toggle.png` })
-    await page.getByRole('button', { name: 'Salvar rascunho' }).click()
     await expect.poll(async () => (await api(`/vulnerabilities/${v.id}`, { token: alice.token })).data.export_hidden).toEqual(['mitigation'])
+    await page.reload()
+    await expect(card.getByLabel('No documento')).not.toBeChecked()
   })
 
-  test('report sections can be left out of the documents, and read-only pages say so', async ({ page }) => {
+  test('report sections are saved at once, in edit and view mode', async ({ page }) => {
     const report = await newReport(alice.token, { name: `e2e-doc-${tag()}` })
     reports.push(report.id)
     await loginUI(page, alice.username, alice.password)
     await page.goto(`/reports/${report.id}`)
     await expect(page.locator('.banner.mine')).toBeVisible()
     await page.locator('section', { has: page.locator('.secTitle', { hasText: 'Sumário Executivo' }) }).getByLabel('No documento').uncheck()
+    await expect.poll(async () => (await api(`/reports/${report.id}`, { token: alice.token })).data.export_hidden).toEqual(['executive_summary'])
+
+    // A new section's choice goes with its first save.
     await page.getByRole('button', { name: 'Adicionar seção' }).click()
     const extra = page.locator('.extra').last()
-    await extra.locator('.extraHead input[maxlength="200"]').fill('Bastidores')
+    await extra.locator('.extraHead > input').fill('Bastidores')
     await extra.getByLabel('No documento').uncheck()
     await page.getByRole('button', { name: 'Salvar', exact: true }).click()
-    await expect.poll(async () => (await api(`/reports/${report.id}`, { token: alice.token })).data.export_hidden).toEqual(['executive_summary'])
-    const saved = (await api(`/reports/${report.id}`, { token: alice.token })).data
-    expect(saved.sections.map((s) => [s.title, s.exported])).toEqual([['Bastidores', false]])
+    await expect.poll(async () => (await api(`/reports/${report.id}`, { token: alice.token })).data.sections.map((s) => [s.title, s.exported]))
+      .toEqual([['Bastidores', false]])
 
+    // View mode: still offered, still saved at once.
     await page.getByRole('button', { name: 'Parar de editar' }).click()
-    await expect(page.locator('section', { has: page.locator('.secTitle', { hasText: 'Bastidores' }) }).locator('.exportToggle')).toHaveText('Fora do documento')
+    const card = page.locator('section', { has: page.locator('.secTitle', { hasText: 'Bastidores' }) })
+    await card.getByLabel('No documento').check()
+    await expect.poll(async () => (await api(`/reports/${report.id}`, { token: alice.token })).data.sections[0].exported).toBe(true)
+  })
+
+  test('a read-only user sees what is left out, without the switch', async ({ page }) => {
+    const v = await newVuln(alice.token, { identifier: `e2e-doc-${tag()}`, export_hidden: ['mitigation'] })
+    vulns.push(v.id)
+    const reader = await createUser(admin, 'read_all')
+    await loginUI(page, reader.username, reader.password)
+    await page.goto(`/vulnerabilities/${v.id}`)
+    const card = page.locator('section', { has: page.locator('.secTitle', { hasText: 'Mitigação' }) })
+    await expect(card.locator('.exportToggle')).toHaveText('Fora do documento')
+    await expect(page.getByLabel('No documento')).toHaveCount(0)
   })
 })

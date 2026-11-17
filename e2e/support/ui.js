@@ -59,6 +59,9 @@ export async function answerDialog(page, button) {
 
 /** Type into the Hub filter and let the list settle. */
 export async function filterHub(page, query) {
+  // Wait for the list itself (rows, or the "nothing found" row): filtering a list that is
+  // still loading counts nothing.
+  await page.locator('.vtable tbody tr, .rtable tbody tr').first().waitFor()
   await page.fill('.filterbar input', query)
   await page.keyboard.press('Escape')
   await page.waitForTimeout(300)

@@ -178,6 +178,11 @@ export const reorderReportSections = (id, ids) =>
   api(`/reports/${id}/sections/reorder`, { method: 'POST', body: { ids } })
 export const createReportVuln = (id, body) =>
   api(`/reports/${id}/vulnerabilities`, { method: 'POST', body })
+// Which sections go into the documents: saved on their own, at once (not content).
+export const setVulnExportSections = (id, hidden) =>
+  api(`/vulnerabilities/${id}/export-sections`, { method: 'PUT', body: { hidden } })
+export const setReportExportSections = (id, body) =>
+  api(`/reports/${id}/export-sections`, { method: 'PUT', body })
 export const linkReportVulns = (id, ids) =>
   api(`/reports/${id}/vulnerabilities/link`, { method: 'POST', body: { ids } })
 export const unlinkReportVuln = (id, vid) =>

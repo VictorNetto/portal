@@ -47,6 +47,9 @@ class Client:
     def patch(self, path, json=None, **kw):
         return self.request("PATCH", path, json=json, **kw)
 
+    def put(self, path, json=None, **kw):
+        return self.request("PUT", path, json=json, **kw)
+
     def delete(self, path, **kw):
         return self.request("DELETE", path, **kw)
 

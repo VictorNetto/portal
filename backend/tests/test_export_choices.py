@@ -1,9 +1,12 @@
-"""Sections left out of a vulnerability's / report's documents (export and send)."""
+"""Sections left out of a vulnerability's / report's documents (export and send).
+
+The choice is a presentation one, not content: it is saved on its own (PUT .../export-sections),
+in any status, without the report lock and without a new version."""
 
 import io
 
 import openpyxl
-from conftest import new_report, new_vuln, report_vuln
+from conftest import fixing_vuln, new_report, new_vuln, report_vuln
 from docx import Document
 from pypdf import PdfReader
 
@@ -26,33 +29,37 @@ def test_a_vuln_section_can_be_left_out_of_its_documents(writer):
     # The portal still has it all.
     got = writer.get(f"/vulnerabilities/{v['id']}").json()
     assert got["mitigation"] == "MITIG-OCULTA" and got["references"] == ["https://owasp.org/oculta"]
-    # Put back in.
-    r = writer.patch(f"/vulnerabilities/{v['id']}", {"version": got["version"], "export_hidden": []})
-    assert r.status_code == 200 and r.json()["export_hidden"] == []
-    body = docx_text(writer.get(f"/vulnerabilities/{v['id']}/export", params={"format": "docx"}).content)
-    assert "MITIG-OCULTA" in body
+    # Put back in, on its own: no new version, so an open editor stays valid.
+    r = writer.put(f"/vulnerabilities/{v['id']}/export-sections", {"hidden": []})
+    assert r.status_code == 200 and r.json() == {"hidden": []}
+    after = writer.get(f"/vulnerabilities/{v['id']}").json()
+    assert after["export_hidden"] == [] and after["version"] == got["version"]
+    assert "MITIG-OCULTA" in docx_text(writer.get(f"/vulnerabilities/{v['id']}/export", params={"format": "docx"}).content)
 
 
-def test_only_known_sections_and_not_after_sending(writer):
-    v = new_vuln(writer)
-    assert writer.patch(f"/vulnerabilities/{v['id']}", {"version": v["version"], "export_hidden": ["identifier"]}).status_code == 422
-    sent = new_vuln(writer)
-    writer.post(f"/vulnerabilities/{sent['id']}/complete")
-    cur = writer.post(f"/vulnerabilities/{sent['id']}/send").json()
-    # Like the content, what went out is fixed once sent.
-    r = writer.patch(f"/vulnerabilities/{sent['id']}", {"version": cur["version"], "export_hidden": ["mitigation"]})
-    assert r.status_code == 422
+def test_the_choice_works_after_sending_and_only_for_writers(writer, reader):
+    sent = fixing_vuln(writer, mitigation="MITIG-ENVIADA")
+    r = writer.put(f"/vulnerabilities/{sent['id']}/export-sections", {"hidden": ["mitigation"]})
+    assert r.status_code == 200
+    assert "MITIG-ENVIADA" not in docx_text(writer.get(f"/vulnerabilities/{sent['id']}/export", params={"format": "docx"}).content)
+    assert writer.put(f"/vulnerabilities/{sent['id']}/export-sections", {"hidden": ["identifier"]}).status_code == 422
+    assert reader.put(f"/vulnerabilities/{sent['id']}/export-sections", {"hidden": []}).status_code == 403
+    # Not through the content PATCH any more.
+    cur = writer.get(f"/vulnerabilities/{sent['id']}").json()
+    writer.patch(f"/vulnerabilities/{sent['id']}", {"version": cur["version"], "export_hidden": []})
+    assert writer.get(f"/vulnerabilities/{sent['id']}").json()["export_hidden"] == ["mitigation"]
 
 
-def test_report_sections_can_be_left_out(writer):
+def test_report_sections_can_be_left_out(writer, writer2):
     rid = new_report(writer)["id"]
     writer.patch(f"/reports/{rid}", {"executive_summary_md": "RESUMO-OCULTO", "introduction_md": "INTRO-VISIVEL",
-                                     "test_type": "TIPO-OCULTO", "export_hidden": ["executive_summary", "report_data"]})
+                                     "test_type": "TIPO-OCULTO"})
     writer.post(f"/reports/{rid}/sections", {"title": "Metodologia", "content_markdown": "SECAO-VISIVEL"})
-    r = writer.post(f"/reports/{rid}/sections", {"title": "Rascunhos", "content_markdown": "SECAO-OCULTA", "exported": False})
-    out = r.json()
-    assert out["export_hidden"] == ["executive_summary", "report_data"]
+    out = writer.post(f"/reports/{rid}/sections", {"title": "Rascunhos", "content_markdown": "SECAO-OCULTA", "exported": False}).json()
     assert [s["exported"] for s in out["sections"]] == [True, False]
+    # Another writer (no lock) may change the choice while the first one edits.
+    r = writer2.put(f"/reports/{rid}/export-sections", {"hidden": ["executive_summary", "report_data"]})
+    assert r.status_code == 200 and r.json()["export_hidden"] == ["executive_summary", "report_data"]
     report_vuln(writer, rid, description="VULN-DESC", mitigation="VULN-MITIG", export_hidden=["mitigation"])
 
     for fmt, text in (("pdf", pdf_text), ("docx", docx_text)):
@@ -66,8 +73,11 @@ def test_report_sections_can_be_left_out(writer):
     row = [c.value for c in ws[2]]
     assert "VULN-DESC" in row and "VULN-MITIG" not in row
 
-    # A section put back in.
+    # A free-form section put back in, after the report is sent.
     sid = out["sections"][1]["id"]
-    r = writer.patch(f"/reports/{rid}/sections/{sid}", {"exported": True})
-    assert r.json()["sections"][1]["exported"] is True
+    assert writer.post(f"/reports/{rid}/send").status_code == 200
+    r = writer.put(f"/reports/{rid}/export-sections", {"sections": {sid: True}})
+    assert r.status_code == 200 and r.json()["sections"][sid] is True
+    assert r.json()["export_hidden"] == ["executive_summary", "report_data"]       # untouched
     assert "SECAO-OCULTA" in docx_text(writer.get(f"/reports/{rid}/export", params={"format": "docx"}).content)
+    assert writer.put(f"/reports/{rid}/export-sections", {"sections": {rid: True}}).status_code == 404

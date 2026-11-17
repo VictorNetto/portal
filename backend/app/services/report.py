@@ -44,7 +44,7 @@ Liste as ações prioritárias recomendadas.
 _DRAFT_FIELDS = {
     "name", "client_name", "start_date", "end_date", "executive_summary_md",
     "introduction_md", "test_type", "demand_origin", "environment", "scope",
-    "test_model", "internal_notes", "operators", "export_hidden",
+    "test_model", "internal_notes", "operators",
 }
 
 
@@ -260,6 +260,35 @@ def update(
     return to_out(session, report, user)
 
 
+def set_export_sections(
+    session: Session, report_id: uuid.UUID, hidden: list[str] | None, sections: dict,
+    user: User, request: Request,
+) -> dict:
+    """Which sections go into the report's documents. A presentation choice, not content:
+    any status, no lock (an editor holding it keeps its unsaved text)."""
+    report = get_report(session, report_id, user, for_update=True, write=True)
+    by_id = {s.id: s for s in report.sections}
+    unknown = [str(i) for i in sections if i not in by_id]
+    if unknown:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Section not found: " + ", ".join(unknown))
+    changed: dict = {}
+    if hidden is not None and sorted(report.export_hidden or []) != hidden:
+        report.export_hidden = hidden
+        changed["export_hidden"] = hidden
+    for sid, on in sections.items():
+        if by_id[sid].exported != on:
+            by_id[sid].exported = on
+            changed.setdefault("sections", {})[str(sid)] = on
+    if changed:
+        audit.record(
+            session, action=AuditAction.update, user_id=user.id,
+            entity_type="report", entity_id=report.id, detail=changed, request=request,
+        )
+    session.commit()
+    return {"export_hidden": report.export_hidden or [],
+            "sections": {s.id: s.exported for s in report.sections}}
+
+
 def delete(session: Session, report_id: uuid.UUID, user: User, request: Request) -> None:
     """D1: only a draft report can be deleted; its (draft) vulns go with it."""
     report = get_report(session, report_id, user, for_update=True)
@@ -395,8 +424,6 @@ def update_section(
         section.title = changes["title"].strip()
     if "content_markdown" in changes:
         section.content_markdown = changes["content_markdown"]
-    if changes.get("exported") is not None:
-        section.exported = changes["exported"]
     audit.record(
         session, action=AuditAction.update, user_id=user.id,
         entity_type="report", entity_id=report.id,

@@ -13,6 +13,7 @@ from app.models.user import User
 from app.schemas.vulnerability import (
     BatchExport,
     CorrectionRequest,
+    ExportSections,
     TransitionRequest,
     VulnCreate,
     VulnListItem,
@@ -89,6 +90,17 @@ def update_vuln(
     session: Session = Depends(get_session),
 ) -> VulnOut:
     return svc.update(session, vuln_id, body, user, request)
+
+
+@router.put("/{vuln_id}/export-sections", response_model=ExportSections)
+def set_export_sections(
+    vuln_id: uuid.UUID,
+    body: ExportSections,
+    request: Request,
+    user: User = Depends(_writer),
+    session: Session = Depends(get_session),
+):
+    return ExportSections(hidden=svc.set_export_sections(session, vuln_id, body.hidden, user, request))
 
 
 @router.post("/{vuln_id}/complete", response_model=VulnOut)

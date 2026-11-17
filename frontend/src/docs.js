@@ -181,7 +181,7 @@ Durante a edição, em *Vulnerabilidades*:
 
 Nos textos longos (Sumário Executivo, Introdução, seções, Descrição, Detalhes do Achado, Mitigação / Solução, Notas Internas), **Expandir** deixa o editor da altura da janela; **Recolher** ou *Esc* volta ao normal.
 
-**No documento**, ao lado do título de uma seção, diz se ela entra nos documentos: o *Exportar* (PDF, Word, Excel), a exportação em lote e o relatório enviado. Desmarcada, a seção continua no portal, mas fica fora dos documentos (no Excel, a célula fica vazia). Vale para Dados do Relatório, Sumário Executivo, Introdução, cada seção adicional e, nas vulnerabilidades, Descrição, Detalhes do Achado, Mitigação / Solução e Referências. Como o conteúdo, a escolha fica fixa depois do envio. As notas internas nunca entram nos documentos.`,
+**No documento**, ao lado do título de uma seção, diz se ela entra nos documentos: o *Exportar* (PDF, Word, Excel), a exportação em lote e o relatório enviado. Desmarcada, a seção continua no portal, mas fica fora dos documentos (no Excel, a célula fica vazia). Vale para Dados do Relatório, Sumário Executivo, Introdução, cada seção adicional e, nas vulnerabilidades, Descrição, Detalhes do Achado, Mitigação / Solução e Referências. A escolha é salva na hora, sem precisar editar nem salvar, e pode ser mudada a qualquer momento, também depois do envio, por quem pode alterar o registro. As notas internas nunca entram nos documentos.`,
       },
       {
         id: 'rel-envio', title: 'Envio, progresso e exclusão',
@@ -1202,7 +1202,7 @@ While editing, under *Vulnerabilities*:
 
 In the long texts (Executive Summary, Introduction, sections, Description, Finding Details, Mitigation / Solution, Internal Notes), **Expand** makes the editor as tall as the window; **Collapse** or *Esc* brings it back.
 
-**In document**, next to a section's title, says whether it goes into the documents: *Export* (PDF, Word, Excel), the batch export and the report sent. Unchecked, the section stays in the portal but is left out of the documents (in Excel, the cell is empty). It applies to Report Data, Executive Summary, Introduction, each additional section and, for vulnerabilities, Description, Finding Details, Mitigation / Solution and References. Like the content, the choice is fixed once sent. Internal notes never go into the documents.`,
+**In document**, next to a section's title, says whether it goes into the documents: *Export* (PDF, Word, Excel), the batch export and the report sent. Unchecked, the section stays in the portal but is left out of the documents (in Excel, the cell is empty). It applies to Report Data, Executive Summary, Introduction, each additional section and, for vulnerabilities, Description, Finding Details, Mitigation / Solution and References. The choice is saved at once, without editing or saving, and can be changed at any time, also after sending, by anyone who may change the record. Internal notes never go into the documents.`,
       },
       {
         id: 'rel-envio', title: 'Sending, progress and deletion',

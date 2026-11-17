@@ -11,7 +11,7 @@ import {
   acquireReportLock, heartbeatReport, releaseReportLock, releaseReportLockOnExit, forceReleaseReport,
   addReportSection, updateReportSection, deleteReportSection, reorderReportSections,
   sendReport, listReportAttachments, uploadReportAttachment, deleteAttachment,
-  fetchAttachmentBlob, downloadAuthed, ApiError, listVulns, linkReportVulns, unlinkReportVuln,
+  fetchAttachmentBlob, downloadAuthed, ApiError, listVulns, linkReportVulns, unlinkReportVuln, setReportExportSections,
 } from '../api'
 import { attachmentPath } from '../markdown'
 import { t } from '../i18n'
@@ -66,7 +66,7 @@ const knownUsers = computed(() => {
 const blankForm = () => ({
   name: '', client_name: '', start_date: '', end_date: '',
   test_type: '', demand_origin: '', environment: '', test_model: '', scope: '',
-  executive_summary_md: '', introduction_md: '', internal_notes: '', export_hidden: [],
+  executive_summary_md: '', introduction_md: '', internal_notes: '',
 })
 const form = ref(blankForm())
 const sections = ref([]) // { key, id|null, title, content_markdown }
@@ -92,7 +92,7 @@ function sync() {
   const r = report.value
   const f = blankForm()
   for (const k of Object.keys(f)) f[k] = r[k] ?? ''
-  f.export_hidden = [...(r.export_hidden || [])]
+  exportHidden.value = [...(r.export_hidden || [])]
   form.value = f
   selectedOps.value = new Set((r.operators || []).map((o) => o.id))
   selectedViewers.value = new Set((r.viewers || []).map((o) => o.id))
@@ -103,7 +103,10 @@ function sync() {
 }
 
 const snapshot = ref('')
-const snapshotOf = () => JSON.stringify({ f: form.value, o: [...selectedOps.value].sort(), v: [...selectedViewers.value].sort(), s: sections.value })
+const snapshotOf = () => JSON.stringify({
+  f: form.value, o: [...selectedOps.value].sort(), v: [...selectedViewers.value].sort(),
+  s: sections.value.map(({ exported, ...rest }) => rest),   // eslint-disable-line no-unused-vars
+})
 const dirty = computed(() => !!report.value && snapshot.value !== snapshotOf())
 
 async function load() {
@@ -170,7 +173,6 @@ async function save() {
         executive_summary_md: nullIfBlank(form.value.executive_summary_md),
         introduction_md: nullIfBlank(form.value.introduction_md),
         internal_notes: nullIfBlank(form.value.internal_notes),
-        export_hidden: [...form.value.export_hidden],
         operator_ids: [...selectedOps.value],
         viewer_ids: [...selectedViewers.value],
       })
@@ -202,8 +204,8 @@ async function saveSections(r) {
   const byId = Object.fromEntries(r.sections.map((s) => [s.id, s]))
   for (const s of sections.value) {
     const srv = byId[s.id]
-    if (srv && (srv.title !== s.title || (srv.content_markdown || '') !== s.content_markdown || srv.exported !== s.exported)) {
-      r = await updateReportSection(id.value, s.id, { title: s.title, content_markdown: nullIfBlank(s.content_markdown), exported: s.exported })
+    if (srv && (srv.title !== s.title || (srv.content_markdown || '') !== s.content_markdown)) {
+      r = await updateReportSection(id.value, s.id, { title: s.title, content_markdown: nullIfBlank(s.content_markdown) })
     }
   }
   const desired = sections.value.map((s) => s.id)
@@ -219,11 +221,24 @@ async function reloadKeepingForm() {
 
 // --- Sections UI -----------------------------------------------------------
 function addSection() { sections.value.push({ key: newKey(), id: null, title: '', content_markdown: '', exported: true }) }
-// Which typed sections go into the documents (Exportar, and the report sent).
-const inDoc = (key) => !form.value.export_hidden.includes(key)
-function setInDoc(key, on) {
-  const rest = form.value.export_hidden.filter((k) => k !== key)
-  form.value.export_hidden = on ? rest : [...rest, key]
+// Which sections go into the documents (Exportar, and the report it is sent in). Not content:
+// any writer may change it in any status, and each click is saved at once (on a new, unsaved
+// record it goes with the first save).
+const exportHidden = ref([])
+const inDoc = (key) => !exportHidden.value.includes(key)
+const docError = (e) => { error.value = e instanceof ApiError ? e.detail : t('errors.save') }
+async function setInDoc(key, on) {
+  const before = exportHidden.value
+  const rest = before.filter((k) => k !== key)
+  exportHidden.value = on ? rest : [...rest, key]
+  try { exportHidden.value = (await setReportExportSections(id.value, { hidden: exportHidden.value })).export_hidden }
+  catch (e) { exportHidden.value = before; docError(e) }
+}
+async function setSectionInDoc(s, on) {
+  s.exported = on
+  if (!s.id) return                       // a new section: created with this choice on save
+  try { await setReportExportSections(id.value, { sections: { [s.id]: on } }) }
+  catch (e) { s.exported = !on; docError(e) }
 }
 function removeSection(i) { sections.value.splice(i, 1) }
 function moveSection(i, d) {
@@ -609,7 +624,7 @@ async function saveTemplate() {
         <section class="panel card" :class="{ offDoc: !inDoc('report_data') }">
           <div class="secHead">
             <h2 class="secTitle">{{ t('rpt.data') }}</h2>
-            <ExportToggle :model-value="inDoc('report_data')" :editable="editing" @update:model-value="setInDoc('report_data', $event)" />
+            <ExportToggle :model-value="inDoc('report_data')" :editable="isWriter" @update:model-value="setInDoc('report_data', $event)" />
           </div>
           <div class="grid4">
             <div class="f"><label>{{ t('rpt.testType') }}</label>
@@ -641,7 +656,7 @@ async function saveTemplate() {
             <section class="panel card" :class="{ offDoc: !inDoc('executive_summary') }">
               <div class="secHead">
                 <h2 class="secTitle">{{ t('rpt.summary') }}</h2>
-                <ExportToggle :model-value="inDoc('executive_summary')" :editable="editing" @update:model-value="setInDoc('executive_summary', $event)" />
+                <ExportToggle :model-value="inDoc('executive_summary')" :editable="isWriter" @update:model-value="setInDoc('executive_summary', $event)" />
               </div>
               <MarkdownEditor v-if="editing" v-model="form.executive_summary_md" expandable :image-uploader="uploadEditorImage" />
               <MarkdownView v-else :source="form.executive_summary_md || '—'" />
@@ -649,7 +664,7 @@ async function saveTemplate() {
             <section class="panel card" :class="{ offDoc: !inDoc('introduction') }">
               <div class="secHead">
                 <h2 class="secTitle">{{ t('rpt.intro') }}</h2>
-                <ExportToggle :model-value="inDoc('introduction')" :editable="editing" @update:model-value="setInDoc('introduction', $event)" />
+                <ExportToggle :model-value="inDoc('introduction')" :editable="isWriter" @update:model-value="setInDoc('introduction', $event)" />
               </div>
               <MarkdownEditor v-if="editing" v-model="form.introduction_md" expandable :image-uploader="uploadEditorImage" />
               <MarkdownView v-else :source="form.introduction_md || '—'" />
@@ -659,7 +674,7 @@ async function saveTemplate() {
               <section v-for="s in sections" :key="s.key" class="panel card" :class="{ offDoc: !s.exported }">
                 <div class="secHead">
                   <h2 class="secTitle">{{ s.title || '—' }}</h2>
-                  <ExportToggle :model-value="s.exported" />
+                  <ExportToggle :model-value="s.exported" :editable="isWriter" @update:model-value="setSectionInDoc(s, $event)" />
                 </div>
                 <MarkdownView :source="s.content_markdown || '—'" />
               </section>
@@ -672,7 +687,7 @@ async function saveTemplate() {
                 <div class="extraHead">
                   <input v-model="s.title" :placeholder="t('rpt.sectionTitle')" maxlength="200" />
                   <div class="extraActs">
-                    <ExportToggle v-model="s.exported" editable />
+                    <ExportToggle :model-value="s.exported" editable @update:model-value="setSectionInDoc(s, $event)" />
                     <button class="link" :disabled="i === 0" @click="moveSection(i, -1)">{{ t('rpt.up') }}</button>
                     <button class="link" :disabled="i === sections.length - 1" @click="moveSection(i, 1)">{{ t('rpt.down') }}</button>
                     <button class="link danger" @click="removeSection(i)">{{ t('vform.removeRef') }}</button>
