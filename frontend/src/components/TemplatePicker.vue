@@ -3,6 +3,7 @@
 // "Nenhum" or the chosen template's name; clicking it opens the list of templates.
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { t } from '../i18n'
+import { userName } from '../people'
 
 const props = defineProps({
   modelValue: { type: String, default: null },   // template id, or null for none
@@ -45,7 +46,7 @@ onUnmounted(() => document.removeEventListener('click', onDoc))
         <button v-for="x in g.items" :key="x.id" type="button" class="tplItem"
                 :class="{ current: x.id === modelValue }" @click="pick(x.id)">
           <span class="tplName">{{ x.name }}</span>
-          <span v-if="g.key === 'others'" class="tplOwner">{{ x.owner.username }}</span>
+          <span v-if="g.key === 'others'" class="tplOwner">{{ userName(x.owner) }}</span>
           <span v-else-if="g.key === 'mine' && x.share_status !== 'private'" class="tplOwner">{{ t('tpls.status.' + x.share_status) }}</span>
         </button>
       </template>

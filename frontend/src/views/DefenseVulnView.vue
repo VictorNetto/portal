@@ -9,6 +9,7 @@ import {
 } from '../api'
 import { confirmDialog, promptDialog } from '../dialog'
 import { t } from '../i18n'
+import { userName } from '../people'
 import { fmtDateTime } from '../dates'
 import AppShell from '../components/AppShell.vue'
 import MarkdownView from '../components/MarkdownView.vue'
@@ -132,7 +133,7 @@ watch(() => route.params.id, (id) => { if (id) load() })
           <h1>{{ vuln?.identifier || '…' }}</h1>
           <p v-if="vuln">
             {{ t('status.' + vuln.status) }} · {{ t('cols.internalId') }} <span class="mono">{{ vuln.internal_id }}</span>
-            <template v-if="vuln.accepter"> · {{ t('defense.acceptedBy', { user: vuln.accepter.username, when: fmtDateTime(vuln.accepted_at) }) }}</template>
+            <template v-if="vuln.accepter"> · {{ t('defense.acceptedBy', { user: userName(vuln.accepter), when: fmtDateTime(vuln.accepted_at) }) }}</template>
           </p>
         </div>
         <div class="pageActions">
@@ -163,7 +164,7 @@ watch(() => route.params.id, (id) => { if (id) load() })
         <h2 class="secTitle">{{ t('timeline.title') }}</h2>
         <VulnTimeline :vuln="vuln" :steps="STEPS" />
         <p v-if="vuln.risk_reason" class="riskReason">
-          <span class="k">{{ t('defense.riskBy', { user: vuln.risk_accepter?.username || '—' }) }}</span><span>{{ vuln.risk_reason }}</span>
+          <span class="k">{{ t('defense.riskBy', { user: userName(vuln.risk_accepter) || '—' }) }}</span><span>{{ vuln.risk_reason }}</span>
         </p>
       </section>
 

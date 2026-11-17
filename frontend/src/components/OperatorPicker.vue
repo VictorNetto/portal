@@ -3,6 +3,7 @@
 // user, who stays visible even when unselected); "+" opens a small searchable list to add others.
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { t } from '../i18n'
+import { userName, userMatches } from '../people'
 import { useAuthStore } from '../stores/auth'
 
 const props = defineProps({
@@ -25,7 +26,7 @@ const addable = computed(() => {
   const needle = q.value.trim().toLowerCase()
   // deactivated accounts can stay where they are, but are never offered for a new assignment
   return props.users.filter((u) => u.is_active !== false && !shown.value.some((s) => s.id === u.id)
-    && (!needle || u.username.toLowerCase().includes(needle)))
+    && userMatches(u, needle))
 })
 
 function set(next) { emit('update:modelValue', new Set(next)) }
@@ -50,14 +51,14 @@ onUnmounted(() => document.removeEventListener('click', onDoc))
   <div ref="root" class="opchips" :class="{ locked: disabled }">
     <button v-for="u in shown" :key="u.id" type="button" class="opchip"
             :class="{ on: modelValue.has(u.id) }" :disabled="disabled" @click="toggle(u.id)">
-      {{ u.username }}
+      {{ userName(u) }}
     </button>
     <div v-if="!disabled" class="opadd">
       <button type="button" class="opchip plus" :aria-label="t('vform.addOperator')" @click.stop="open = !open">+</button>
       <div v-if="open" class="oppop">
         <input v-model="q" class="opsearch" :placeholder="t('vform.searchUser')" autofocus />
         <div class="oplist">
-          <button v-for="u in addable" :key="u.id" type="button" class="opitem" @click="add(u.id)">{{ u.username }}</button>
+          <button v-for="u in addable" :key="u.id" type="button" class="opitem" @click="add(u.id)">{{ userName(u) }}</button>
           <span v-if="!addable.length" class="muted opempty">{{ t('vform.noOtherUsers') }}</span>
         </div>
       </div>

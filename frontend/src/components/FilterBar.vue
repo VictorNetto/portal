@@ -102,7 +102,8 @@ function applyAutocomplete(choice) {
     dismissed.value = false
   } else {
     // value mode: complete the token (no trailing space) and close the menu
-    text.value = base + (ac.negate ? '-' : '') + ac.key + ':' + choice
+    const v = /\s/.test(choice) ? `"${choice}"` : choice     // a name with spaces is quoted
+    text.value = base + (ac.negate ? '-' : '') + ac.key + ':' + v
     dismissed.value = true
   }
   activeIdx.value = 0

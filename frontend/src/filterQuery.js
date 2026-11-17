@@ -10,7 +10,7 @@
 // Keys:
 //   status:<s>[,<s>…]           one of these statuses (STATUSES), e.g. status:sent,fixing
 //   cvss:<x>                     CVSS >= x  (x: 0..10, at most 1 decimal)
-//   operator:<text>              an operator's username contains (ci)
+//   operator:<text>              an operator's name or login contains (ci)
 //   source:<text>                source contains (ci)
 //   report:<text>                report id or name contains (ci); report:none = not in a report
 //   <date key>:<when>            the row's date for that key falls in <when> (DATE_KEYS;
@@ -21,6 +21,7 @@
 // The "/" menu lists only the basic keys, plus "more filters" for the advanced ones
 // (`advanced: true`). Typing a key's name finds it either way.
 import { parseUtc } from './dates'
+import { userMatches } from './people'
 
 export const STATUSES = [
   'draft', 'ready', 'sent', 'fixing', 'retesting', 'fixed', 'risk_accepted',
@@ -219,11 +220,8 @@ function baseMatch(tok, r) {
     case 'operator': {
       const ops = Array.isArray(r.operators) ? r.operators : []
       const q = tok.value.toLowerCase()
-      // operators may be objects {username} or plain strings
-      return ops.some((o) => {
-        const name = typeof o === 'string' ? o : (o?.username || '')
-        return name.toLowerCase().includes(q)
-      })
+      // operators may be objects {username, name} or plain strings; any of their names matches
+      return ops.some((o) => userMatches(o, q))
     }
     case 'cvss':
       return r.cvss_score !== null && r.cvss_score !== undefined &&

@@ -35,6 +35,8 @@ class CurrentUser(BaseModel):
 
     id: uuid.UUID
     username: str
+    full_name: str | None
+    display_name: str | None
     role: UserRole
     must_change_password: bool
 

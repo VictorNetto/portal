@@ -10,6 +10,7 @@ import {
 import { attachmentPath } from '../markdown'
 import { fmtTime } from '../dates'
 import { t } from '../i18n'
+import { userName } from '../people'
 import { confirmDialog, promptDialog } from '../dialog'
 import { isDiscarding, useUnsaved } from '../session'
 import { vField, vSideColumn } from '../directives'
@@ -79,7 +80,7 @@ const selectedOps = ref(new Set()) // user ids
 const selectedViewers = ref(new Set())
 // The picker needs a name for everyone on the record, even for users that cannot list all accounts.
 const sevClass = (score) => { const n = Number(score); return n >= 7 ? 'hi' : n >= 4 ? 'me' : 'lo' }
-const namesOf = (ids) => knownUsers.value.filter((u) => ids.has(u.id)).map((u) => u.username).join(', ')
+const namesOf = (ids) => knownUsers.value.filter((u) => ids.has(u.id)).map(userName).join(', ')
 // The required mark only matters while the field can be typed into.
 const req = (field) => (REQUIRED.includes(field) && canEdit(field) ? ' *' : '')
 const knownUsers = computed(() => {
@@ -535,7 +536,7 @@ watch(() => route.fullPath, () => {
       <p v-if="inReport && reportCtx && reportCtx.status === 'draft' && (lockMine || lockOther)" class="banner"
          :class="lockMine ? 'mine' : 'other'">
         <template v-if="lockMine">{{ t('vrep.editing', { report: reportCtx.name, time: fmtTime(rLock.expires_at) }) }}</template>
-        <template v-else>{{ t('vrep.lockedBy', { user: rLock.holder_username, report: reportCtx.name }) }}</template>
+        <template v-else>{{ t('vrep.lockedBy', { user: rLock.holder_name, report: reportCtx.name }) }}</template>
       </p>
 
       <p v-if="notice" class="ok msg">{{ notice }}</p>
@@ -572,7 +573,7 @@ watch(() => route.fullPath, () => {
         <h2 class="secTitle">{{ t('timeline.title') }}</h2>
         <VulnTimeline :vuln="vuln" />
         <p v-if="vuln.risk_reason" class="riskReason">
-          <span class="k">{{ t('defense.riskBy', { user: vuln.risk_accepter?.username || '—' }) }}</span><span>{{ vuln.risk_reason }}</span>
+          <span class="k">{{ t('defense.riskBy', { user: userName(vuln.risk_accepter) || '—' }) }}</span><span>{{ vuln.risk_reason }}</span>
         </p>
       </section>
 

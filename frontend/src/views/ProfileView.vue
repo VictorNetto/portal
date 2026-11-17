@@ -23,6 +23,30 @@ const done = ref(false)
 
 const MIN_LEN = 8
 
+// Names (not the login): what other users and the documents show.
+const fullName = ref(auth.user?.full_name || '')
+const displayName = ref(auth.user?.display_name || '')
+const namesBusy = ref(false)
+const namesError = ref('')
+const namesDone = ref(false)
+const namesDirty = computed(() =>
+  fullName.value.trim() !== (auth.user?.full_name || '') || displayName.value.trim() !== (auth.user?.display_name || ''))
+
+async function saveNames() {
+  if (!namesDirty.value || namesBusy.value) return
+  namesBusy.value = true; namesError.value = ''; namesDone.value = false
+  try {
+    const me = await auth.updateProfile(fullName.value.trim() || null, displayName.value.trim() || null)
+    fullName.value = me.full_name || ''
+    displayName.value = me.display_name || ''
+    namesDone.value = true
+  } catch (e) {
+    namesError.value = e instanceof ApiError && e.status === 422 ? t('errors.save') : t('errors.network')
+  } finally {
+    namesBusy.value = false
+  }
+}
+
 // Client-side checks mirror the server's rules so most mistakes never round-trip.
 const problem = computed(() => {
   if (!next.value) return ''
@@ -78,7 +102,28 @@ async function submit() {
       <div class="row"><span class="muted">{{ t('profile.role') }}</span><span>{{ auth.user?.role ? t('roles.' + auth.user.role) : '—' }}</span></div>
     </section>
 
-    <section class="panel pwCard">
+    <section v-if="!forced" class="panel card namesCard">
+      <h2>{{ t('profile.names') }}</h2>
+      <form @submit.prevent="saveNames">
+        <div class="field">
+          <label>{{ t('profile.fullName') }}</label>
+          <input v-model="fullName" maxlength="150" autocomplete="name" @input="namesDone = false" />
+          <small class="hint">{{ t('profile.fullHint') }}</small>
+        </div>
+        <div class="field">
+          <label>{{ t('profile.displayName') }}</label>
+          <input v-model="displayName" maxlength="60" autocomplete="nickname" @input="namesDone = false" />
+          <small class="hint">{{ t('profile.displayHint') }}</small>
+        </div>
+        <p v-if="namesError" class="err">{{ namesError }}</p>
+        <p v-if="namesDone" class="ok">{{ t('profile.namesSaved') }}</p>
+        <button class="btn primary" :disabled="!namesDirty || namesBusy">
+          {{ namesBusy ? t('profile.saving') : t('profile.saveNames') }}
+        </button>
+      </form>
+    </section>
+
+    <section class="panel card pwCard">
       <h2>{{ t('profile.changePassword') }}</h2>
       <form @submit.prevent="submit">
         <div class="field">
@@ -112,10 +157,10 @@ async function submit() {
 .info { max-width: 420px; padding: 6px 18px; margin-bottom: 16px; }
 .row { display: flex; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid var(--line); font-size: 13px; }
 .row:last-child { border-bottom: 0; }
-.pwCard { max-width: 420px; padding: 18px; }
-.pwCard h2 { margin: 0 0 14px; font-size: 16px; font-weight: 400; }
-.pwCard .field { margin-bottom: 14px; }
-.pwCard input { width: 100%; height: 36px; }
+.card { max-width: 420px; padding: 18px; margin-bottom: 16px; }
+.card h2 { margin: 0 0 14px; font-size: 16px; font-weight: 400; }
+.card .field { margin-bottom: 14px; }
+.card input { width: 100%; height: 36px; }
 .hint { color: var(--dim); font-size: 12px; }
 .ok { color: var(--accent); font-size: 13px; }
 .err { font-size: 13px; }

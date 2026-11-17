@@ -15,6 +15,7 @@ import {
 } from '../api'
 import { attachmentPath } from '../markdown'
 import { t } from '../i18n'
+import { userName } from '../people'
 import { reportPillClass, reportProgress, reportStatusLabel } from '../reportState'
 import { confirmDialog, promptDialog } from '../dialog'
 import { isDiscarding, useUnsaved } from '../session'
@@ -56,7 +57,7 @@ const allUsers = ref([])
 const selectedOps = ref(new Set())
 const selectedViewers = ref(new Set())
 // The picker needs a name for everyone on the record, even for users that cannot list all accounts.
-const namesOf = (ids) => knownUsers.value.filter((u) => ids.has(u.id)).map((u) => u.username).join(', ')
+const namesOf = (ids) => knownUsers.value.filter((u) => ids.has(u.id)).map(userName).join(', ')
 const knownUsers = computed(() => {
   const byId = new Map(allUsers.value.map((u) => [u.id, u]))
   for (const u of [...(report.value?.operators || []), ...(report.value?.viewers || [])]) if (!byId.has(u.id)) byId.set(u.id, u)
@@ -261,7 +262,7 @@ async function giveUpLock() {
   await load()
 }
 async function forceRelease() {
-  if (!(await confirmDialog(t('rpt.confirmForce', { user: lock.value?.holder_username })))) return
+  if (!(await confirmDialog(t('rpt.confirmForce', { user: lock.value?.holder_name })))) return
   try { await forceReleaseReport(id.value); await reloadKeepingForm() }
   catch (e) { error.value = e instanceof ApiError ? e.detail : t('errors.update') }
 }
@@ -443,7 +444,7 @@ async function unlink(v) {
   catch (e) { error.value = e instanceof ApiError ? e.detail : t('errors.save') }
 }
 const sevClass = (s) => (Number(s) >= 7 ? 'hi' : Number(s) >= 4 ? 'me' : 'lo')
-const opNames = (v) => (v.operators?.length ? v.operators.map((o) => o.username).join(', ') : '—')
+const opNames = (v) => (v.operators?.length ? v.operators.map(userName).join(', ') : '—')
 
 async function remove() {
   if (!(await confirmDialog(t('reports.confirmDelete'), { danger: true, ok: t('dialog.delete') }))) return
@@ -536,7 +537,7 @@ async function saveTemplate() {
             {{ t('rpt.youAreEditing', { time: fmtTime(lock.expires_at) }) }}
           </p>
           <p v-else-if="status === 'draft' && lockOther" class="banner other">
-            {{ t('rpt.lockedBy', { user: lock.holder_username, time: fmtTime(lock.acquired_at) }) }}
+            {{ t('rpt.lockedBy', { user: lock.holder_name, time: fmtTime(lock.acquired_at) }) }}
             <button v-if="isAdmin" class="link" @click="forceRelease">{{ t('rpt.forceRelease') }}</button>
           </p>
           <p v-else-if="frozen" class="banner other">{{ t('rpt.sendFailed') }}<template v-if="report.send_error"> {{ report.send_error }}</template></p>

@@ -21,7 +21,9 @@ from app.schemas.auth import (
     RefreshRequest,
     TokenPair,
 )
+from app.schemas.user import ProfileUpdate
 from app.services import auth_session
+from app.services.user_names import name_changes
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -116,6 +118,25 @@ def logout(
 
 @router.get("/me", response_model=CurrentUser)
 def me(user: User = Depends(get_current_user_allow_password_change)) -> User:
+    return user
+
+
+@router.patch("/me", response_model=CurrentUser)
+def update_me(
+    body: ProfileUpdate,
+    request: Request,
+    user: User = Depends(get_current_user_allow_password_change),
+    session: Session = Depends(get_session),
+) -> User:
+    """The user's own full name and display name (Perfil). The login is not changed here."""
+    changes = name_changes(user, body, {"full_name", "display_name"})
+    if changes:
+        audit.record(
+            session, action=AuditAction.update, user_id=user.id,
+            entity_type="user", entity_id=user.id, detail=changes, request=request,
+        )
+    session.commit()
+    session.refresh(user)
     return user
 
 

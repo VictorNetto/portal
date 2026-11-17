@@ -16,6 +16,7 @@ class LockInfo(BaseModel):
 
     holder_id: uuid.UUID
     holder_username: str
+    holder_name: str
     acquired_at: datetime
     expires_at: datetime  # when it frees itself if the holder stays idle
     mine: bool

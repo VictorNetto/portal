@@ -93,6 +93,7 @@ def _lock_info(session: Session, report: Report, user: User) -> LockInfo | None:
     return LockInfo(
         holder_id=holder.id,
         holder_username=holder.username,
+        holder_name=holder.shown_name,
         acquired_at=report.lock_acquired_at,
         expires_at=report.lock_last_activity_at + report_lock.LOCK_TTL,
         mine=holder.id == user.id,
@@ -326,7 +327,7 @@ def acquire_lock(session: Session, report_id: uuid.UUID, user: User) -> ReportOu
         holder = session.get(User, report.lock_user_id)
         raise HTTPException(
             status.HTTP_409_CONFLICT,
-            f"The report is locked by {holder.username if holder else 'another operator'} "
+            f"The report is locked by {holder.shown_name if holder else 'another operator'} "
             f"until {(report.lock_last_activity_at + report_lock.LOCK_TTL):%H:%M} (UTC) "
             "unless they stop working on it",
         )

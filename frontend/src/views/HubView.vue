@@ -6,6 +6,7 @@ import {
 } from '../api'
 import { useAuthStore } from '../stores/auth'
 import { t } from '../i18n'
+import { userName } from '../people'
 import { REPORT_STEPS, reportPillClass, reportProgress, reportStatusLabel, reportTimeline } from '../reportState'
 import { confirmDialog } from '../dialog'
 import { canCreate, canWriteRecord, canDeleteRecord } from '../access'
@@ -122,13 +123,13 @@ const filteredReports = computed(() => {
 })
 const activeRows = computed(() => (entity.value === 'vulns' ? filteredVulns.value : filteredReports.value))
 
-// Distinct operator usernames across the loaded rows, for the operator: value menu.
+// Distinct operator names across the loaded rows, for the operator: value menu.
 const operatorValues = computed(() => {
   const set = new Set()
   for (const v of (entity.value === 'vulns' ? vulns.value : reports.value)) {
     const ops = Array.isArray(v.operators) ? v.operators : []
     for (const o of ops) {
-      const name = typeof o === 'string' ? o : o?.username
+      const name = userName(o)
       if (name) set.add(name)
     }
   }
@@ -531,12 +532,12 @@ onMounted(load)
         <h2 class="opsLine">
           <span class="k">{{ t('cols.operators') }}</span>
           <template v-if="preview.operators?.length">
-            <span v-for="o in preview.operators" :key="o.id" class="op">{{ o.username }}</span>
+            <span v-for="o in preview.operators" :key="o.id" class="op">{{ userName(o) }}</span>
           </template>
           <span v-else class="none">—</span>
         </h2>
         <p v-if="!isVulns && preview.lock" class="lockLine">
-          {{ t('reports.editingBy', { user: preview.lock.holder_username }) }}
+          {{ t('reports.editingBy', { user: preview.lock.holder_name }) }}
         </p>
         <VulnTimeline v-if="isVulns" :vuln="preview" compact class="drawerTimeline" />
         <VulnTimeline v-else :vuln="reportTimeline(preview)" :steps="REPORT_STEPS" compact class="drawerTimeline" />

@@ -24,6 +24,16 @@ const pt = [
 - O menu mostra apenas o que o seu papel permite usar. Se algo não aparece, você não tem acesso a essa função.`,
       },
       {
+        id: 'perfil', title: 'Seu perfil e seu nome',
+        md: `No **Perfil** (menu do seu usuário) ficam seu **login**, seu papel, seu nome e a troca de senha.
+
+- **Login:** o que você digita para entrar (pode ser um e-mail, uma matrícula etc.). Só um administrador o define e ele não muda.
+- **Nome completo:** aparece nos documentos exportados e enviados (por exemplo, a lista de operadores do PDF).
+- **Nome de exibição:** como os outros usuários veem você no portal: operadores, quem está editando um relatório, dono de um template. Se ficar vazio, o portal usa o nome completo; sem nenhum dos dois, o login.
+- Clique em **Salvar** para gravar. Deixar um campo em branco apaga esse nome.
+- Na busca e nos filtros (\`operator:\`), tanto o nome quanto o login encontram a pessoa.`,
+      },
+      {
         id: 'sessao', title: 'Sessão',
         md: `- A sessão dura no máximo **1 hora** a partir do login e termina antes após **15 minutos sem atividade** (mouse, teclado ou rolagem, em qualquer aba do portal).
 - No menu do seu usuário, **Sessão mm:ss / mm:ss** mostra o tempo restante: primeiro até a inatividade, depois até o fim da sessão de 1 hora.
@@ -1043,6 +1053,16 @@ const en = [
 - **Left menu:** the icons lead to each area. The ☰ button at the top opens the menu with names. **Reports** holds *Create Report* and *Templates*: hover over its icon to choose.
 - **Your username (top right):** language, this documentation, your profile, sign out and the session time left.
 - The menu shows only what your role can use. If something is missing, you don't have access to it.`,
+      },
+      {
+        id: 'perfil', title: 'Your profile and your name',
+        md: `**Profile** (your user menu) holds your **login**, your role, your name and the password change.
+
+- **Login:** what you type to sign in (it can be an e-mail, an employee code, etc.). Only an administrator sets it, and it does not change.
+- **Full name:** shown in exported and sent documents (for example, the PDF's list of operators).
+- **Display name:** how other users see you in the portal: operators, who is editing a report, a template's owner. When empty, the portal uses the full name; with neither, the login.
+- Click **Save** to keep it. Leaving a field blank clears that name.
+- In search and filters (\`operator:\`), both the name and the login find the person.`,
       },
       {
         id: 'sessao', title: 'Session',

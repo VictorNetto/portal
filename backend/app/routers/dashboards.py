@@ -95,7 +95,7 @@ def _names(session: Session, ids) -> dict:
     ids = {i for i in ids if i}
     if not ids:
         return {}
-    return dict(session.execute(select(User.id, User.username).where(User.id.in_(ids))).all())
+    return {u.id: u.shown_name for u in session.scalars(select(User).where(User.id.in_(ids)))}
 
 
 def _out(d: Dashboard, names: dict) -> dict:

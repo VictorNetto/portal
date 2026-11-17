@@ -70,6 +70,15 @@ export const useAuthStore = defineStore('auth', {
       return this.user
     },
 
+    // The user's own full name and display name (not the login).
+    async updateProfile(fullName, displayName) {
+      const me = await api('/auth/me', {
+        method: 'PATCH', body: { full_name: fullName, display_name: displayName },
+      })
+      this.user = { ...this.user, ...me }
+      return this.user
+    },
+
     async changePassword(currentPassword, newPassword) {
       await api('/auth/change-password', {
         method: 'POST',

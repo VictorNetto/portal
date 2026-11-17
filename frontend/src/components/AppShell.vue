@@ -4,6 +4,7 @@ import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import { t, locale, setLocale, LOCALES } from '../i18n'
 import { canCreate } from '../access'
+import { userName } from '../people'
 import { confirmDialog } from '../dialog'
 import { hasUnsaved, mmss, sessionLeft, setDiscarding } from '../session'
 import { SECTIONS } from '../defenseSections'
@@ -146,7 +147,7 @@ async function signOut() {
     <span class="brand">{{ t('brand') }}</span>
     <div class="headRight profileWrap">
       <button class="profileBtn" :class="{ open: profileOpen }" @click="profileOpen = !profileOpen">
-        {{ auth.user?.username }}
+        {{ userName(auth.user) }}
       </button>
       <div v-if="profileOpen" class="profileMenu">
         <div class="menuLabel">{{ t('profile.language') }}</div>

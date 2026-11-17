@@ -16,6 +16,9 @@ class User(UUIDPK, Timestamps, Base):
     __tablename__ = "users"
 
     username: Mapped[str] = mapped_column(Text, unique=True, nullable=False)
+    # The person behind the login (which may be an e-mail or a code). Set on the Perfil page.
+    full_name: Mapped[str | None] = mapped_column(Text, nullable=True)
+    display_name: Mapped[str | None] = mapped_column(Text, nullable=True)
     # bcrypt (passwords are low-entropy, D7). NULL reserved for future SSO-only accounts.
     password_hash: Mapped[str | None] = mapped_column(Text, nullable=True)
     role: Mapped[UserRole] = mapped_column(
@@ -27,6 +30,17 @@ class User(UUIDPK, Timestamps, Base):
     is_active: Mapped[bool] = mapped_column(
         Boolean, nullable=False, server_default=text("true")
     )
+
+
+    @property
+    def shown_name(self) -> str:
+        """How other users see this person: the display name, else the full name, else the login."""
+        return self.display_name or self.full_name or self.username
+
+    @property
+    def document_name(self) -> str:
+        """How documents (PDF/Word/Excel) name this person: the full name first."""
+        return self.full_name or self.display_name or self.username
 
 
 class AuthSession(UUIDPK, Base):

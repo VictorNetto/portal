@@ -3,22 +3,44 @@
 import uuid
 from datetime import datetime
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from app.models.enums import UserRole
 
 
-class UserCreate(BaseModel):
+def _clean_name(v: str | None) -> str | None:
+    """Trimmed, inner whitespace collapsed; blank means "not set"."""
+    if v is None:
+        return None
+    v = " ".join(v.split())
+    return v or None
+
+
+class NameFields(BaseModel):
+    """The person's names (not the login). Blank clears a name."""
+
+    full_name: str | None = Field(default=None, max_length=150)
+    display_name: str | None = Field(default=None, max_length=60)
+
+    _clean = field_validator("full_name", "display_name")(_clean_name)
+
+
+class UserCreate(NameFields):
     username: str = Field(min_length=1, max_length=150)
     password: str = Field(min_length=8)
     role: UserRole
 
 
-class UserUpdate(BaseModel):
-    """Admin edit: role and/or active flag. Username is immutable once set."""
+class UserUpdate(NameFields):
+    """Admin edit: role, active flag and/or names. Username is immutable once set.
+    A name is changed only when it is sent (see model_fields_set)."""
 
     role: UserRole | None = None
     is_active: bool | None = None
+
+
+class ProfileUpdate(NameFields):
+    """The user's own names (Perfil page). Both are always sent; blank clears."""
 
 
 class PasswordReset(BaseModel):
@@ -30,6 +52,8 @@ class PasswordReset(BaseModel):
 class UserOut(BaseModel):
     id: uuid.UUID
     username: str
+    full_name: str | None
+    display_name: str | None
     role: UserRole
     is_active: bool
     must_change_password: bool

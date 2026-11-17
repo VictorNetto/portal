@@ -12,6 +12,7 @@ import {
 import { useAuthStore } from '../stores/auth'
 import { fmtDate, fmtDateTime } from '../dates'
 import { t } from '../i18n'
+import { userName, userMatches } from '../people'
 import { confirmDialog } from '../dialog'
 import { isDiscarding, useUnsaved } from '../session'
 import AppShell from '../components/AppShell.vue'
@@ -38,7 +39,7 @@ function showPending() { scope.value = ''; statusFilter.value = 'pending' }
 const filtered = computed(() => {
   const needle = q.value.trim().toLowerCase()
   return templates.value.filter((x) =>
-    (!needle || x.name.toLowerCase().includes(needle) || x.owner.username.toLowerCase().includes(needle)) &&
+    (!needle || x.name.toLowerCase().includes(needle) || userMatches(x.owner, needle)) &&
     (!scope.value || scopeOf(x) === scope.value) &&
     (!statusFilter.value || x.share_status === statusFilter.value))
 })
@@ -223,7 +224,7 @@ onMounted(async () => {
             <tbody>
               <tr v-for="x in filtered" :key="x.id" :class="{ sel: x.id === selectedId }" @click="select(x)">
                 <td class="tname">{{ x.name }}</td>
-                <td>{{ x.mine ? t('tpls.me') : x.owner.username }}</td>
+                <td>{{ x.mine ? t('tpls.me') : userName(x.owner) }}</td>
                 <td><span class="pill" :class="'t-' + x.share_status">{{ statusLabel(x) }}</span></td>
                 <td class="mono">{{ x.section_count }}</td>
                 <td class="dateCell" :title="fmtDateTime(x.updated_at)">{{ fmtDate(x.updated_at) }}</td>
@@ -255,7 +256,7 @@ onMounted(async () => {
           <!-- Only this part scrolls: the title and its buttons stay in view. -->
           <div class="dBody">
           <dl class="facts">
-            <dt>{{ t('tpls.owner') }}</dt><dd>{{ detail.mine ? t('tpls.me') : detail.owner.username }}</dd>
+            <dt>{{ t('tpls.owner') }}</dt><dd>{{ detail.mine ? t('tpls.me') : userName(detail.owner) }}</dd>
             <dt>{{ t('tpls.statusCol') }}</dt>
             <dd><span class="pill" :class="'t-' + detail.share_status">{{ statusLabel(detail) }}</span></dd>
             <template v-if="detail.share_requested_at && detail.share_status === 'pending'">
@@ -263,7 +264,7 @@ onMounted(async () => {
             </template>
             <template v-if="detail.share_decided_by && detail.share_status !== 'pending'">
               <dt>{{ t('tpls.decidedBy') }}</dt>
-              <dd>{{ detail.share_decided_by.username }} · {{ fmtDateTime(detail.share_decided_at) }}</dd>
+              <dd>{{ userName(detail.share_decided_by) }} · {{ fmtDateTime(detail.share_decided_at) }}</dd>
             </template>
             <dt>{{ t('tpls.createdAt') }}</dt><dd>{{ fmtDateTime(detail.created_at) }}</dd>
             <dt>{{ t('cols.updatedAt') }}</dt><dd>{{ fmtDateTime(detail.updated_at) }}</dd>

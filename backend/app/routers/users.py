@@ -18,6 +18,7 @@ from app.models.enums import AuditAction, UserRole
 from app.models.user import User
 from app.schemas.user import PasswordReset, UserAccess, UserCreate, UserOut, UserUpdate
 from app.services import auth_session, user_access
+from app.services.user_names import name_changes
 
 router = APIRouter(prefix="/users", tags=["users"])
 
@@ -49,6 +50,8 @@ def create_user(
         username=body.username,
         password_hash=security.hash_password(body.password),
         role=body.role,
+        full_name=body.full_name,
+        display_name=body.display_name,
         must_change_password=True,  # new users change password on first login
     )
     session.add(user)
@@ -111,6 +114,12 @@ def update_user(
         if body.role is not None and body.role != UserRole.admin:
             raise HTTPException(status.HTTP_400_BAD_REQUEST, "You cannot change your own admin role")
 
+    names = name_changes(user, body, body.model_fields_set & {"full_name", "display_name"})
+    if names:
+        audit.record(
+            session, action=AuditAction.update, user_id=admin.id,
+            entity_type="user", entity_id=user.id, detail=names, request=request,
+        )
     changes = {}
     if body.role is not None and body.role != user.role:
         changes["role"] = {"from": user.role.value, "to": body.role.value}

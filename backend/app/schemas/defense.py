@@ -24,6 +24,7 @@ class DefenseReportRef(BaseModel):
 
 class DefenseUserRef(BaseModel):
     username: str
+    name: str = Field(validation_alias="shown_name")
 
     model_config = {"from_attributes": True}
 

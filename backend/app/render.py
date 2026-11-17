@@ -376,7 +376,7 @@ def _vuln_story(v, st: dict, load_image: ImageLoader, *, title_style: str = "H2"
     title = v.identifier or v.internal_id or "Vulnerabilidade"
     story.append(Paragraph(_esc(title), st[title_style]))
     cvss = _score(v.cvss_score) + (f"  ({_esc(v.cvss_vector)})" if v.cvss_vector else "")
-    ops = ", ".join(sorted(o.username for o in v.operators)) or "—"
+    ops = ", ".join(sorted(o.document_name for o in v.operators)) or "—"
     story.append(_kv_table([
         ("ID interno", v.internal_id or "—"),
         ("CWE", v.cwe or "—"),
@@ -427,7 +427,7 @@ def report_pdf(report, vulns: list, load_image: ImageLoader) -> bytes:
     if report.client_name:
         story.append(Paragraph(_esc(report.client_name), st["subtitle"]))
     story.append(Spacer(1, 18))
-    ops = ", ".join(sorted(o.username for o in report.operators)) or "—"
+    ops = ", ".join(sorted(o.document_name for o in report.operators)) or "—"
     story.append(_kv_table([
         ("ID interno", report.internal_id or "—"),
         ("Período", f"{_fmt_date(report.start_date)} – {_fmt_date(report.end_date)}"),
@@ -515,7 +515,7 @@ def vulnerabilities_xlsx(report, vulns: list) -> bytes:
             v.internal_id or "", v.identifier or "", v.cwe or "",
             float(v.cvss_score) if v.cvss_score is not None else None,
             v.cvss_vector or "", v.source or "",
-            ", ".join(sorted(o.username for o in v.operators)),
+            ", ".join(sorted(o.document_name for o in v.operators)),
             v.status.value if hasattr(v.status, "value") else str(v.status),
             # A section left out of the documents is an empty cell.
             *((text or "") if shown(v, key) else "" for key, text in (
@@ -541,7 +541,7 @@ def vulnerabilities_xlsx(report, vulns: list) -> bytes:
         ("ID interno", report.internal_id or ""), ("Identificador", report.name),
         ("Cliente", report.client_name or ""),
         ("Início", _fmt_date(report.start_date)), ("Fim", _fmt_date(report.end_date)),
-        ("Operadores", ", ".join(sorted(o.username for o in report.operators))),
+        ("Operadores", ", ".join(sorted(o.document_name for o in report.operators))),
         ("Vulnerabilidades", len(vulns)),
     ):
         _sheet_row(info, [k, val])
@@ -693,7 +693,7 @@ def _docx_vuln(doc, v, load_image: ImageLoader, *, level: int = 2) -> None:
     _docx_kv(doc, [
         ("ID interno", v.internal_id or "—"), ("CWE", v.cwe or "—"), ("CVSS", cvss),
         ("Fonte", v.source or "—"),
-        ("Operadores", ", ".join(sorted(o.username for o in v.operators)) or "—"),
+        ("Operadores", ", ".join(sorted(o.document_name for o in v.operators)) or "—"),
     ])
     for heading, text in _vuln_texts(v):
         if (text or "").strip():
@@ -749,7 +749,7 @@ def report_docx(report, vulns: list, load_image: ImageLoader) -> bytes:
     _docx_kv(doc, [
         ("ID interno", report.internal_id or "—"),
         ("Período", f"{_fmt_date(report.start_date)} – {_fmt_date(report.end_date)}"),
-        ("Operadores", ", ".join(sorted(o.username for o in report.operators)) or "—"),
+        ("Operadores", ", ".join(sorted(o.document_name for o in report.operators)) or "—"),
         ("Gerado em", datetime.now().strftime("%d/%m/%Y %H:%M")),
     ])
     doc.add_page_break()

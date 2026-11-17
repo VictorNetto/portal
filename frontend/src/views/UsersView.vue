@@ -7,6 +7,7 @@ import { fmtDateTime } from '../dates'
 import { t } from '../i18n'
 import { promptDialog } from '../dialog'
 import AppShell from '../components/AppShell.vue'
+import { userMatches } from '../people'
 
 const route = useRoute()
 const router = useRouter()
@@ -27,7 +28,7 @@ const statusFilter = ref('')
 const filtered = computed(() => {
   const needle = q.value.trim().toLowerCase()
   return users.value.filter((u) =>
-    (!needle || u.username.toLowerCase().includes(needle)) &&
+    userMatches(u, needle) &&
     (!roleFilter.value || u.role === roleFilter.value) &&
     (!statusFilter.value || (statusFilter.value === 'active') === u.is_active))
 })
@@ -61,15 +62,16 @@ const openRecord = (item) => router.push(accessTab.value === 'vulns' ? `/vulnera
 
 // --- create -----------------------------------------------------------------------
 const showCreate = ref(false)
-const draft = ref({ username: '', password: '', role: 'read_all' })
+const blankDraft = () => ({ username: '', full_name: '', password: '', role: 'read_all' })
+const draft = ref(blankDraft())
 const creating = ref(false)
 
 async function create() {
   creating.value = true; error.value = ''
   try {
-    const u = await createUser({ ...draft.value })
+    const u = await createUser({ ...draft.value, full_name: draft.value.full_name.trim() || null })
     showCreate.value = false
-    draft.value = { username: '', password: '', role: 'read_all' }
+    draft.value = blankDraft()
     await load()
     select(u)
   } catch (e) { error.value = e instanceof ApiError ? e.detail : t('errors.create') }
@@ -80,6 +82,15 @@ async function create() {
 async function changeRole(role) {
   error.value = ''
   try { await updateUser(selected.value.id, { role }); await load() }
+  catch (e) { error.value = e instanceof ApiError ? e.detail : t('errors.update'); await load() }
+}
+
+// A name changed in the detail panel is saved when the field is left (blank clears it).
+async function saveName(field, value) {
+  const v = value.trim() || null
+  if (v === (selected.value[field] || null)) return
+  error.value = ''
+  try { await updateUser(selected.value.id, { [field]: v }); await load() }
   catch (e) { error.value = e instanceof ApiError ? e.detail : t('errors.update'); await load() }
 }
 
@@ -122,6 +133,8 @@ onMounted(async () => {
       <div class="formRow">
         <div class="field"><label>{{ t('users.username') }}</label>
           <input v-model="draft.username" /></div>
+        <div class="field"><label>{{ t('users.fullName') }}</label>
+          <input v-model="draft.full_name" maxlength="150" /></div>
         <div class="field"><label>{{ t('users.password') }}</label>
           <input v-model="draft.password" type="password" :placeholder="t('misc.passwordPlaceholder')" /></div>
         <div class="field"><label>{{ t('users.role') }}</label>
@@ -160,6 +173,7 @@ onMounted(async () => {
             <thead>
               <tr>
                 <th>{{ t('users.username') }}</th>
+                <th>{{ t('users.name') }}</th>
                 <th>{{ t('users.role') }}</th>
                 <th>{{ t('users.status') }}</th>
               </tr>
@@ -170,6 +184,7 @@ onMounted(async () => {
                   {{ u.username }}
                   <small v-if="u.must_change_password" class="flag">{{ t('users.mustChange') }}</small>
                 </td>
+                <td>{{ u.display_name || u.full_name || '—' }}</td>
                 <td>{{ t('roles.' + u.role) }}</td>
                 <td>
                   <span class="pill" :class="u.is_active ? 'on' : 'off'">
@@ -177,7 +192,7 @@ onMounted(async () => {
                   </span>
                 </td>
               </tr>
-              <tr v-if="!loading && !filtered.length"><td colspan="3" class="empty">—</td></tr>
+              <tr v-if="!loading && !filtered.length"><td colspan="4" class="empty">—</td></tr>
             </tbody>
           </table>
         </section>
@@ -185,7 +200,7 @@ onMounted(async () => {
 
       <aside v-if="selected" class="panel detail">
         <header class="dHead">
-          <h2 class="dName">{{ selected.username }}</h2>
+          <h2 class="dName">{{ selected.display_name || selected.full_name || selected.username }}</h2>
           <span class="pill" :class="selected.is_active ? 'on' : 'off'">
             {{ selected.is_active ? t('users.active') : t('users.inactive') }}
           </span>
@@ -193,6 +208,20 @@ onMounted(async () => {
         </header>
 
         <dl class="facts">
+          <dt>{{ t('users.username') }}</dt>
+          <dd class="mono">{{ selected.username }}</dd>
+          <dt>{{ t('users.fullName') }}</dt>
+          <dd>
+            <input v-if="isAdmin" :key="selected.id + 'f'" class="nameIn" maxlength="150" :value="selected.full_name || ''"
+                   @change="saveName('full_name', $event.target.value)" />
+            <span v-else>{{ selected.full_name || '—' }}</span>
+          </dd>
+          <dt>{{ t('users.displayName') }}</dt>
+          <dd>
+            <input v-if="isAdmin" :key="selected.id + 'd'" class="nameIn" maxlength="60" :value="selected.display_name || ''"
+                   @change="saveName('display_name', $event.target.value)" />
+            <span v-else>{{ selected.display_name || '—' }}</span>
+          </dd>
           <dt>{{ t('users.role') }}</dt>
           <dd>
             <select v-if="isAdmin && !isSelf" class="roleSel" :value="selected.role" @change="changeRole($event.target.value)">
@@ -279,6 +308,7 @@ dd .flag { margin-left: 0; }
 .facts dt { color: var(--muted); }
 .facts dd { margin: 0; }
 .roleSel { height: 28px; padding: 0 6px; }
+.nameIn { height: 28px; width: 100%; max-width: 260px; }
 .dActions { display: flex; gap: 8px; margin-bottom: 18px; }
 
 .accessBox { border-top: 1px solid var(--line); padding-top: 14px; }
