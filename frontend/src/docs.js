@@ -129,7 +129,17 @@ Nos relatórios, valem \`created\`, \`updated\` e \`sent\`. As datas seguem o fu
       },
       {
         id: 'auditoria', title: 'Logs de auditoria', roles: ['auditor'],
-        md: `Os **Logs de Auditoria** registram logins, criações, alterações, mudanças de status, envios, exportações, leituras de anexos e liberações de reserva, com quem fez, quando e de qual IP. Filtre pelo tipo de ação.`,
+        md: `Os **Logs de Auditoria** registram logins, criações, alterações, mudanças de status, envios, exportações, leituras de anexos e liberações de reserva, com quem fez, quando e de qual IP.
+
+**Filtro** (a mesma linha de filtro das listas de vulnerabilidades e relatórios; digite **/** para ver as chaves):
+- texto solto: busca em tudo (ator, ação, registro, detalhe, IP).
+- \`action:update,delete\`: uma destas ações. \`actor:maria\`: login, nome de exibição ou nome completo; \`api:<prefixo>\` para chaves; \`system\`.
+- \`entity:report\`: tipo de registro (\`entity:none\` = sem registro). \`record:VULN-0012\`: um registro pelo ID interno ou uuid, incluindo seus anexos.
+- \`date:7d\`, \`date:10-2026\`, \`date:01-09-2026..30-09-2026\`: quando aconteceu.
+- Em *Mais filtros*: \`role:admin\` (papel de quem fez), \`ip:10.0.\`, \`detail:password\`.
+- \`-chave:valor\` exclui; vários termos se combinam (E). Use aspas para valores com espaços.
+- **Clique em um valor** da lista (ator, ação, tipo, registro, IP) para filtrar por ele; clique na linha para ver o detalhe completo e abrir o registro.
+- A busca fica no endereço da página: copie o link para compartilhá-la.`,
       },
     ],
   },
@@ -971,7 +981,17 @@ Para liberar antes, use **Liberar bloqueio** na página do relatório. As altera
       },
       {
         id: 'adm-auditoria', title: 'Logs de auditoria',
-        md: `Menu ➝ *Logs de Auditoria*. Registra logins, criações, alterações, mudanças de status, envios, exportações, leituras de anexos e liberações de reserva, com quem fez (usuário ou \`api:<prefixo>\` para chaves), quando e de qual IP. Filtre pelo tipo de ação.`,
+        md: `Menu ➝ *Logs de Auditoria*. Registra logins, criações, alterações, mudanças de status, envios, exportações, leituras de anexos e liberações de reserva, com quem fez (usuário ou \`api:<prefixo>\` para chaves), quando e de qual IP.
+
+**Filtro** (a mesma linha de filtro das listas de vulnerabilidades e relatórios; digite **/** para ver as chaves):
+- texto solto: busca em tudo (ator, ação, registro, detalhe, IP).
+- \`action:update,delete\`: uma destas ações. \`actor:maria\`: login, nome de exibição ou nome completo; \`api:<prefixo>\` para chaves; \`system\`.
+- \`entity:report\`: tipo de registro (\`entity:none\` = sem registro). \`record:VULN-0012\`: um registro pelo ID interno ou uuid, incluindo seus anexos.
+- \`date:7d\`, \`date:10-2026\`, \`date:01-09-2026..30-09-2026\`: quando aconteceu.
+- Em *Mais filtros*: \`role:admin\` (papel de quem fez), \`ip:10.0.\`, \`detail:password\`.
+- \`-chave:valor\` exclui; vários termos se combinam (E). Use aspas para valores com espaços.
+- **Clique em um valor** da lista (ator, ação, tipo, registro, IP) para filtrar por ele; clique na linha para ver o detalhe completo e abrir o registro.
+- A busca fica no endereço da página: copie o link para compartilhá-la.`,
       },
     ],
   },
@@ -1160,7 +1180,17 @@ For reports, \`created\`, \`updated\` and \`sent\` apply. Dates follow your brow
       },
       {
         id: 'auditoria', title: 'Audit logs', roles: ['auditor'],
-        md: `The **Audit Logs** record sign-ins, creations, changes, status changes, sends, exports, attachment reads and reservation releases, with who did it, when and from which IP. Filter by type of action.`,
+        md: `The **Audit Logs** record sign-ins, creations, changes, status changes, sends, exports, attachment reads and reservation releases, with who did it, when and from which IP.
+
+**Filter** (the same filter line as the vulnerability and report lists; type **/** to see the keys):
+- bare text: searches everything (actor, action, record, detail, IP).
+- \`action:update,delete\`: one of these actions. \`actor:maria\`: login, display name or full name; \`api:<prefix>\` for keys; \`system\`.
+- \`entity:report\`: kind of record (\`entity:none\` = no record). \`record:VULN-0012\`: one record by internal id or uuid, including its attachments.
+- \`date:7d\`, \`date:10-2026\`, \`date:01-09-2026..30-09-2026\`: when it happened.
+- In *More filters*: \`role:admin\` (the actor's role), \`ip:10.0.\`, \`detail:password\`.
+- \`-key:value\` excludes; several terms combine (AND). Quote values with spaces.
+- **Click a value** in the list (actor, action, kind, record, IP) to filter by it; click the row to see the whole detail and open the record.
+- The search stays in the page address: copy the link to share it.`,
       },
     ],
   },
@@ -2002,7 +2032,17 @@ To release it sooner, use **Release lock** on the report page. The holder's unsa
       },
       {
         id: 'adm-auditoria', title: 'Audit logs',
-        md: `Menu ➝ *Audit Logs*. Records sign-ins, creations, changes, status changes, sends, exports, attachment reads and reservation releases, with who did it (a user, or \`api:<prefix>\` for keys), when and from which IP. Filter by type of action.`,
+        md: `Menu ➝ *Audit Logs*. Records sign-ins, creations, changes, status changes, sends, exports, attachment reads and reservation releases, with who did it (a user, or \`api:<prefix>\` for keys), when and from which IP.
+
+**Filter** (the same filter line as the vulnerability and report lists; type **/** to see the keys):
+- bare text: searches everything (actor, action, record, detail, IP).
+- \`action:update,delete\`: one of these actions. \`actor:maria\`: login, display name or full name; \`api:<prefix>\` for keys; \`system\`.
+- \`entity:report\`: kind of record (\`entity:none\` = no record). \`record:VULN-0012\`: one record by internal id or uuid, including its attachments.
+- \`date:7d\`, \`date:10-2026\`, \`date:01-09-2026..30-09-2026\`: when it happened.
+- In *More filters*: \`role:admin\` (the actor's role), \`ip:10.0.\`, \`detail:password\`.
+- \`-key:value\` excludes; several terms combine (AND). Quote values with spaces.
+- **Click a value** in the list (actor, action, kind, record, IP) to filter by it; click the row to see the whole detail and open the record.
+- The search stays in the page address: copy the link to share it.`,
       },
     ],
   },

@@ -149,18 +149,43 @@ test.describe('administration', () => {
     expect((await ingest(plaintext)).status).toBe(401)                          // ...until it is revoked
   })
 
-  test('audit log: filter by action and see who did it', async ({ page }) => {
+  test('audit log: the filter bar narrows by action and actor; a click on a value filters by it', async ({ page }) => {
     const user = await createUser(admin, 'write_all')
     await login(user.username, user.password)
     await loginUI(page, 'admin', 'admin')
     await navTo(page, 'Logs de Auditoria')
-    await expect(page.locator('tbody tr').first()).toBeVisible()
+    await expect(page.locator('tbody tr.row').first()).toBeVisible()
 
-    await page.selectOption('.pageTop select', 'login')
-    await expect(page.locator('tbody .act').first()).toHaveText('login')
-    // the filtered list replaces the unfiltered one asynchronously: wait for it to settle
-    await expect.poll(() => page.locator('tbody .act').evaluateAll((els) => els.every((e) => e.textContent === 'login'))).toBe(true)
-    await expect(page.locator('tbody')).toContainText(user.username)
+    // "/" menu: keys, then the action's values
+    const input = page.locator('.filterbar input')
+    await input.fill('/')
+    await expect(page.locator('.filterbar .menu li').first()).toHaveText('action')
+    await input.fill(`actor:${user.username} action:`)
+    await page.locator('.filterbar .menu li', { hasText: /^login$/ }).click()
+    await expect(page).toHaveURL(/q=actor/)
+    // two logins: the first one (temporary password) and the one above
+    await expect.poll(() => page.locator('tbody tr.row').count()).toBe(2)
+    await expect(page.locator('tbody .act')).toHaveText(['login', 'login'])
+    await expect(page.locator('tbody .actor').first()).toContainText(user.username)
+
+    // negation: everything else that user did (they changed their password, too)
+    await input.fill(`actor:${user.username} -action:login`)
+    await expect.poll(() => page.locator('tbody .act').evaluateAll((els) => els.length > 0 && els.every((e) => e.textContent !== 'login'))).toBe(true)
+
+    // clicking a value adds it; an invalid token is reported and ignored
+    await input.fill(`actor:${user.username} action:nope`)
+    await expect(page.locator('.ignored')).toContainText('action:nope')
+    await input.fill(`actor:${user.username}`)
+    await expect.poll(() => page.locator('tbody tr.row').count()).toBeGreaterThan(1)
+    await page.locator('tbody .act', { hasText: /^update$/ }).first().click()
+    await expect(input).toHaveValue(`actor:${user.username} action:update`)
+    await expect.poll(() => page.locator('tbody .act').evaluateAll((els) => els.length > 0 && els.every((e) => e.textContent === 'update'))).toBe(true)
+
+    // a row opens to show the whole detail; the URL keeps the search across a reload
+    await page.locator('tbody tr.row td').first().click()
+    await expect(page.locator('tbody tr.more')).toContainText('password')
+    await page.reload()
+    await expect(input).toHaveValue(`actor:${user.username} action:update`)
     await expect(page.locator('.pageInfo').first()).toContainText('registros')
   })
 

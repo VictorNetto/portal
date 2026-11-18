@@ -109,12 +109,9 @@ export const createApiKey = (body) => api('/api-keys', { method: 'POST', body })
 export const revokeApiKey = (id) => api(`/api-keys/${id}/revoke`, { method: 'POST' })
 
 // --- Audit log ---
-export const listAudit = (params = {}) => {
-  const q = new URLSearchParams(
-    Object.entries(params).filter(([, v]) => v !== '' && v != null)
-  ).toString()
-  return api('/audit-logs' + (q ? `?${q}` : ''))
-}
+// body: { filters, page, page_size } — filters from parseAuditQuery (auditQuery.js)
+export const searchAudit = (body) => api('/audit-logs/search', { method: 'POST', body })
+export const auditFacets = () => api('/audit-logs/facets')
 
 // --- Attachments ---
 export const listAttachments = (vulnId) => api(`/vulnerabilities/${vulnId}/attachments`)
