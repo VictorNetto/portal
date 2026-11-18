@@ -26,6 +26,27 @@ const query = ref(String(route.query.q || ''))
 const page = ref(Math.max(1, Number(route.query.page) || 1))
 const parsed = computed(() => parseAuditQuery(query.value))
 const pageCount = computed(() => Math.max(1, Math.ceil(data.value.total / PAGE_SIZE)))
+// "Mostrando 51-100 de 14246", like the Hub.
+const rangeLabel = computed(() => {
+  const total = data.value.total
+  if (!total) return `0 ${t('hub.of')} 0`
+  const start = (page.value - 1) * PAGE_SIZE + 1
+  return `${start}-${Math.min(page.value * PAGE_SIZE, total)} ${t('hub.of')} ${total}`
+})
+// The log has hundreds of pages: the first, the last and two on each side of the current one.
+const pageButtons = computed(() => {
+  const last = pageCount.value
+  const want = new Set([1, last])
+  for (let n = page.value - 2; n <= page.value + 2; n++) if (n >= 1 && n <= last) want.add(n)
+  const out = []
+  let prev = 0
+  for (const n of [...want].sort((a, b) => a - b)) {
+    if (n - prev > 1) out.push({ gap: true, key: `gap${n}` })
+    out.push({ n, key: n })
+    prev = n
+  }
+  return out
+})
 const expanded = ref(null)
 const filterBar = ref(null)
 
@@ -117,6 +138,7 @@ onUnmounted(() => { window.removeEventListener('keydown', onKeydown); clearTimeo
 
 <template>
   <AppShell>
+    <div class="auditPage">
     <div class="pageTop">
       <div class="titleBlock">
         <h1>{{ t('audit.title') }}</h1>
@@ -124,23 +146,32 @@ onUnmounted(() => { window.removeEventListener('keydown', onKeydown); clearTimeo
       </div>
     </div>
 
-    <div class="toolbar">
+    <div class="filterRow">
       <FilterBar ref="filterBar" v-model="query" class="auditFilter" :keys="AUDIT_FILTER_KEYS"
                  :dynamic-values="dynamicValues" help="filter.auditHelp" />
-      <span class="count mono">{{ data.total }} {{ t('misc.records') }}</span>
     </div>
     <p v-if="parsed.invalid.length" class="ignored">{{ t('audit.ignored', { tokens: parsed.invalid.join(' ') }) }}</p>
 
     <p v-if="error" class="err">{{ error }}</p>
 
-    <section class="panel" :class="{ busy: loading }">
+    <div class="pagination top">
+      <span class="pageInfo mono">{{ t('hub.showing') }} {{ rangeLabel }}</span>
+      <button class="pageBtn" :disabled="page <= 1" @click="go(page - 1)">{{ t('common.prev') }}</button>
+      <template v-for="b in pageButtons" :key="b.key">
+        <span v-if="b.gap" class="gap">…</span>
+        <button v-else class="pageBtn" :class="{ active: b.n === page }" @click="go(b.n)">{{ b.n }}</button>
+      </template>
+      <button class="pageBtn" :disabled="page >= pageCount" @click="go(page + 1)">{{ t('common.next') }}</button>
+    </div>
+
+    <section class="panel tablePanel" :class="{ busy: loading }">
       <table>
         <thead>
           <tr>
             <th style="width:190px">{{ t('audit.when') }}</th>
             <th style="width:170px">{{ t('audit.actor') }}</th>
             <th style="width:150px">{{ t('audit.action') }}</th>
-            <th style="width:230px">{{ t('audit.entity') }}</th>
+            <th style="width:300px">{{ t('audit.entity') }}</th>
             <th style="width:120px">{{ t('audit.ip') }}</th>
             <th>{{ t('audit.detail') }}</th>
           </tr>
@@ -192,20 +223,22 @@ onUnmounted(() => { window.removeEventListener('keydown', onKeydown); clearTimeo
       </table>
     </section>
 
-    <div class="pagination">
-      <span class="pageInfo mono">{{ data.total }} {{ t('misc.records') }}</span>
-      <button class="pageBtn" :disabled="page <= 1" @click="go(page - 1)">{{ t('common.prev') }}</button>
-      <span class="pageInfo mono">{{ page }} / {{ pageCount }}</span>
-      <button class="pageBtn" :disabled="page >= pageCount" @click="go(page + 1)">{{ t('common.next') }}</button>
     </div>
   </AppShell>
 </template>
 
 <style scoped>
-.toolbar { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
-.auditFilter { flex: 1; max-width: 760px; }
-.count { color: var(--muted); font-size: 12px; white-space: nowrap; }
-.ignored { margin: -4px 0 10px; color: var(--muted); font-size: 12px; }
+/* Like the Hub: the filter line, then the pagination, and only the list scrolls. */
+.auditPage { height: 100%; display: flex; flex-direction: column; min-height: 0; }
+.auditPage > * { flex: 0 0 auto; }
+.auditPage > .tablePanel { flex: 0 1 auto; min-height: 0; overflow: auto; }
+.filterRow { display: flex; align-items: center; margin-bottom: 18px; padding-bottom: 8px; border-bottom: 1px solid var(--line); }
+.auditFilter { flex: 1 1 auto; min-width: 0; }
+.pagination.top { margin: 0 0 12px; }
+.gap { color: var(--muted); font-size: 12px; padding: 0 2px; }
+.ignored { margin: -10px 0 12px; color: var(--muted); font-size: 12px; }
+thead th { position: sticky; top: 0; background: var(--panel); z-index: 1; box-shadow: inset 0 -1px 0 var(--line); }
+th { border-bottom: 0; }
 .busy { opacity: .6; transition: opacity .15s; }
 table { table-layout: fixed; }
 td { padding: 9px 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12.5px; }

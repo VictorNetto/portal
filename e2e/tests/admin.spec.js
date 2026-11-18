@@ -186,7 +186,7 @@ test.describe('administration', () => {
     await expect(page.locator('tbody tr.more')).toContainText('password')
     await page.reload()
     await expect(input).toHaveValue(`actor:${user.username} action:update`)
-    await expect(page.locator('.pageInfo').first()).toContainText('registros')
+    await expect(page.locator('.pagination.top .pageInfo')).toContainText(/Mostrando 1-\d+ de \d+/)
   })
 
   test('the audit log is not reachable by a writer', async ({ page }) => {
