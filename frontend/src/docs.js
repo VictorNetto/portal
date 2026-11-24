@@ -75,6 +75,7 @@ Use a caixa **Filtrar**. Texto livre busca no identificador. Digite \`/\` para v
 - \`cvss:7\`: CVSS maior ou igual a 7
 - \`report:nome\`: relatório contém (\`report:none\` mostra as que não estão em relatório)
 - \`operator:nome\`: operador atribuído
+- \`batch:BATCH-0001\`: criadas no mesmo lote pela API (\`batch:none\` mostra as que não vieram em lote)
 - \`-chave:valor\`: exclui o que corresponde
 
 O valor vai até o primeiro espaço. Para incluir espaços, use aspas: \`report:"Rede do Data Center"\`. Vários termos são combinados com **E**.
@@ -150,7 +151,14 @@ Nos relatórios, valem \`created\`, \`updated\` e \`sent\`. As datas seguem o fu
         id: 'vuln-criar', title: 'Criar uma vulnerabilidade',
         md: `Menu ➝ *Criar Vulnerabilidade*. Identificador, Descrição e Detalhes do Achado são obrigatórios para concluir; Mitigação / Solução pode ficar em branco. Você é o operador padrão; use **+** para adicionar outros operadores ou pessoas em *Compartilhado com*. Clique em um nome para removê-lo.
 
-**CVSS:** digite a nota e o vetor, ou use **Calculadora** ao lado do *Vetor CVSS*: escolha as oito métricas base da CVSS v3.1 (vetor de ataque, complexidade, privilégios, interação, escopo e os três impactos), e a nota, a severidade e o vetor são calculados como na calculadora oficial da FIRST. **Aplicar** preenche a nota e o vetor; se já houver um vetor, a calculadora abre com ele.`,
+**CVSS:** digite a nota e o vetor, ou use **Calculadora** ao lado do *Vetor CVSS*: escolha as oito métricas base da CVSS v3.1 (vetor de ataque, complexidade, privilégios, interação, escopo e os três impactos), e a nota, a severidade e o vetor são calculados como na calculadora oficial da FIRST. **Aplicar** preenche a nota e o vetor; se já houver um vetor, a calculadora abre com ele.
+
+**Data de criação:** começa com a data de hoje. Mude-a quando registrar um achado dias depois de encontrá-lo; datas futuras não são aceitas. Pode ser alterada enquanto o conteúdo estiver aberto para edição (rascunho e pronta), mas não para depois da conclusão. A linha do tempo e as durações dos painéis contam a partir dela.
+
+No topo da página, ao lado do status, podem aparecer:
+
+- **Lote \`BATCH-0001\`:** a vulnerabilidade veio de uma execução de ferramenta pela API, junto com outras. Clique para ver o lote inteiro em Operações.
+- **Importada em …:** veio de outro sistema com o seu histórico (status, datas, número e RVS). As datas são as de lá, não de trabalho feito no portal.`,
       },
       {
         id: 'vuln-ciclo', title: 'Ciclo de vida',
@@ -238,7 +246,7 @@ Um relatório copia o texto do template no momento da criação; mudanças poste
     subs: [
       {
         id: 'api-visao', title: 'Visão geral',
-        md: `A API permite que outros sistemas **leiam** vulnerabilidades e relatórios, **baixem** evidências e exportações, **registrem IDs de RVS** e **criem** vulnerabilidades. Ela é separada da API usada pelo próprio portal: uma chave de API **só** funciona em \`/api/v1/*\`.
+        md: `A API permite que outros sistemas **leiam** vulnerabilidades e relatórios, **baixem** evidências e exportações, **registrem IDs de RVS**, **criem** vulnerabilidades (também em lotes) e **importem** vulnerabilidades antigas com o seu histórico. Ela é separada da API usada pelo próprio portal: uma chave de API **só** funciona em \`/api/v1/*\`.
 
 Endpoints (cada um tem uma subseção abaixo, com parâmetros, resposta, erros e exemplo):
 
@@ -249,7 +257,8 @@ Endpoints (cada um tem uma subseção abaixo, com parâmetros, resposta, erros e
 - \`GET /api/v1/vulnerabilities/{ref}/export\`: exportar (PDF, Word). \`exports\`
 - \`GET /api/v1/rvs-queue\`: Fila RVS. \`rvs:write\` ou \`vulns:read\`
 - \`POST /api/v1/vulnerabilities/{ref}/rvs\`: registrar o ID de RVS. \`rvs:write\`
-- \`POST /api/v1/vulnerabilities\`: criar uma vulnerabilidade. \`vulns:write\`
+- \`POST /api/v1/vulnerabilities\`: criar uma vulnerabilidade. \`vulns:write\`; para importar, também \`vulns:import\`
+- \`POST /api/v1/batches\`: criar um lote. \`vulns:write\`
 - \`GET /api/v1/reports\`: listar relatórios. \`reports:read\`
 - \`GET /api/v1/reports/{ref}\`: ler um relatório. \`reports:read\`
 - \`GET /api/v1/reports/{ref}/export\`: exportar (PDF, Excel, Word). \`exports\`
@@ -263,6 +272,7 @@ Escopos:
 
 - \`vulns:read\`: ler vulnerabilidades e suas evidências.
 - \`vulns:write\`: criar vulnerabilidades.
+- \`vulns:import\`: junto com \`vulns:write\`, importar vulnerabilidades antigas com status, datas, número e RVS (ver *Importar vulnerabilidades antigas*). Dê só à chave do script de importação.
 - \`rvs:write\`: ver a Fila RVS e registrar IDs de RVS.
 - \`reports:read\`: ler relatórios e suas evidências.
 - \`exports\`: baixar PDF, Word e Excel.
@@ -339,6 +349,7 @@ Lista vulnerabilidades (não excluídas) em ordem de última alteração, em pá
 - \`status\`: um ou mais status; repita o parâmetro para vários (\`status=sent&status=fixing\`).
 - \`source\`: a fonte contém o texto (sem diferenciar maiúsculas).
 - \`report\`: UUID ou número do relatório; \`none\` para as que não estão em relatório.
+- \`batch\`: o lote (\`BATCH-0001\`, sem diferenciar maiúsculas); \`none\` para as que não vieram em lote.
 - \`cvss_min\`: CVSS maior ou igual (0 a 10).
 - \`updated_since\`: só as criadas ou alteradas a partir desse momento (ISO 8601).
 - \`limit\`: 1 a 200 (padrão 50); \`cursor\`: o \`next_cursor\` da página anterior.
@@ -346,9 +357,11 @@ Lista vulnerabilidades (não excluídas) em ordem de última alteração, em pá
 **Resposta \`200\`**: \`{"items": [...], "next_cursor": "…" | null}\`. Cada item tem:
 
 - \`id\` (UUID) e \`internal_id\` (\`VULN-xxxx\`, nulo enquanto for rascunho).
-- \`status\`: \`draft\`, \`ready\`, \`sent\`, \`fixing\`, \`retesting\` ou \`fixed\`.
+- \`status\`: \`draft\`, \`ready\`, \`sent\`, \`fixing\`, \`retesting\`, \`fixed\` ou \`risk_accepted\`.
 - \`identifier\`, \`cwe\`, \`cvss_score\` (número ou nulo), \`source\`, \`rvs_id\` (nulo até o registro de RVS).
 - \`report\`: \`{id, internal_id, name, status}\` do relatório a que pertence, ou nulo.
+- \`batch_id\`: o lote em que foi criada (\`BATCH-0001\`), ou nulo.
+- \`imported_at\`: quando foi importada com o seu histórico, ou nulo.
 - \`created_at\`, \`updated_at\` (UTC).
 
 **Erros**: \`422\` para status, data ou cursor inválidos; \`404\` se o relatório de \`report\` não existir.
@@ -373,6 +386,8 @@ curl -sS "https://<portal>/api/v1/vulnerabilities?status=fixing&limit=1" \\
       "source": "nuclei",
       "rvs_id": "RVS-2026-1005",
       "report": null,
+      "batch_id": null,
+      "imported_at": null,
       "created_at": "2026-10-08T12:59:30.258918",
       "updated_at": "2026-10-08T12:59:30.315866"
     }
@@ -395,7 +410,7 @@ Uma vulnerabilidade completa.
 - \`references\` (lista de URLs), \`cvss_vector\`.
 - \`operators\`: logins dos operadores.
 - \`metadata\`: dados livres enviados pela ferramenta que a criou.
-- \`ready_at\`, \`sent_at\`, \`fixing_at\`, \`retesting_at\`, \`fixed_at\`: quando entrou em cada status (UTC), ou nulo.
+- \`ready_at\`, \`sent_at\`, \`accepted_at\`, \`fixing_at\`, \`retesting_at\`, \`fixed_at\`, \`risk_accepted_at\`: quando entrou em cada status (UTC), ou nulo; \`risk_reason\`: a justificativa do risco assumido.
 
 Notas internas e a lista *Compartilhado com* não são enviadas.
 
@@ -418,6 +433,8 @@ curl -sS https://<portal>/api/v1/vulnerabilities/VULN-0003 -H "X-API-Key: $PORTA
   "source": "nuclei",
   "rvs_id": "RVS-2026-1005",
   "report": null,
+  "batch_id": null,
+  "imported_at": null,
   "created_at": "2026-10-08T12:59:30.258918",
   "updated_at": "2026-10-08T12:59:30.315866",
   "description": "Conteúdo persistido e renderizado sem escape.",
@@ -592,7 +609,8 @@ Corpo JSON de até **1 MB**. Todos os campos são opcionais, respeitando as regr
 - \`source\` (texto, até 200): a ferramenta de origem, ex. \`nuclei\`, \`burp\`. Aparece em *Fontes* e no filtro \`source:\`.
 - \`internal_notes\` (Markdown): notas internas.
 - \`operators\` (lista de até 20 **logins**): usuários **ativos** com papel Administrador, Editor (todos) ou Editor restrito.
-- \`status\`: \`"draft"\` (padrão) ou \`"ready"\`. A API nunca cria vulnerabilidades enviadas.
+- \`status\`: \`"draft"\` (padrão) ou \`"ready"\`. Uma criação comum nunca gera vulnerabilidades enviadas; para trazer uma antiga já enviada ou corrigida, veja *Importar vulnerabilidades antigas*.
+- \`batch_id\`: o lote desta execução, criado com \`POST /api/v1/batches\` (ver *Lotes*).
 - \`metadata\` (objeto): dados livres da ferramenta, guardados como vieram. **Campos desconhecidos** no corpo também vão para os metadados. Limite: 64 KB no total.
 
 Regras:
@@ -603,7 +621,7 @@ Regras:
 Resposta \`201\`:
 
 \`\`\`
-{"id": "72643b23-af52-42d9-a139-c1aea6f70a15", "internal_id": null, "status": "draft"}
+{"id": "72643b23-af52-42d9-a139-c1aea6f70a15", "internal_id": null, "status": "draft", "batch_id": null, "imported": false}
 \`\`\`
 
 \`id\` identifica a vulnerabilidade (\`/vulnerabilities/<id>\` no portal). \`internal_id\` é o ID interno \`VULN-xxxx\`, presente apenas quando o status é \`ready\`.
@@ -622,8 +640,85 @@ curl -sS -X POST https://<portal>/api/v1/vulnerabilities \\
 {
   "id": "72643b23-af52-42d9-a139-c1aea6f70a15",
   "internal_id": null,
-  "status": "draft"
+  "status": "draft",
+  "batch_id": null,
+  "imported": false
 }
+\`\`\``,
+      },
+      {
+        id: 'api-lotes', title: 'Lotes',
+        md: `**\`POST /api/v1/batches\`** · escopo \`vulns:write\`
+
+Uma ferramenta que cria várias vulnerabilidades numa execução pode agrupá-las. Crie o lote antes (sem corpo) e envie o seu \`batch_id\` em cada \`POST /api/v1/vulnerabilities\` da execução.
+
+Resposta \`201\`:
+
+\`\`\`
+{"batch_id": "BATCH-0001", "created_at": "2026-11-24T19:30:04.949885"}
+\`\`\`
+
+- O número é do portal e só vale na criação: não dá para pôr ou tirar uma vulnerabilidade de um lote depois.
+- \`batch_id\` aceita maiúsculas ou minúsculas; um lote que não existe dá \`422\`.
+- Para ler o lote: \`GET /api/v1/vulnerabilities?batch=BATCH-0001\`. No portal: \`batch:BATCH-0001\` em Operações.
+
+**Exemplo**
+
+\`\`\`
+BATCH=$(curl -sS -X POST https://<portal>/api/v1/batches -H "X-API-Key: $PORTAL_KEY" | jq -r .batch_id)
+for f in achados/*.json; do
+  jq --arg b "$BATCH" '. + {batch_id: $b}' "$f" |
+    curl -sS -X POST https://<portal>/api/v1/vulnerabilities \\
+      -H "X-API-Key: $PORTAL_KEY" -H "Content-Type: application/json" -d @-
+done
+\`\`\``,
+      },
+      {
+        id: 'api-importar', title: 'Importar vulnerabilidades antigas',
+        md: `**\`POST /api/v1/vulnerabilities\`** · escopos \`vulns:write\` **e** \`vulns:import\`
+
+Para vulnerabilidades de semestres anteriores, acompanhadas em outro sistema. O mesmo endpoint e o mesmo corpo de *Criar uma vulnerabilidade*, com mais campos: a vulnerabilidade chega como terminou, com a data de cada etapa, e a linha do tempo e as durações dos painéis ficam corretas. Sem \`vulns:import\`, qualquer um destes campos dá \`403\`.
+
+- \`status\`: qualquer um: \`draft\`, \`ready\`, \`sent\`, \`fixing\`, \`retesting\`, \`fixed\`, \`risk_accepted\`.
+- \`internal_id\`: o número original (\`VULN-0042\`). Os próximos números passam a vir depois dele. Sem ele, recebe o próximo número. Rascunho não tem número. \`409\` se já existir.
+- \`created_at\`, \`ready_at\`, \`sent_at\`, \`accepted_at\`, \`fixing_at\`, \`retesting_at\`, \`fixed_at\`, \`risk_accepted_at\`: ISO 8601 (com \`Z\` ou fuso, convertido para UTC); nenhuma no futuro.
+- \`updated_at\`: padrão, a última das datas; não pode ser antes dela.
+- \`rvs_id\`: obrigatório em \`fixing\`, \`retesting\` e \`fixed\`; \`409\` se outra vulnerabilidade já o tiver.
+- \`accepted_by\`, \`risk_accepted_by\`: logins de usuários existentes (opcionais).
+- \`risk_reason\`: obrigatório em \`risk_accepted\`.
+
+Cada status exige as datas das etapas até ele, e nenhuma depois:
+
+- \`draft\`: \`created_at\`
+- \`ready\`: e \`ready_at\`
+- \`sent\`: e \`sent_at\`; \`accepted_at\` opcional
+- \`risk_accepted\`: \`created_at\`, \`ready_at\`, \`sent_at\`, \`risk_accepted_at\` e \`risk_reason\`; \`accepted_at\` opcional
+- \`fixing\`: \`created_at\`, \`ready_at\`, \`sent_at\`, \`fixing_at\` e \`rvs_id\`; \`accepted_at\` opcional (padrão: \`fixing_at\`)
+- \`retesting\`: e \`retesting_at\`
+- \`fixed\`: \`created_at\`, \`ready_at\`, \`sent_at\`, \`fixing_at\`, \`fixed_at\` e \`rvs_id\`; \`accepted_at\` e \`retesting_at\` opcionais
+
+As datas seguem a ordem do ciclo (criada ≤ pronta ≤ enviada ≤ aceita ≤ em correção ≤ em reteste ≤ corrigida; enviada ≤ risco assumido). O \`422\` lista todos os problemas de uma vez. Além do status \`draft\`, valem os campos obrigatórios de sempre (\`identifier\`, \`description\`, \`finding_detail\`).
+
+- **Nada é enviado** (nenhum e-mail) e **nenhum histórico é inventado**: os Logs de Auditoria têm uma única criação, com \`"import": true\`.
+- A vulnerabilidade guarda \`imported_at\` (nas leituras e como *Importada em …* na sua página); a resposta traz \`"imported": true\`.
+- Importações são vulnerabilidades avulsas (sem relatório). Correções feitas no passado não viram eventos: anote-as em \`internal_notes\` ou \`metadata\`.
+
+**Exemplo**
+
+\`\`\`
+curl -sS -X POST https://<portal>/api/v1/vulnerabilities \\
+  -H "X-API-Key: $IMPORT_KEY" -H "Content-Type: application/json" \\
+  -d '{"identifier": "SQL injection em Portal do Cliente", "description": "…", "finding_detail": "…",
+       "status": "fixed", "internal_id": "VULN-0042", "rvs_id": "RVS-2025-00017",
+       "created_at": "2025-03-03T14:00:00-03:00", "ready_at": "2025-03-04T10:00:00-03:00",
+       "sent_at": "2025-03-05T09:00:00-03:00", "fixing_at": "2025-03-12T16:00:00-03:00",
+       "retesting_at": "2025-04-01T10:00:00-03:00", "fixed_at": "2025-04-02T11:00:00-03:00",
+       "internal_notes": "Importada da planilha de 2025S1"}'
+\`\`\`
+
+\`\`\`
+201
+{"id": "…", "internal_id": "VULN-0042", "status": "fixed", "batch_id": null, "imported": true}
 \`\`\``,
       },
       {
@@ -795,13 +890,14 @@ curl -sS https://<portal>/api/health
 - \`401\`: chave ausente, inválida, revogada ou expirada. \`{"detail": "Invalid or missing API key"}\`
 - \`403\`: a chave não tem o escopo do endpoint. \`{"detail": "This API key lacks the scope 'rvs:write'"}\`
 - \`404\`: o registro não existe (ou foi excluído).
-- \`409\`: a ação não cabe no status atual, ex. RVS em vulnerabilidade não enviada ou já registrado.
+- \`409\`: a ação não cabe no status atual, ex. RVS em vulnerabilidade não enviada ou já registrado; ou, numa importação, o número ou o RVS já existe.
 - \`413\`: corpo acima de 1 MB.
 - \`422\`: dados ou parâmetros inválidos (inclusive \`cursor\` inválido). Exemplos:
 
 \`\`\`
 {"detail": "Required for status 'ready': description, finding_detail"}
 {"detail": "unknown operator(s): nobody; operator(s) not active writers: isabella"}
+{"detail": "status 'fixed' needs: fixing_at; sent_at is after fixing_at"}
 {"detail": [{"loc": ["body", "cvss_score"], "msg": "Input should be less than or equal to 10", ...}]}
 \`\`\``,
       },
@@ -811,7 +907,9 @@ curl -sS https://<portal>/api/health
 - Nunca coloque a chave no código ou em repositórios: leia de uma variável de ambiente ou de um cofre.
 - Para sincronizar, use \`updated_since\` + \`next_cursor\` em vez de baixar tudo a cada execução.
 - **Não há deduplicação** na criação: repetir a mesma requisição cria outro registro. Depois de um erro de rede, confira (filtro \`source\`) antes de reenviar.
-- Envie como \`draft\` quando um analista ainda precisa revisar o achado.`,
+- Envie como \`draft\` quando um analista ainda precisa revisar o achado.
+- Numa execução com vários achados, crie um **lote** e envie o seu \`batch_id\` em cada um: fica fácil achar e revisar tudo que veio junto.
+- Para importar, use uma chave só para isso (\`vulns:write\` + \`vulns:import\`, com expiração) e revogue-a no fim. Teste com poucas vulnerabilidades antes de importar tudo.`,
       },
     ],
   },
@@ -960,6 +1058,7 @@ Para papéis com acesso total (Administrador, Editor e Leitor todos, Auditor) a 
 - A chave completa aparece **uma única vez**, logo após a criação: copie e entregue ao responsável pelo sistema por um canal seguro. Depois, o portal mostra só o prefixo.
 - A lista mostra os escopos, a expiração e o último uso de cada chave.
 - **Revogar** desativa a chave na hora; revogue as que não forem mais usadas ou que possam ter vazado.
+- \`vulns:import\` deixa a chave criar vulnerabilidades com status, datas e números do passado: dê só ao script que traz vulnerabilidades antigas e revogue a chave quando a importação terminar.
 
 Escopos e endpoints na seção **API**.`,
       },
@@ -1126,6 +1225,7 @@ Use the **Filter** box. Free text searches the identifier. Type \`/\` to see the
 - \`cvss:7\`: CVSS 7 or higher
 - \`report:name\`: report contains (\`report:none\` shows those outside any report)
 - \`operator:name\`: assigned operator
+- \`batch:BATCH-0001\`: created in the same API batch (\`batch:none\` shows those outside any batch)
 - \`-key:value\`: excludes matches
 
 A value ends at the first space. To include spaces, quote it: \`report:"Rede do Data Center"\`. Several terms combine with **AND**.
@@ -1201,7 +1301,14 @@ For reports, \`created\`, \`updated\` and \`sent\` apply. Dates follow your brow
         id: 'vuln-criar', title: 'Create a vulnerability',
         md: `Menu ➝ *Create Vulnerability*. Identifier, Description and Finding Details are required to complete it; Mitigation / Solution may be left blank. You are the default operator; use **+** to add operators or people in *Shared with*. Click a name to remove it.
 
-**CVSS:** type the score and vector, or use **Calculator** next to *CVSS Vector*: choose the eight CVSS v3.1 base metrics (attack vector, complexity, privileges, interaction, scope and the three impacts), and the score, severity and vector are computed as in FIRST's official calculator. **Apply** fills the score and the vector; if there is a vector already, the calculator opens with it.`,
+**CVSS:** type the score and vector, or use **Calculator** next to *CVSS Vector*: choose the eight CVSS v3.1 base metrics (attack vector, complexity, privileges, interaction, scope and the three impacts), and the score, severity and vector are computed as in FIRST's official calculator. **Apply** fills the score and the vector; if there is a vector already, the calculator opens with it.
+
+**Creation date:** starts as today. Change it when you record a finding days after finding it; future dates are not accepted. It can be changed while the content is open for editing (draft and ready), but not to after the completion. The timeline and the dashboards' durations count from it.
+
+At the top of the page, next to the status, you may see:
+
+- **Batch \`BATCH-0001\`:** the vulnerability came from a tool run through the API, with others. Click it to see the whole batch in Operations.
+- **Imported on …:** it came from another system with its history (status, dates, number and RVS ID). The dates are from there, not from work done in the portal.`,
       },
       {
         id: 'vuln-ciclo', title: 'Lifecycle',
@@ -1289,7 +1396,7 @@ A report copies the template's text when it is created; later changes to the tem
     subs: [
       {
         id: 'api-visao', title: 'Overview',
-        md: `The API lets other systems **read** vulnerabilities and reports, **download** evidence and exports, **record RVS IDs** and **create** vulnerabilities. It is separate from the API the portal itself uses: an API key works **only** on \`/api/v1/*\`.
+        md: `The API lets other systems **read** vulnerabilities and reports, **download** evidence and exports, **record RVS IDs**, **create** vulnerabilities (in batches too) and **import** past vulnerabilities with their history. It is separate from the API the portal itself uses: an API key works **only** on \`/api/v1/*\`.
 
 Endpoints (each has a subsection below, with parameters, response, errors and an example):
 
@@ -1300,7 +1407,8 @@ Endpoints (each has a subsection below, with parameters, response, errors and an
 - \`GET /api/v1/vulnerabilities/{ref}/export\`: export (PDF, Word). \`exports\`
 - \`GET /api/v1/rvs-queue\`: RVS queue. \`rvs:write\` or \`vulns:read\`
 - \`POST /api/v1/vulnerabilities/{ref}/rvs\`: record the RVS ID. \`rvs:write\`
-- \`POST /api/v1/vulnerabilities\`: create a vulnerability. \`vulns:write\`
+- \`POST /api/v1/vulnerabilities\`: create a vulnerability. \`vulns:write\`; to import, also \`vulns:import\`
+- \`POST /api/v1/batches\`: create a batch. \`vulns:write\`
 - \`GET /api/v1/reports\`: list reports. \`reports:read\`
 - \`GET /api/v1/reports/{ref}\`: read a report. \`reports:read\`
 - \`GET /api/v1/reports/{ref}/export\`: export (PDF, Excel, Word). \`exports\`
@@ -1314,6 +1422,7 @@ Scopes:
 
 - \`vulns:read\`: read vulnerabilities and their evidence.
 - \`vulns:write\`: create vulnerabilities.
+- \`vulns:import\`: with \`vulns:write\`, import past vulnerabilities with their status, dates, number and RVS ID (see *Import past vulnerabilities*). Give it only to the import script's key.
 - \`rvs:write\`: see the RVS queue and record RVS IDs.
 - \`reports:read\`: read reports and their evidence.
 - \`exports\`: download PDF, Word and Excel.
@@ -1390,6 +1499,7 @@ Lists (non-deleted) vulnerabilities in last-change order, in pages.
 - \`status\`: one or more statuses; repeat the parameter for several (\`status=sent&status=fixing\`).
 - \`source\`: the source contains the text (case-insensitive).
 - \`report\`: report UUID or number; \`none\` for those outside any report.
+- \`batch\`: the batch (\`BATCH-0001\`, case-insensitive); \`none\` for those outside any batch.
 - \`cvss_min\`: CVSS greater or equal (0 to 10).
 - \`updated_since\`: only those created or changed from that moment on (ISO 8601).
 - \`limit\`: 1 to 200 (default 50); \`cursor\`: the previous page's \`next_cursor\`.
@@ -1397,9 +1507,11 @@ Lists (non-deleted) vulnerabilities in last-change order, in pages.
 **Response \`200\`**: \`{"items": [...], "next_cursor": "…" | null}\`. Each item has:
 
 - \`id\` (UUID) and \`internal_id\` (\`VULN-xxxx\`, null while it is a draft).
-- \`status\`: \`draft\`, \`ready\`, \`sent\`, \`fixing\`, \`retesting\` or \`fixed\`.
+- \`status\`: \`draft\`, \`ready\`, \`sent\`, \`fixing\`, \`retesting\`, \`fixed\` or \`risk_accepted\`.
 - \`identifier\`, \`cwe\`, \`cvss_score\` (number or null), \`source\`, \`rvs_id\` (null until the RVS ID is recorded).
 - \`report\`: \`{id, internal_id, name, status}\` of the report it belongs to, or null.
+- \`batch_id\`: the batch it was created in (\`BATCH-0001\`), or null.
+- \`imported_at\`: when it was imported with its history, or null.
 - \`created_at\`, \`updated_at\` (UTC).
 
 **Errors**: \`422\` for an invalid status, date or cursor; \`404\` if the \`report\` does not exist.
@@ -1424,6 +1536,8 @@ curl -sS "https://<portal>/api/v1/vulnerabilities?status=fixing&limit=1" \\
       "source": "nuclei",
       "rvs_id": "RVS-2026-1005",
       "report": null,
+      "batch_id": null,
+      "imported_at": null,
       "created_at": "2026-10-08T12:59:30.258918",
       "updated_at": "2026-10-08T12:59:30.315866"
     }
@@ -1446,7 +1560,7 @@ One complete vulnerability.
 - \`references\` (list of URLs), \`cvss_vector\`.
 - \`operators\`: operator usernames.
 - \`metadata\`: free data sent by the tool that created it.
-- \`ready_at\`, \`sent_at\`, \`fixing_at\`, \`retesting_at\`, \`fixed_at\`: when it reached each status (UTC), or null.
+- \`ready_at\`, \`sent_at\`, \`accepted_at\`, \`fixing_at\`, \`retesting_at\`, \`fixed_at\`, \`risk_accepted_at\`: when it reached each status (UTC), or null; \`risk_reason\`: why the risk was accepted.
 
 Internal notes and the *Shared with* list are not sent.
 
@@ -1469,6 +1583,8 @@ curl -sS https://<portal>/api/v1/vulnerabilities/VULN-0003 -H "X-API-Key: $PORTA
   "source": "nuclei",
   "rvs_id": "RVS-2026-1005",
   "report": null,
+  "batch_id": null,
+  "imported_at": null,
   "created_at": "2026-10-08T12:59:30.258918",
   "updated_at": "2026-10-08T12:59:30.315866",
   "description": "Conteúdo persistido e renderizado sem escape.",
@@ -1643,7 +1759,8 @@ JSON body of up to **1 MB**. Every field is optional, under the rules below:
 - \`source\` (text, up to 200): the tool it came from, e.g. \`nuclei\`, \`burp\`. Shown in *Sources* and the \`source:\` filter.
 - \`internal_notes\` (Markdown): internal notes.
 - \`operators\` (list of up to 20 **usernames**): **active** users with role Administrator, Editor (all) or Restricted editor.
-- \`status\`: \`"draft"\` (default) or \`"ready"\`. The API never creates sent vulnerabilities.
+- \`status\`: \`"draft"\` (default) or \`"ready"\`. A plain creation never makes sent vulnerabilities; to bring in a past one already sent or fixed, see *Import past vulnerabilities*.
+- \`batch_id\`: this run's batch, created with \`POST /api/v1/batches\` (see *Batches*).
 - \`metadata\` (object): free data from the tool, stored as sent. **Unknown fields** in the body go to the metadata too. Limit: 64 KB in total.
 
 Rules:
@@ -1654,7 +1771,7 @@ Rules:
 \`201\` response:
 
 \`\`\`
-{"id": "72643b23-af52-42d9-a139-c1aea6f70a15", "internal_id": null, "status": "draft"}
+{"id": "72643b23-af52-42d9-a139-c1aea6f70a15", "internal_id": null, "status": "draft", "batch_id": null, "imported": false}
 \`\`\`
 
 \`id\` identifies the vulnerability (\`/vulnerabilities/<id>\` in the portal). \`internal_id\` is the \`VULN-xxxx\` internal ID, present only when the status is \`ready\`.
@@ -1673,8 +1790,85 @@ curl -sS -X POST https://<portal>/api/v1/vulnerabilities \\
 {
   "id": "72643b23-af52-42d9-a139-c1aea6f70a15",
   "internal_id": null,
-  "status": "draft"
+  "status": "draft",
+  "batch_id": null,
+  "imported": false
 }
+\`\`\``,
+      },
+      {
+        id: 'api-lotes', title: 'Batches',
+        md: `**\`POST /api/v1/batches\`** · scope \`vulns:write\`
+
+A tool that creates many vulnerabilities in one run can group them. Create the batch first (no body) and send its \`batch_id\` with each \`POST /api/v1/vulnerabilities\` of the run.
+
+\`201\` response:
+
+\`\`\`
+{"batch_id": "BATCH-0001", "created_at": "2026-11-24T19:30:04.949885"}
+\`\`\`
+
+- The number is the portal's and only counts on creation: a vulnerability cannot be put in or taken out of a batch later.
+- \`batch_id\` takes any case; a batch that doesn't exist is a \`422\`.
+- To read the batch: \`GET /api/v1/vulnerabilities?batch=BATCH-0001\`. In the portal: \`batch:BATCH-0001\` in Operations.
+
+**Example**
+
+\`\`\`
+BATCH=$(curl -sS -X POST https://<portal>/api/v1/batches -H "X-API-Key: $PORTAL_KEY" | jq -r .batch_id)
+for f in findings/*.json; do
+  jq --arg b "$BATCH" '. + {batch_id: $b}' "$f" |
+    curl -sS -X POST https://<portal>/api/v1/vulnerabilities \\
+      -H "X-API-Key: $PORTAL_KEY" -H "Content-Type: application/json" -d @-
+done
+\`\`\``,
+      },
+      {
+        id: 'api-importar', title: 'Import past vulnerabilities',
+        md: `**\`POST /api/v1/vulnerabilities\`** · scopes \`vulns:write\` **and** \`vulns:import\`
+
+For vulnerabilities from earlier semesters, tracked in another system. The same endpoint and body as *Create a vulnerability*, with more fields: the vulnerability arrives as it ended up, with the date of each step, so the timeline and the dashboards' durations are right. Without \`vulns:import\`, any of these fields is a \`403\`.
+
+- \`status\`: any: \`draft\`, \`ready\`, \`sent\`, \`fixing\`, \`retesting\`, \`fixed\`, \`risk_accepted\`.
+- \`internal_id\`: its original number (\`VULN-0042\`). Later numbers come after it. Without it, it gets the next number. A draft has none. \`409\` if it exists.
+- \`created_at\`, \`ready_at\`, \`sent_at\`, \`accepted_at\`, \`fixing_at\`, \`retesting_at\`, \`fixed_at\`, \`risk_accepted_at\`: ISO 8601 (a \`Z\` or offset is converted to UTC); none in the future.
+- \`updated_at\`: defaults to the last of its dates; not before it.
+- \`rvs_id\`: required for \`fixing\`, \`retesting\` and \`fixed\`; \`409\` if another vulnerability has it.
+- \`accepted_by\`, \`risk_accepted_by\`: usernames of existing users (optional).
+- \`risk_reason\`: required for \`risk_accepted\`.
+
+Each status needs the dates of the steps up to it, and none after:
+
+- \`draft\`: \`created_at\`
+- \`ready\`: plus \`ready_at\`
+- \`sent\`: plus \`sent_at\`; \`accepted_at\` optional
+- \`risk_accepted\`: \`created_at\`, \`ready_at\`, \`sent_at\`, \`risk_accepted_at\` and \`risk_reason\`; \`accepted_at\` optional
+- \`fixing\`: \`created_at\`, \`ready_at\`, \`sent_at\`, \`fixing_at\` and \`rvs_id\`; \`accepted_at\` optional (default: \`fixing_at\`)
+- \`retesting\`: plus \`retesting_at\`
+- \`fixed\`: \`created_at\`, \`ready_at\`, \`sent_at\`, \`fixing_at\`, \`fixed_at\` and \`rvs_id\`; \`accepted_at\` and \`retesting_at\` optional
+
+Dates follow the lifecycle (created ≤ ready ≤ sent ≤ accepted ≤ fixing ≤ retesting ≤ fixed; sent ≤ risk accepted). The \`422\` lists every problem at once. Beyond \`draft\`, the usual required fields apply (\`identifier\`, \`description\`, \`finding_detail\`).
+
+- **Nothing is sent** (no email) and **no history is made up**: the Audit Logs have one creation, with \`"import": true\`.
+- The vulnerability keeps \`imported_at\` (in the reads and as *Imported on …* on its page); the response says \`"imported": true\`.
+- Imports are standalone vulnerabilities (no report). Past corrections don't become events: note them in \`internal_notes\` or \`metadata\`.
+
+**Example**
+
+\`\`\`
+curl -sS -X POST https://<portal>/api/v1/vulnerabilities \\
+  -H "X-API-Key: $IMPORT_KEY" -H "Content-Type: application/json" \\
+  -d '{"identifier": "SQL injection in Customer Portal", "description": "…", "finding_detail": "…",
+       "status": "fixed", "internal_id": "VULN-0042", "rvs_id": "RVS-2025-00017",
+       "created_at": "2025-03-03T14:00:00-03:00", "ready_at": "2025-03-04T10:00:00-03:00",
+       "sent_at": "2025-03-05T09:00:00-03:00", "fixing_at": "2025-03-12T16:00:00-03:00",
+       "retesting_at": "2025-04-01T10:00:00-03:00", "fixed_at": "2025-04-02T11:00:00-03:00",
+       "internal_notes": "Imported from the 2025S1 sheet"}'
+\`\`\`
+
+\`\`\`
+201
+{"id": "…", "internal_id": "VULN-0042", "status": "fixed", "batch_id": null, "imported": true}
 \`\`\``,
       },
       {
@@ -1846,13 +2040,14 @@ curl -sS https://<portal>/api/health
 - \`401\`: missing, invalid, revoked or expired key. \`{"detail": "Invalid or missing API key"}\`
 - \`403\`: the key lacks the endpoint's scope. \`{"detail": "This API key lacks the scope 'rvs:write'"}\`
 - \`404\`: the record doesn't exist (or was deleted).
-- \`409\`: the action doesn't fit the current status, e.g. an RVS ID on a vulnerability not sent, or already set.
+- \`409\`: the action doesn't fit the current status, e.g. an RVS ID on a vulnerability not sent, or already set; or, in an import, the number or the RVS ID already exists.
 - \`413\`: body over 1 MB.
 - \`422\`: invalid data or parameters (an invalid \`cursor\` included). Examples:
 
 \`\`\`
 {"detail": "Required for status 'ready': description, finding_detail"}
 {"detail": "unknown operator(s): nobody; operator(s) not active writers: isabella"}
+{"detail": "status 'fixed' needs: fixing_at; sent_at is after fixing_at"}
 {"detail": [{"loc": ["body", "cvss_score"], "msg": "Input should be less than or equal to 10", ...}]}
 \`\`\``,
       },
@@ -1862,7 +2057,9 @@ curl -sS https://<portal>/api/health
 - Never put the key in code or repositories: read it from an environment variable or a vault.
 - To sync, use \`updated_since\` + \`next_cursor\` instead of downloading everything on each run.
 - **There is no de-duplication** on create: repeating a request creates another record. After a network error, check (\`source\` filter) before sending again.
-- Send as \`draft\` when an analyst still needs to review the finding.`,
+- Send as \`draft\` when an analyst still needs to review the finding.
+- In a run with several findings, create a **batch** and send its \`batch_id\` with each: everything that came together is easy to find and review.
+- To import, use a key just for that (\`vulns:write\` + \`vulns:import\`, with an expiry) and revoke it at the end. Try a few vulnerabilities before importing everything.`,
       },
     ],
   },
@@ -2011,6 +2208,7 @@ For roles with full access (Administrator, Editor and Reader all, Auditor) the p
 - The full key is shown **only once**, right after creation: copy it and hand it to the system's owner over a safe channel. Afterwards the portal shows only its prefix.
 - The list shows each key's scopes, expiry and last use.
 - **Revoke** disables a key at once; revoke keys no longer in use or that may have leaked.
+- \`vulns:import\` lets the key create vulnerabilities with past statuses, dates and numbers: give it only to the script that brings in past vulnerabilities, and revoke the key when the import is done.
 
 Scopes and endpoints in the **API** section.`,
       },

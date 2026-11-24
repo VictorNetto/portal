@@ -169,6 +169,9 @@ When the parent report is dispatched, all its linked vulns transition to `dispat
 | **Operators** | Linked users | List of operators assigned to this vuln |
 | **Source** | Text, nullable | Origin of the vuln (e.g. `manual`, `nuclei`, `bugcrowd`, `api-import`). Set at creation; follows standard field-lock rules (read-only after `dispatched`) |
 | **Extra Metadata** | JSON | Additional fields from inbound API calls stored as-is; see §11 and §15.8 |
+| **Creation date** | Timestamp | Now by default; may be set by hand on the form or on create (a finding recorded later), never in the future. Editable with the content (draft / ready), never after the completion date |
+| **Batch** | Text, nullable | `BATCH-0001`: the integration-API run it was created in (§11). Set on creation only |
+| **Imported at** | Timestamp, nullable | Set when a past vuln is brought in with its history (§11, `vulns:import`); its dates are another system's |
 | **Internal Notes** | Markdown | Operator-only; excluded from all exports |
 | **Attachments** | Files | See §5.1 |
 | **report_id** | FK, nullable | `NULL` = standalone vuln (see Glossary) |
@@ -321,6 +324,16 @@ Accessible via dedicated UI to the `auditor` role and `admin`.
 - Required fields validated; additional fields stored as structured metadata.
 - Callers control the initial status via a request parameter: `"status": "draft"` (default) or `"status": "saved_local"`. No system-level configuration — the caller decides per request.
 - Authenticated via API keys (admin-managed).
+- **Batches.** A tool creating many vulns in one run asks for a batch id first
+  (`POST /v1/batches` → `BATCH-0001`) and sends it as `batch_id` with each vuln. The id is made
+  by the portal and set on creation only; the Hub filters it (`batch:`), the API lists it
+  (`?batch=`).
+- **Imports.** A key that also holds the `vulns:import` scope may create a past vuln as it ended
+  up: any status, the date of each step, its original `VULN-` number (the counter moves past it),
+  its RVS ID, who accepted it and the risk reason. Each status needs the dates leading to it and
+  none after, in lifecycle order. Nothing is dispatched and no history is invented: one audit
+  creation marked `import`, and the record keeps `imported_at`. Without the scope, those fields
+  are refused (`403`). Imports are standalone vulns. Full rules: `docs/API.md`.
 
 ### RVS Management Panel
 - Queue view: vulns in `dispatched` status with no RVS ID.
@@ -403,7 +416,8 @@ All `vuln_status` values are implemented in MVP, including the transient `dispat
 | Sequence | Format | Assigned when |
 |---|---|---|
 | `report_seq` | `OP-%04d` | First save of a report (draft → first write) |
-| `vuln_seq` | `VULN-%04d` | Standalone: `saved_local` transition. Report vuln: assigned in dispatch phase 1 (`draft → dispatching`), see §9 / D2 |
+| `vuln_seq` | `VULN-%04d` | Standalone: `saved_local` transition. Report vuln: assigned in dispatch phase 1 (`draft → dispatching`), see §9 / D2. An import with its own number moves the counter past it (§11) |
+| `vuln_batch_seq` | `BATCH-%04d` | `POST /v1/batches` (§11) |
 
 ### 15.3 Table: `users`
 
@@ -515,11 +529,24 @@ UNIQUE on (`report_id`, `position`); reordering shifts positions in a single tra
 | `pending_retest_at` | timestamptz | NULL | |
 | `fixed_at` | timestamptz | NULL | |
 | `created_by` | uuid | FK users NOT NULL | |
-| `created_at` | timestamptz | NOT NULL | |
+| `created_at` | timestamptz | NOT NULL | default now; may be set by hand (form, create) or by an import |
 | `updated_at` | timestamptz | NOT NULL | |
 | `deleted_at` | timestamptz | NULL | soft delete |
+| `batch_id` | text | FK vuln_batches(internal_id) NULL, indexed | the integration-API run it was created in |
+| `imported_at` | timestamptz | NULL | set when imported with its history (`vulns:import`) |
 
 **`report_id` constraint:** enforced at app layer — a vuln's `report_id` cannot change once the parent report is `dispatched`. `ON DELETE CASCADE` means deleting a report removes its linked vulns; the app layer only ever permits deleting a **`draft`** report, so cascade never reaches dispatched/live vulns (D1).
+
+### 15.8.1 Table: `vuln_batches`
+
+Vulns created together by one integration-API run (§11).
+
+| Column | Type | Constraints | Notes |
+|---|---|---|---|
+| `id` | uuid | PK | |
+| `internal_id` | text | UNIQUE NOT NULL | `BATCH-0001` (`vuln_batch_seq`); what `vulnerabilities.batch_id` holds |
+| `api_key_id` | uuid | FK api_keys NULL | the key that asked for it |
+| `created_at` | timestamptz | NOT NULL | |
 
 ### 15.9 Table: `vulnerability_operators`
 

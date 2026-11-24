@@ -8,13 +8,13 @@ A self-hosted web platform for a professional red team to **manage, document, an
 
 | Area | Highlights |
 |---|---|
-| **Vulnerabilities** | Draft → ready → sent → fixing (RVS id) ⇄ retesting → fixed (D14); field locks per status; optimistic concurrency; admin status adjustment with audit; operators; timeline |
+| **Vulnerabilities** | Draft → ready → sent → fixing (RVS id) ⇄ retesting → fixed (D14); field locks per status; optimistic concurrency; admin status adjustment with audit; operators; timeline; a creation date chosen by hand (for findings recorded later) |
 | **Reports** | OP-xxxx ids, write lock (10 min idle, admin force-release), Markdown sections, free-form extra sections, vulnerabilities inside the report, evidence files, two-phase send with retry, progress after sending |
 | **Editor** | Markdown editor with preview, line gutter, image paste/drop (stored as attachments), safe renderer |
 | **Attachments** | Pluggable storage (local volume or S3/MinIO), type/content validation, 50 MB cap, proxied + audited reads |
 | **Exports** | PDF, Excel and Word for reports; PDF/Word for a vulnerability; batch ZIP/Excel from the Hub. Internal notes are never exported |
 | **Dispatch** | Decoupled dispatcher: `stub` (default, logs only) or `smtp` (real email with PDF + Excel + non-image files) |
-| **Integration API** | `/api/v1` with scoped API keys: read vulnerabilities/reports, exports, RVS IDs, create vulnerabilities — see [docs/API.md](docs/API.md) |
+| **Integration API** | `/api/v1` with scoped API keys: read vulnerabilities/reports, exports, RVS IDs, create vulnerabilities (grouped in batches, `batch:` in the Hub), import past ones with their status, dates and numbers (`vulns:import`) — see [docs/API.md](docs/API.md) |
 | **Dashboards** | Charts written as one-line queries (counts and durations only), variables, live previews, read-only TV links — see [docs/specs/DASHBOARDS.md](docs/specs/DASHBOARDS.md), D18 |
 | **Administration** | Users and roles (admin · write_all · read_all · write_restricted · read_restricted · auditor · defense · dashboard; see D10, D17, D18), forced password change on first login, API keys, audit log viewer |
 | **Hub** | Vulnerabilities / Reports tabs, filter language, details drawer with timeline, row and batch actions |

@@ -486,7 +486,8 @@ Shows:
 #### Column 3 — Origin / ownership
 Shows:
 - Fonte;
-- Operadores.
+- Operadores;
+- Lote, when the vuln came in an integration-API batch (a click filters the list by `batch:<id>`).
 
 ### 7.6 Closing Rules
 
@@ -529,6 +530,11 @@ Recommended structure:
 - helper text;
 - top-right page actions.
 
+On an existing vuln the line under the title shows the status, the internal ID, the version and,
+when they apply, **Lote `BATCH-0001`** (a link to the Hub filtered by `batch:BATCH-0001`; the Hub
+also takes `?q=` to open with a filter) and **Importada em …** (brought in through the
+integration API with its history, `vulns:import`).
+
 ### 8.5 Page Actions
 
 - `Cancelar`
@@ -541,6 +547,7 @@ Recommended structure:
 Fields:
 - Identificador;
 - CWE;
+- Data de criação (a date, today by default, no future days; editable in draft and ready, never after the completion date; read-only afterwards);
 - CVSS;
 - Fonte;
 - Operador.
