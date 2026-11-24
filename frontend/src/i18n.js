@@ -388,7 +388,12 @@ const messages = {
       risk_accepted: 'Risco assumido',
     },
     rstatus: { draft: 'Rascunho', created: 'Criado', sent: 'Enviado', done: 'Concluído', progress: '{fixed} de {total} encerradas' },
-    docs: { menu: 'Documentação', title: 'Documentação', subtitle: 'Como usar o portal.', contents: 'Conteúdo' },
+    docs: {
+      menu: 'Documentação', title: 'Documentação', contents: 'Conteúdo', search: 'Buscar no guia',
+      results: '{n} página(s) encontrada(s)', noResults: 'Nenhuma página encontrada.', chapter: 'Capítulo {n}',
+      inChapter: 'Neste capítulo', pager: 'Páginas', prev: 'Anterior', next: 'Próximo',
+      keys: 'As setas ← e → do teclado também passam de página',
+    },
     dialog: { title: 'Confirmação', ok: 'Confirmar', cancel: 'Cancelar', delete: 'Excluir', revoke: 'Revogar', leave: 'Sair sem salvar', discard: 'Descartar' },
     session: {
       idleTitle: 'Você ainda está aí?',
@@ -1084,7 +1089,12 @@ const messages = {
       risk_accepted: 'Risk accepted',
     },
     rstatus: { draft: 'Draft', created: 'Created', sent: 'Sent', done: 'Completed', progress: '{fixed} of {total} closed' },
-    docs: { menu: 'Documentation', title: 'Documentation', subtitle: 'How to use the portal.', contents: 'Contents' },
+    docs: {
+      menu: 'Documentation', title: 'Documentation', contents: 'Contents', search: 'Search the guide',
+      results: '{n} page(s) found', noResults: 'No page found.', chapter: 'Chapter {n}',
+      inChapter: 'In this chapter', pager: 'Pages', prev: 'Previous', next: 'Next',
+      keys: 'The ← and → keys also turn the page',
+    },
     dialog: { title: 'Confirmation', ok: 'Confirm', cancel: 'Cancel', delete: 'Delete', revoke: 'Revoke', leave: 'Leave without saving', discard: 'Discard' },
     session: {
       idleTitle: 'Are you still there?',

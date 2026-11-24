@@ -229,6 +229,7 @@ Scrollbars use the same console-like style as the rest of the page:
 /reports/:id              -> Report details page
 /vulnerabilities/:id/edit -> Edit Vulnerability page or create page in edit mode
 /reports/:id/edit         -> Edit Report page
+/docs/:page               -> User guide, one page at a time (§18)
 ```
 
 ### 4.2 Route Rules
@@ -1025,3 +1026,32 @@ The current frontend MVP draft consists of:
 - create vulnerability page;
 - reusable Markdown Editor with edition and visualization modes;
 - route and API expectations for the current UI scope.
+
+## 18. Documentation Page (`/docs/:page`)
+
+The user guide is read like a book (modelled on *The Rust Programming Language*), not as one
+scrolling page:
+
+- **Sidebar:** the guide's title, a search box, then the numbered chapters (`1.`, `2.` …) with
+  their sections (`2.1`, `2.2` …); the page being read is highlighted. An unnumbered
+  *Introdução* opens the book.
+- **Reader:** one page at a time, at a reading width (~740 px): an eyebrow (*Capítulo 2*, or the
+  chapter's number and title on a section), the title, and the text. A chapter's opening page ends
+  with *Neste capítulo*, the list of its sections.
+- **Pager:** *Anterior* / *Próximo* at the bottom, with the target's number and title; the ← and
+  → keys turn the page too (not while typing in a field).
+- **Search:** every word typed must appear in a page's title or text (case and accents ignored);
+  the results, with a snippet, replace the page until one is opened or the box is cleared.
+- **Links between pages** are written `[text](#page-id)` and open in place. `/docs` opens the
+  first page; an unknown id, or one the role may not read, goes to the first page; the old
+  one-page anchors (`/docs#rvs`) land on the page that now holds them.
+- **Roles:** a chapter or page about something the role can't use is left out, and the numbering
+  follows what is left. The defense and dashboard roles see only their own chapter (admins see
+  every chapter).
+- **Writing style:** prose first. Lists and tables only where the content is a real enumeration
+  (filter keys, roles, API fields and parameters); the renderer supports `| a | b |` tables for the
+  guide only (report documents have none).
+
+The text lives in `frontend/src/docs/pt/*.md` and `frontend/src/docs/en/*.md`, one file per
+chapter; a page starts at `<!-- page: <id> -->` and its first `# ` line is its title.
+`frontend/src/docs/index.js` sets the chapter order, the pages of each and who sees what.

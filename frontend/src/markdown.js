@@ -6,7 +6,8 @@
 // prototype let any href through, which would allow `[x](javascript:...)`).
 //
 // Supported: # ## ### headings, **bold**, *italic*, `code`, ``` fences,
-// - / 1. lists, > quotes, [text](url), ![alt](url).
+// - / 1. lists, > quotes, [text](url), ![alt](url). With `{ tables: true }` (the user guide
+// only: report documents have no tables), `| a | b |` tables too, `\|` for a pipe in a cell.
 
 const ATTACHMENT_URL = /^\/api\/attachments\/([0-9a-f-]{36})\/content$/i
 const SAFE_LINK = /^(https?:\/\/|mailto:|#)/i
@@ -56,7 +57,7 @@ function inline(text) {
   return out.replace(/\u0000(\d+)\u0000/g, (_, i) => stash[Number(i)])
 }
 
-export function renderMarkdown(source) {
+export function renderMarkdown(source, { tables = false } = {}) {
   const text = escapeHtml(source || '').replace(/\r\n?/g, '\n')
 
   // Fenced code blocks are lifted out so their content is never formatted.
@@ -81,8 +82,23 @@ export function renderMarkdown(source) {
   }
   const flushAll = () => { flushPara(); flushList(); flushQuote() }
 
-  for (const line of lines) {
+  const ROW = /^\|.*\|\s*$/
+  const RULE = /^\|(\s*:?-{3,}:?\s*\|)+\s*$/
+  const cells = (row) => row.trim().slice(1, -1).split(/(?<!\\)\|/).map((c) => inline(c.trim().replace(/\\\|/g, '|')))
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i]
     let m
+    if (tables && ROW.test(line) && RULE.test(lines[i + 1] || '')) {
+      flushAll()
+      const head = cells(line)
+      const rows = []
+      for (i += 2; i < lines.length && ROW.test(lines[i]); i++) rows.push(cells(lines[i]))
+      i--
+      html.push(`<table><thead><tr>${head.map((c) => `<th>${c}</th>`).join('')}</tr></thead><tbody>${
+        rows.map((r) => `<tr>${r.map((c) => `<td>${c}</td>`).join('')}</tr>`).join('')}</tbody></table>`)
+      continue
+    }
     if (!line.trim()) { flushAll(); continue }
     if ((m = line.match(/^\u0001(\d+)\u0001$/))) { flushAll(); html.push(blocks[Number(m[1])]); continue }
     if ((m = line.match(/^(#{1,3}) (.*)$/))) { flushAll(); html.push(`<h${m[1].length}>${inline(m[2])}</h${m[1].length}>`); continue }

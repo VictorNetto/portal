@@ -6,9 +6,9 @@ import { renderMarkdown } from '../markdown'
 import { attachmentObjectUrl } from '../api'
 import { t } from '../i18n'
 
-const props = defineProps({ source: { type: String, default: '' } })
+const props = defineProps({ source: { type: String, default: '' }, tables: { type: Boolean, default: false } })
 const root = ref(null)
-const html = computed(() => renderMarkdown(props.source))
+const html = computed(() => renderMarkdown(props.source, { tables: props.tables }))
 
 async function resolveImages() {
   await nextTick()

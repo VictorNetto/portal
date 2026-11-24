@@ -34,7 +34,7 @@ const routes = [
   { path: '/reports/:id', name: 'report-detail', component: ReportView },
   { path: '/reports/:rid/vulnerabilities/new', name: 'report-vuln-new', component: VulnDetailView },
   { path: '/profile', name: 'profile', component: ProfileView },
-  { path: '/docs', name: 'docs', component: DocsView },
+  { path: '/docs/:page?', name: 'docs', component: DocsView },
   { path: '/templates', name: 'templates', component: TemplatesView, meta: { roles: ['admin', 'write_all', 'write_restricted'] } },
   { path: '/audit-logs', name: 'audit', component: AuditView, meta: { roles: ['admin', 'auditor'] } },
   // D17: one page per section of the defense team's work; /defense opens the first.

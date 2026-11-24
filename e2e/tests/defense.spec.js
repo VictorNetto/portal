@@ -261,16 +261,19 @@ test('the documentation shows the defense team only its own guide', async ({ pag
   await loginDefense(page)
   await page.click('.profileBtn')
   await page.click('.profileMenu .menuItem:has-text("Documentação")')
-  await expect(page).toHaveURL(/\/docs$/)
-  await expect(page.locator('.docSection .secHead')).toHaveText(['Time de defesa'])
-  await expect(page.locator('#doc-defesa .docCard h3')).toHaveText([
-    'Primeiros passos', 'Sessão', 'As seções', 'Uma vulnerabilidade', 'Aceitar e registrar o RVS',
-    'Assumir o risco', 'Várias vulnerabilidades de uma vez', 'Filtros', 'Depois do RVS', 'Registro das ações',
+  await expect(page).toHaveURL(/\/docs\/defesa$/)                         // its guide is the whole book
+  await expect(page.locator('.toc .chapterLink')).toHaveText(['1.O time de defesa no portal'])
+  await expect(page.locator('.toc .sections .tocLink')).toHaveText([
+    '1.1.A sessão', '1.2.As seções e as vulnerabilidades', '1.3.Aceitar e registrar o RVS', '1.4.Assumir o risco',
+    '1.5.Várias vulnerabilidades de uma vez', '1.6.Filtros', '1.7.Depois do RVS',
   ])
-  await expect(page.locator('#doc-def-secoes li')).toHaveCount(5)
-  await expect(page.locator('#doc-def-filtros code').first()).toHaveText('/')
-  await page.click('.toc .tocItem:has-text("Assumir o risco")')
-  await expect(page.locator('#doc-def-risco')).toBeInViewport()
+  await page.click('.toc .tocLink:has-text("Filtros")')
+  await expect(page).toHaveURL(/\/docs\/def-filtros$/)
+  await expect(page.locator('.prose code').first()).toHaveText('/')
+  await page.click('.pager .prev')
+  await expect(page.locator('.page h1')).toHaveText('Várias vulnerabilidades de uma vez')
+  await page.goto('/docs/api')                                               // the red team's pages are not there
+  await expect(page).toHaveURL(/\/docs\/defesa$/)
 })
 
 test('a fix is handed back: retest requested, or closed without one', async ({ page }) => {

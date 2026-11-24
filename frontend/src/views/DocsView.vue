@@ -1,124 +1,204 @@
 <script setup>
-// User documentation: sections with subsections, a table of contents on the
-// left and one card per subsection. Topics about features the user's role can't
-// use are left out, like the nav does.
+// The user guide, read like a book: the chapters and their sections on the left, one page at a
+// time on the right, Previous / Next at the bottom (and the ← → keys). /docs/<page> is a page;
+// /docs and the old one-page anchors (/docs#<id>) land on the right one. Pages about what the
+// user's role can't use are left out, like the nav does (docs/index.js).
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import AppShell from '../components/AppShell.vue'
 import MarkdownView from '../components/MarkdownView.vue'
 import { useAuthStore } from '../stores/auth'
-import { DOCS } from '../docs'
+import { ALIASES, bookFor, search } from '../docs/index.js'
 import { locale, t } from '../i18n'
 
 const auth = useAuthStore()
 const route = useRoute()
 const router = useRouter()
 
-// A topic takes its section's `roles` when it has none of its own. Without any, it is for the
-// red team, so a defense (D17) or dashboard (D18) account doesn't see it.
-const allowed = (x, inherited) => {
-  const roles = x.roles || inherited
-  return roles ? roles.includes(auth.user?.role) : !['defense', 'dashboard'].includes(auth.user?.role)
-}
-const sections = computed(() => (DOCS[locale.value] || DOCS['pt-BR'])
-  .filter((s) => allowed(s))
-  .map((s) => ({ ...s, subs: s.subs.filter((sub) => allowed(sub, s.roles)) }))
-  .filter((s) => s.subs.length))
-const current = ref('')
+const book = computed(() => bookFor(locale.value, auth.user?.role))
+const pageId = computed(() => String(route.params.page || ''))
+const page = computed(() => book.value.byId[pageId.value] || null)
+const index = computed(() => book.value.flat.indexOf(page.value))
+const prev = computed(() => (index.value > 0 ? book.value.flat[index.value - 1] : null))
+const next = computed(() => (index.value >= 0 ? book.value.flat[index.value + 1] || null : null))
+const chapter = computed(() => page.value && (page.value.chapter ? page.value : page.value.parent))
 
-function go(id) {
-  document.getElementById(`doc-${id}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-  const sec = sections.value.find((s) => s.id === id)
-  current.value = sec ? sec.subs[0].id : id
-  router.replace({ hash: `#${id}` })
-}
+const to = (id) => ({ name: 'docs', params: { page: id } })
+const label = (p) => (p.num ? `${p.num}. ${p.title}` : p.title)
 
-// Highlight the subsection being read: the top-most card in the upper part of
-// the page. The observer only reports changes, so keep the whole visible set.
-let observer = null
-const visible = new Set()
-function observe() {
-  observer?.disconnect()
-  visible.clear()
-  observer = new IntersectionObserver((entries) => {
-    for (const e of entries) e.isIntersecting ? visible.add(e.target) : visible.delete(e.target)
-    const top = [...visible].sort((a, b) => a.getBoundingClientRect().top - b.getBoundingClientRect().top)[0]
-    if (top) current.value = top.dataset.id
-  }, { root: document.querySelector('.main'), rootMargin: '0px 0px -70% 0px' })
-  document.querySelectorAll('.docCard').forEach((el) => observer.observe(el))
+// An unknown, old or hidden page id goes to the page it became, or to the first page.
+function settle() {
+  const want = pageId.value || route.hash.slice(1)
+  const { byId, flat } = book.value
+  const id = byId[want] ? want : byId[ALIASES[want]] ? ALIASES[want] : flat[0]?.id
+  if (id && (id !== pageId.value || route.hash)) router.replace(to(id))
+}
+watch([pageId, book], settle, { immediate: true })
+
+const scroller = () => document.querySelector('.main')
+watch(pageId, async () => { query.value = ''; await nextTick(); scroller()?.scrollTo({ top: 0 }) })
+
+// Links between pages are written [text](#id): open them here instead of in a new tab.
+function onArticleClick(e) {
+  const a = e.target.closest('a')
+  const href = a?.getAttribute('href') || ''
+  if (!href.startsWith('#')) return
+  e.preventDefault()
+  router.push(to(href.slice(1)))
 }
 
-onMounted(async () => {
+// ← and → turn the page, unless the user is typing.
+function onKey(e) {
+  if (e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return
+  if (e.target.closest?.('input, textarea, select, [contenteditable="true"]')) return
+  const target = e.key === 'ArrowLeft' ? prev.value : e.key === 'ArrowRight' ? next.value : null
+  if (target) { e.preventDefault(); router.push(to(target.id)) }
+}
+onMounted(() => {
   document.documentElement.removeAttribute('data-entity')
-  await nextTick()
-  observe()
-  const id = route.hash.slice(1)
-  if (id) document.getElementById(`doc-${id}`)?.scrollIntoView({ block: 'start' })
-  const sec = sections.value.find((s) => s.id === id)
-  current.value = sec ? sec.subs[0].id : id || sections.value[0]?.subs[0]?.id || ''
+  window.addEventListener('keydown', onKey)
 })
-watch(sections, async () => { await nextTick(); observe() })
-onUnmounted(() => observer?.disconnect())
+onUnmounted(() => window.removeEventListener('keydown', onKey))
+
+const query = ref('')
+const hits = computed(() => search(book.value, query.value).slice(0, 30))
+function openHit(id) { query.value = ''; router.push(to(id)) }
 </script>
 
 <template>
   <AppShell>
-    <div class="pageTop">
-      <div class="titleBlock">
-        <h1>{{ t('docs.title') }}</h1>
-        <p>{{ t('docs.subtitle') }}</p>
-      </div>
-    </div>
-
-    <div class="docs">
+    <div class="book">
       <nav class="toc" :aria-label="t('docs.contents')">
-        <div class="tocLabel">{{ t('docs.contents') }}</div>
-        <template v-for="s in sections" :key="s.id">
-          <a :href="`#${s.id}`" class="tocSection" @click.prevent="go(s.id)">{{ s.title }}</a>
-          <a v-for="x in s.subs" :key="x.id" :href="`#${x.id}`" class="tocItem"
-             :class="{ current: current === x.id }" @click.prevent="go(x.id)">{{ x.title }}</a>
-        </template>
+        <div class="tocTitle">{{ t('docs.title') }}</div>
+        <input v-model="query" class="search" type="search" :placeholder="t('docs.search')" :aria-label="t('docs.search')" />
+        <ol class="chapters">
+          <li v-for="c in book.chapters" :key="c.id">
+            <router-link :to="to(c.id)" class="tocLink chapterLink" :class="{ current: c.id === pageId }">
+              <span v-if="c.num" class="num">{{ c.num }}.</span>{{ c.title }}
+            </router-link>
+            <ol v-if="c.pages.length" class="sections">
+              <li v-for="p in c.pages" :key="p.id">
+                <router-link :to="to(p.id)" class="tocLink" :class="{ current: p.id === pageId }">
+                  <span class="num">{{ p.num }}.</span>{{ p.title }}
+                </router-link>
+              </li>
+            </ol>
+          </li>
+        </ol>
       </nav>
 
-      <div class="sections">
-        <section v-for="s in sections" :id="`doc-${s.id}`" :key="s.id" class="docSection">
-          <h2 class="secHead">{{ s.title }}</h2>
-          <article v-for="x in s.subs" :id="`doc-${x.id}`" :key="x.id" :data-id="x.id" class="panel docCard">
-            <h3>{{ x.title }}</h3>
-            <MarkdownView :source="x.md" />
-          </article>
+      <div class="reader">
+        <section v-if="query.trim()" class="results" aria-live="polite">
+          <p class="eyebrow">{{ hits.length ? t('docs.results', { n: hits.length }) : t('docs.noResults') }}</p>
+          <button v-for="h in hits" :key="h.page.id" type="button" class="hit" @click="openHit(h.page.id)">
+            <span class="hitTitle">{{ label(h.page) }}</span>
+            <span v-if="!h.page.chapter" class="hitWhere">{{ label(h.page.parent) }}</span>
+            <span class="hitText">{{ h.snippet }}</span>
+          </button>
         </section>
+
+        <article v-else-if="page" class="page" @click="onArticleClick">
+          <p v-if="page.num" class="eyebrow">
+            {{ page.chapter ? t('docs.chapter', { n: page.num }) : label(chapter) }}
+          </p>
+          <h1>{{ page.title }}</h1>
+          <MarkdownView class="prose" :source="page.md" tables />
+
+          <nav v-if="page.chapter && page.pages.length" class="inChapter" :aria-label="t('docs.inChapter')">
+            <h2>{{ t('docs.inChapter') }}</h2>
+            <ol>
+              <li v-for="p in page.pages" :key="p.id">
+                <router-link :to="to(p.id)"><span class="num">{{ p.num }}.</span>{{ p.title }}</router-link>
+              </li>
+            </ol>
+          </nav>
+
+          <nav class="pager" :aria-label="t('docs.pager')">
+            <router-link v-if="prev" :to="to(prev.id)" class="turn prev" :title="t('docs.keys')">
+              <span class="dir">← {{ t('docs.prev') }}</span><span class="where">{{ label(prev) }}</span>
+            </router-link>
+            <span v-else></span>
+            <router-link v-if="next" :to="to(next.id)" class="turn next" :title="t('docs.keys')">
+              <span class="dir">{{ t('docs.next') }} →</span><span class="where">{{ label(next) }}</span>
+            </router-link>
+          </nav>
+        </article>
       </div>
     </div>
   </AppShell>
 </template>
 
 <style scoped>
-.docs { display: grid; grid-template-columns: 230px minmax(0, 860px); gap: 24px; align-items: start; }
+.book { display: grid; grid-template-columns: 260px minmax(0, 1fr); gap: 40px; align-items: start; }
+
 .toc {
-  position: sticky; top: 0; display: flex; flex-direction: column; gap: 1px;
-  max-height: calc(100vh - var(--header) - 56px); overflow-y: auto;
+  position: sticky; top: 0; max-height: calc(100vh - var(--header) - 48px); overflow-y: auto;
+  padding-right: 8px; border-right: 1px solid var(--line);
 }
-.tocLabel { font-size: 11px; color: var(--dim); padding: 0 10px 6px; }
-.tocSection {
-  margin-top: 10px; padding: 5px 10px; font-size: 13px; font-weight: 500; color: var(--text);
-  text-decoration: none; cursor: pointer; border-radius: var(--radius-sm);
+.tocTitle { font-size: 13px; font-weight: 500; color: var(--text); padding: 2px 10px 10px; }
+.search {
+  width: calc(100% - 4px); margin: 0 2px 14px; padding: 6px 10px; font-size: 13px;
+  border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--bg); color: var(--text);
 }
-.tocSection:first-of-type { margin-top: 0; }
-.tocItem {
-  padding: 5px 10px 5px 20px; border-radius: var(--radius-sm); font-size: 13px; color: var(--text-2);
-  text-decoration: none; cursor: pointer;
+.chapters, .sections { list-style: none; margin: 0; padding: 0; }
+.chapters > li { margin-bottom: 6px; }
+.tocLink {
+  display: flex; gap: 6px; padding: 4px 10px; border-radius: var(--radius-sm);
+  font-size: 13px; line-height: 1.4; color: var(--text-2); text-decoration: none;
 }
-.tocSection:hover, .tocItem:hover:not(.current) { background: var(--hover); }
-.tocItem.current { color: var(--accent); }
-.sections { display: grid; gap: 28px; }
-.docSection { display: grid; gap: 12px; scroll-margin-top: 8px; }
-.secHead { margin: 0; font-size: 19px; font-weight: 300; color: var(--text); }
-.docCard { padding: 16px 20px 8px; scroll-margin-top: 8px; }
-.docCard h3 { margin: 0 0 10px; font-size: 15px; font-weight: 400; color: var(--text); }
-.docCard :deep(.mdView) { font-size: 14px; }
+.chapterLink { color: var(--text); font-weight: 500; }
+.sections .tocLink { padding-left: 22px; }
+.tocLink:hover:not(.current) { background: var(--hover); }
+.tocLink.current { color: var(--accent); background: var(--hover); }
+.num { color: var(--dim); font-variant-numeric: tabular-nums; flex: none; }
+.tocLink.current .num { color: inherit; }
+
+.reader { min-width: 0; }
+.page, .results { max-width: 740px; padding: 8px 0 40px; }
+.eyebrow { margin: 0 0 6px; font-size: 12px; letter-spacing: .02em; color: var(--dim); }
+.page h1 { margin: 0 0 22px; font-size: 28px; font-weight: 300; line-height: 1.2; color: var(--text); }
+
+.page .prose { font-size: 15px; line-height: 1.75; color: var(--text-2); }
+.prose :deep(p) { margin: 0 0 16px; }
+.prose :deep(h2) { margin: 34px 0 12px; font-size: 20px; font-weight: 400; color: var(--text); }
+.prose :deep(h3) { margin: 24px 0 8px; font-size: 16px; font-weight: 500; color: var(--text); }
+.prose :deep(ul), .prose :deep(ol) { margin: 0 0 16px 22px; }
+.prose :deep(li) { margin-bottom: 4px; }
+.prose :deep(strong) { color: var(--text); font-weight: 500; }
+.prose :deep(code) { font-size: 13px; }
+.prose :deep(pre) { margin: 0 0 18px; padding: 12px 14px; font-size: 13px; line-height: 1.55; }
+.prose :deep(table) { width: 100%; margin: 4px 0 20px; border-collapse: collapse; font-size: 14px; line-height: 1.5; }
+.prose :deep(th) { text-align: left; font-weight: 500; color: var(--text); border-bottom: 1px solid var(--line-2); padding: 6px 12px 6px 0; }
+.prose :deep(td) { vertical-align: top; border-bottom: 1px solid var(--line); padding: 7px 12px 7px 0; }
+.prose :deep(td:first-child) { white-space: nowrap; }
+
+.inChapter { margin-top: 28px; padding-top: 18px; border-top: 1px solid var(--line); }
+.inChapter h2 { margin: 0 0 10px; font-size: 14px; font-weight: 500; color: var(--text); }
+.inChapter ol { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.inChapter a { display: flex; gap: 8px; font-size: 14px; color: var(--accent); text-decoration: none; }
+.inChapter a:hover { text-decoration: underline; }
+
+.pager { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 40px; }
+.turn {
+  display: grid; gap: 3px; padding: 12px 14px; border: 1px solid var(--line); border-radius: var(--radius);
+  text-decoration: none; color: var(--text);
+}
+.turn:hover { border-color: var(--accent); }
+.turn.next { text-align: right; grid-column: 2; }
+.dir { font-size: 12px; color: var(--dim); }
+.where { font-size: 14px; color: var(--accent); }
+
+.hit {
+  display: grid; gap: 3px; width: 100%; text-align: left; padding: 12px 0; background: none; border: 0;
+  border-bottom: 1px solid var(--line); cursor: pointer; color: var(--text-2); font: inherit;
+}
+.hit:hover .hitTitle { text-decoration: underline; }
+.hitTitle { font-size: 15px; color: var(--accent); }
+.hitWhere { font-size: 12px; color: var(--dim); }
+.hitText { font-size: 13px; line-height: 1.5; }
+
 @media (max-width: 900px) {
-  .docs { grid-template-columns: 1fr; }
-  .toc { position: static; max-height: none; }
+  .book { grid-template-columns: 1fr; gap: 16px; }
+  .toc { position: static; max-height: none; border-right: 0; border-bottom: 1px solid var(--line); padding-bottom: 12px; }
 }
 </style>

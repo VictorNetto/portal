@@ -2,7 +2,7 @@
 
 Lets other systems read vulnerabilities and reports, download exports, record RVS IDs and push
 vulnerabilities into the portal (SPEC §11, D13). The user-facing documentation, with examples, is
-the **API** section of the in-app Documentação page (`frontend/src/docs.js`); this file is the
+the **API** chapter of the in-app guide (`frontend/src/docs/`, *A API de integração*); this file is the
 developer summary.
 
 ## Authentication and scopes

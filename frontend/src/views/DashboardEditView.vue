@@ -150,7 +150,7 @@ onMounted(() => { document.documentElement.removeAttribute('data-entity'); load(
     <div class="pageTop">
       <div class="titleBlock">
         <h1>{{ id ? t('dash.editTitle') : t('dash.newTitle') }}</h1>
-        <p><router-link to="/docs#dashboards" class="helpLink">{{ t('dash.help') }}</router-link></p>
+        <p><router-link to="/docs/dashboards" class="helpLink">{{ t('dash.help') }}</router-link></p>
       </div>
       <div class="topActions">
         <button class="btn" @click="cancel">{{ t('dash.cancel') }}</button>
