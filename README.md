@@ -8,7 +8,7 @@ A self-hosted web platform for a professional red team to **manage, document, an
 
 | Area | Highlights |
 |---|---|
-| **Vulnerabilities** | Draft → ready → sent → fixing (RVS id) ⇄ retesting → fixed (D14); field locks per status; optimistic concurrency; admin status adjustment with audit; operators; timeline; a creation date chosen by hand (for findings recorded later) |
+| **Vulnerabilities** | Draft → ready → sent → fixing (RVS id) ⇄ retesting → fixed (D14); field locks per status; optimistic concurrency; admin status adjustment with audit; operators; timeline; a creation date chosen by hand (for findings recorded later); a batch, editable while draft or ready |
 | **Reports** | OP-xxxx ids, write lock (10 min idle, admin force-release), Markdown sections, free-form extra sections, vulnerabilities inside the report, evidence files, two-phase send with retry, progress after sending |
 | **Editor** | Markdown editor with preview, line gutter, image paste/drop (stored as attachments), safe renderer |
 | **Attachments** | Pluggable storage (local volume or S3/MinIO), type/content validation, 50 MB cap, proxied + audited reads |

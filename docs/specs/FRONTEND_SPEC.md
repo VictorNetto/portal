@@ -550,6 +550,7 @@ Fields:
 - Data de criação (a date, today by default, no future days; editable in draft and ready, never after the completion date; read-only afterwards);
 - CVSS;
 - Fonte;
+- Lote (an existing `BATCH-0001`, any case; empty for none; editable in draft and ready, read-only afterwards);
 - Operador.
 
 #### Section: Descrição

@@ -49,6 +49,7 @@ const blankForm = () => ({
   identifier: '', cwe: '', cvss_score: null, cvss_vector: '', source: '',
   description: '', finding_detail: '', mitigation: '', internal_notes: '',
   references: [''],
+  batch_id: '',                       // an existing batch (BATCH-0001), or none
   created_at: localDay(new Date()),   // a calendar day (YYYY-MM-DD) in local time
 })
 
@@ -97,7 +98,7 @@ const attachError = ref('')
 
 // --- Field-lock rules (SPEC §4), mirrored for UX; the server enforces anyway.
 const ALL_FIELDS = ['identifier', 'cwe', 'description', 'finding_detail', 'mitigation',
-  'references', 'cvss_score', 'cvss_vector', 'source', 'internal_notes', 'operators', 'created_at']
+  'references', 'cvss_score', 'cvss_vector', 'source', 'internal_notes', 'operators', 'created_at', 'batch_id']
 const editableFields = computed(() => {
   if (!isWriter.value) return new Set()                  // read-only roles never edit
   if (inReport.value) {
@@ -245,6 +246,7 @@ function bodyFromForm(fields) {
   for (const f of fields) {
     if (f === 'operators') continue // sent separately as operator_ids
     if (f === 'created_at') { const when = createdAtBody(); if (when) body.created_at = when; continue }
+    if (f === 'batch_id') { body.batch_id = form.value.batch_id.trim().toUpperCase() || null; continue }
     const val = form.value[f]
     if (f === 'references') body.references = val.map((r) => r.trim()).filter(Boolean)
     else if (f === 'cvss_score') body.cvss_score = val === '' || val == null ? null : Number(val)
@@ -643,6 +645,12 @@ watch(() => route.fullPath, () => {
               <div v-else class="roVal">{{ form.source || '—' }}</div>
             </div>
             <div class="f">
+              <label>{{ t('vform.batch') }}</label>
+              <input v-if="canEdit('batch_id')" v-field v-model="form.batch_id" class="mono" autocomplete="off"
+                     placeholder="BATCH-0001" :title="t('vform.batchEditHint')" />
+              <div v-else class="roVal mono">{{ form.batch_id || '—' }}</div>
+            </div>
+            <div class="f">
               <label>{{ t('vform.operators') }}</label>
               <OperatorPicker v-if="canEdit('operators')" v-model="selectedOps" :users="knownUsers" />
               <div v-else class="roVal">{{ namesOf(selectedOps) || '—' }}</div>
@@ -785,7 +793,7 @@ input.invalid { border-color: var(--danger); }
 .refList { margin: 0; padding-left: 18px; display: grid; gap: 4px; font-size: 13px; }
 .refList a { color: var(--accent); word-break: break-all; }
 .infoGrid { display: grid; grid-template-columns: 1.2fr .7fr .9fr .75fr 1.25fr; gap: 16px 24px; align-items: start; }
-.row2 { grid-column: 1 / -1; display: grid; grid-template-columns: 1fr 1.6fr; gap: 24px; }
+.row2 { grid-column: 1 / -1; display: grid; grid-template-columns: 1fr .55fr 1.6fr; gap: 24px; }
 
 .layout { display: grid; grid-template-columns: minmax(0, 1.45fr) minmax(340px, .9fr); gap: 16px; align-items: start; }
 .stack { min-width: 0; }

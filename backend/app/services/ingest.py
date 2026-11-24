@@ -12,7 +12,7 @@ from app.models.enums import AuditAction, UserRole, VulnStatus
 from app.models.user import ApiKey, User
 from app.models.vulnerability import VulnBatch, Vulnerability
 from app.schemas.ingest import IngestVuln
-from app.services.vulnerability import _next_vuln_internal_id, _require_unused_rvs
+from app.services.vulnerability import _next_vuln_internal_id, _require_unused_rvs, resolve_batch
 
 # Same fields the UI requires before a vuln can be sent (FRONTEND_SPEC §8.8).
 _REQUIRED_FOR_READY = ("identifier", "description", "finding_detail")  # mitigation may stay blank
@@ -281,13 +281,4 @@ def create_batch(session: Session, key: ApiKey, request: Request) -> VulnBatch:
 
 
 def _resolve_batch(session: Session, ref: str | None) -> str | None:
-    """The stored id of an existing batch ('batch-0001' is fine); 422 if there is none."""
-    if ref is None or not ref.strip():
-        return None
-    wanted = ref.strip().upper()
-    if session.scalar(select(VulnBatch.internal_id).where(VulnBatch.internal_id == wanted)) is None:
-        raise HTTPException(
-            status.HTTP_422_UNPROCESSABLE_ENTITY,
-            f"Unknown batch_id '{ref.strip()}': create one with POST /v1/batches",
-        )
-    return wanted
+    return resolve_batch(session, ref, ": create one with POST /v1/batches")

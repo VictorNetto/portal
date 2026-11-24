@@ -155,9 +155,11 @@ Nos relatórios, valem \`created\`, \`updated\` e \`sent\`. As datas seguem o fu
 
 **Data de criação:** começa com a data de hoje. Mude-a quando registrar um achado dias depois de encontrá-lo; datas futuras não são aceitas. Pode ser alterada enquanto o conteúdo estiver aberto para edição (rascunho e pronta), mas não para depois da conclusão. A linha do tempo e as durações dos painéis contam a partir dela.
 
+**Lote:** agrupa vulnerabilidades (\`BATCH-0001\`). Em rascunho e pronta, digite um lote que já existe para colocá-la nele, ou apague o campo para tirá-la; depois do envio, fica fixo. Lotes novos são criados pela API.
+
 No topo da página, ao lado do status, podem aparecer:
 
-- **Lote \`BATCH-0001\`:** a vulnerabilidade veio de uma execução de ferramenta pela API, junto com outras. Clique para ver o lote inteiro em Operações.
+- **Lote \`BATCH-0001\`:** a vulnerabilidade faz parte de um lote, em geral uma execução de ferramenta pela API. Clique para ver o lote inteiro em Operações.
 - **Importada em …:** veio de outro sistema com o seu histórico (status, datas, número e RVS). As datas são as de lá, não de trabalho feito no portal.`,
       },
       {
@@ -658,7 +660,7 @@ Resposta \`201\`:
 {"batch_id": "BATCH-0001", "created_at": "2026-11-24T19:30:04.949885"}
 \`\`\`
 
-- O número é do portal e só vale na criação: não dá para pôr ou tirar uma vulnerabilidade de um lote depois.
+- O número é do portal. Pela API, o lote só é definido na criação; no portal, uma vulnerabilidade em rascunho ou pronta pode ser posta em um lote existente, trocada de lote ou tirada dele.
 - \`batch_id\` aceita maiúsculas ou minúsculas; um lote que não existe dá \`422\`.
 - Para ler o lote: \`GET /api/v1/vulnerabilities?batch=BATCH-0001\`. No portal: \`batch:BATCH-0001\` em Operações.
 
@@ -1305,9 +1307,11 @@ For reports, \`created\`, \`updated\` and \`sent\` apply. Dates follow your brow
 
 **Creation date:** starts as today. Change it when you record a finding days after finding it; future dates are not accepted. It can be changed while the content is open for editing (draft and ready), but not to after the completion. The timeline and the dashboards' durations count from it.
 
+**Batch:** groups vulnerabilities (\`BATCH-0001\`). In draft and ready, type an existing batch to put the vulnerability in it, or clear the field to take it out; once sent, it is fixed. New batches are created through the API.
+
 At the top of the page, next to the status, you may see:
 
-- **Batch \`BATCH-0001\`:** the vulnerability came from a tool run through the API, with others. Click it to see the whole batch in Operations.
+- **Batch \`BATCH-0001\`:** the vulnerability is in a batch, usually a tool run through the API. Click it to see the whole batch in Operations.
 - **Imported on …:** it came from another system with its history (status, dates, number and RVS ID). The dates are from there, not from work done in the portal.`,
       },
       {
@@ -1808,7 +1812,7 @@ A tool that creates many vulnerabilities in one run can group them. Create the b
 {"batch_id": "BATCH-0001", "created_at": "2026-11-24T19:30:04.949885"}
 \`\`\`
 
-- The number is the portal's and only counts on creation: a vulnerability cannot be put in or taken out of a batch later.
+- The number is the portal's. Through the API the batch is set only on creation; in the portal, a draft or ready vulnerability can be put in an existing batch, moved to another or taken out.
 - \`batch_id\` takes any case; a batch that doesn't exist is a \`422\`.
 - To read the batch: \`GET /api/v1/vulnerabilities?batch=BATCH-0001\`. In the portal: \`batch:BATCH-0001\` in Operations.
 

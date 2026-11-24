@@ -28,7 +28,7 @@ from app.schemas.report import (
 )
 from app.schemas.vulnerability import OperatorRef, VulnCreate, VulnListItem
 from app.services import report_lock
-from app.services.vulnerability import _resolve_operators
+from app.services.vulnerability import _resolve_operators, resolve_batch
 
 # Pre-filled on creation (SPEC §6/§7); the operator rewrites it.
 DEFAULT_EXECUTIVE_SUMMARY = """### Objetivo
@@ -493,6 +493,7 @@ def create_vuln(
     data = body.model_dump(exclude={"operator_ids", "viewer_ids"})
     if data.get("created_at") is None:
         data.pop("created_at", None)  # the database default: now
+    data["batch_id"] = resolve_batch(session, data.get("batch_id"))
     vuln = Vulnerability(
         status=VulnStatus.draft, report_id=report.id, created_by=user.id, **data
     )

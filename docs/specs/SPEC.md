@@ -29,7 +29,7 @@ attachments on a local volume or any S3-compatible store.
 | **Standalone vuln** | A vulnerability with `report_id = NULL`: managed and sent on its own. |
 | **Report vuln** | A vulnerability inside a report (`report_id` set). While the report is a draft it is edited under the report's lock and is sent only with the report; afterwards it lives on its own. |
 | **Operator** | A user assigned to a vulnerability or report. |
-| **Batch** | Vulns created together by one integration-API run, sharing a `BATCH-0001` id (§11). |
+| **Batch** | Vulns grouped under one `BATCH-0001` id: created together by an integration-API run (§11), or put in it by hand while draft or ready (§4). |
 | **Import** | A past vulnerability brought in through the integration API with its status, dates and number (§11). |
 
 **Flow:** the red team writes a finding → completes it (`ready`, gets `VULN-xxxx`) → sends it,
@@ -175,7 +175,7 @@ before `sent` clears the acceptance; undoing a risk acceptance clears its reason
 
 | Status | Editable |
 |---|---|
-| `draft`, `ready` | All content fields (identifier, CWE, creation date, CVSS, description, finding detail, mitigation, references, source, internal notes), operators and *Compartilhado com*. The identifier may be blank in `draft`; it is required to complete (D3) |
+| `draft`, `ready` | All content fields (identifier, CWE, creation date, CVSS, description, finding detail, mitigation, references, source, internal notes), the batch, operators and *Compartilhado com*. The identifier may be blank in `draft`; it is required to complete (D3) |
 | `sent` and after | Internal notes, operators and *Compartilhado com* only |
 
 - A report vuln is edited only by the holder of the report's lock, and only while the report is a
@@ -186,6 +186,10 @@ before `sent` clears the acceptance; undoing a risk acceptance clears its reason
 - Attachments follow the content lock (draft / ready).
 - The **creation date** may be set by hand (a finding recorded later): never in the future, never
   after `ready_at`.
+- The **batch** may be set, changed or cleared (`null`) in `draft` and `ready`, on the form or on
+  create. Only an existing batch is accepted (`422` otherwise; new batches come from
+  `POST /v1/batches`), in any case. It is fixed once the vuln is sent; the audit entry records
+  `{from, to}`.
 
 ### Reports
 
@@ -217,7 +221,7 @@ section's `exported`) follow the same rule as the vuln's: changeable at any time
 | **Operators** | Users | Who works on it; the creator is the default |
 | **Shared with** (*Compartilhado com*) | Users | Read access for restricted roles (D10) |
 | **Creation date** | Timestamp | Now by default; may be set by hand on the form or through the API (§4) |
-| **Batch** | `BATCH-xxxx`, nullable | The integration-API run it was created in (§11); set on creation only |
+| **Batch** | `BATCH-xxxx`, nullable | The integration-API run it was created in (§11), or set by hand in draft / ready (§4) |
 | **Imported at** | Timestamp, nullable | Set when brought in with its history (§11); its dates are another system's |
 | **Acceptance** | Timestamp + user | When and by whom the defense team accepted it (D17) |
 | **Risk acceptance** | Timestamp + user + reason | When the defense team assumed the risk, and why (D17) |
@@ -405,7 +409,7 @@ Other systems use `/api/v1` with **scoped API keys** (D13); full reference in
   or `ready` (which needs the required fields and assigns the number), `metadata`; unknown fields
   are kept in the metadata. Records belong to the admin who issued the key.
 - **Batches:** `POST /v1/batches` returns a portal-made `BATCH-0001`; the tool sends it as
-  `batch_id` with each vuln of the run (an unknown id is a `422`). Set on creation only; the Hub
+  `batch_id` with each vuln of the run (an unknown id is a `422`). Set on creation; the portal can change it while draft / ready (§4); the Hub
   filters `batch:`, the API `?batch=`.
 - **Imports** (`vulns:import`): the same endpoint and body may carry any status, each step's date,
   the original `VULN-` number (the counter moves past it), the RVS ID, who accepted and the risk

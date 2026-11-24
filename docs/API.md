@@ -142,7 +142,8 @@ em …*). The response says `"imported": true`. Imports are standalone vulnerabi
 A tool that creates many vulnerabilities in one run can group them: call `POST /v1/batches`
 (no body) first, which returns `201 {"batch_id": "BATCH-0001", "created_at": "…"}`, then send
 `"batch_id": "BATCH-0001"` with each `POST /v1/vulnerabilities` of the run. The id is made by the
-portal and set only on creation. Vulnerability reads include `batch_id` (`null` when in none),
+portal. The API sets it only on creation; in the portal a vulnerability can be put in, moved to or
+taken out of an existing batch while it is a draft or ready. Vulnerability reads include `batch_id` (`null` when in none),
 `GET /v1/vulnerabilities?batch=BATCH-0001` lists one batch, and the Hub filters it with
 `batch:BATCH-0001`.
 

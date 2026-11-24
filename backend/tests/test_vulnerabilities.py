@@ -201,3 +201,39 @@ def test_creation_date_cannot_be_in_the_future_or_changed_once_sent(writer):
     v = writer.post(f"/vulnerabilities/{v['id']}/send").json()
     r = writer.patch(f"/vulnerabilities/{v['id']}", {"version": v["version"], "created_at": "2025-01-01T00:00:00Z"})
     assert r.status_code == 422 and "created_at" in r.json()["detail"]
+
+
+def _new_batch(admin) -> str:
+    key = admin.post("/api-keys", {"label": f"pytest-{tag()}", "scopes": ["vulns:write"]}).json()
+    r = httpx.post(f"{BASE_URL}/v1/batches", headers={"X-API-Key": key["plaintext"]})
+    assert r.status_code == 201, r.text
+    return r.json()["batch_id"]
+
+
+def test_batch_can_be_set_changed_and_cleared_in_draft_and_ready(admin, writer):
+    first, second = _new_batch(admin), _new_batch(admin)
+    v = new_vuln(writer, batch_id=first.lower())                         # case does not matter
+    assert v["batch_id"] == first
+    r = writer.patch(f"/vulnerabilities/{v['id']}", {"version": v["version"], "batch_id": second})
+    assert r.status_code == 200 and r.json()["batch_id"] == second
+    r = writer.post(f"/vulnerabilities/{v['id']}/complete")
+    r = writer.patch(f"/vulnerabilities/{v['id']}", {"version": r.json()["version"], "batch_id": None})
+    assert r.status_code == 200 and r.json()["batch_id"] is None
+    from sqlalchemy import text
+
+    from app.db import SessionLocal
+    with SessionLocal() as s:
+        details = s.execute(text("SELECT detail FROM audit_logs WHERE entity_id = :i AND action = 'update'"),
+                            {"i": v["id"]}).scalars().all()
+    assert {"from": second, "to": None} in [d.get("batch") for d in details]
+
+
+def test_batch_must_exist_and_is_fixed_once_sent(admin, writer):
+    v = new_vuln(writer)
+    r = writer.patch(f"/vulnerabilities/{v['id']}", {"version": v["version"], "batch_id": "BATCH-999999"})
+    assert r.status_code == 422 and "BATCH-999999" in r.json()["detail"]
+    assert writer.post("/vulnerabilities", {"identifier": f"pytest-{tag()}", "batch_id": "nope"}).status_code == 422
+    v = saved_vuln(writer, batch_id=_new_batch(admin))
+    v = writer.post(f"/vulnerabilities/{v['id']}/send").json()
+    r = writer.patch(f"/vulnerabilities/{v['id']}", {"version": v["version"], "batch_id": None})
+    assert r.status_code == 422 and "batch_id" in r.json()["detail"]
