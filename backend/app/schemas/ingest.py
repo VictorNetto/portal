@@ -138,3 +138,45 @@ class BatchResult(BaseModel):
 
     batch_id: str
     created_at: datetime
+
+
+class IngestVulnUpdate(BaseModel):
+    """PATCH /v1/vulnerabilities/{ref}: edit a draft or ready vulnerability (SPEC §11).
+
+    Only the fields sent change, with the names and rules of the create body. `batch_id: null`
+    takes the vulnerability out of its batch; `operators` replaces the whole list. Unknown
+    fields are refused here (a typo must not pass for a no-op)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    identifier: str | None = Field(default=None, max_length=500)
+    cwe: str | None = Field(default=None, max_length=32)
+    description: str | None = Field(default=None, max_length=100_000)
+    finding_detail: str | None = Field(default=None, max_length=100_000)
+    mitigation: str | None = Field(default=None, max_length=100_000)
+    references: list[str] | None = Field(default=None, max_length=50)
+    cvss_score: Decimal | None = Field(default=None, ge=0, le=10)
+    cvss_vector: str | None = Field(default=None, max_length=200)
+    source: str | None = Field(default=None, max_length=200)
+    internal_notes: str | None = Field(default=None, max_length=100_000)
+    batch_id: str | None = Field(default=None, max_length=32)
+    operators: list[str] | None = Field(default=None, max_length=20)
+    # Optional guard: the `updated_at` the tool last read. Changed since: 409, nothing written.
+    if_updated_at: datetime | None = None
+
+    @field_validator("cwe")
+    @classmethod
+    def _normalise_cwe(cls, v: str | None) -> str | None:
+        return normalise_cwe(v)
+
+    @field_validator("references")
+    @classmethod
+    def _http_references(cls, refs: list[str] | None) -> list[str]:
+        return http_references(refs) or []
+
+    @field_validator("if_updated_at")
+    @classmethod
+    def _utc(cls, v: datetime | None) -> datetime | None:
+        if v is not None and v.tzinfo is not None:
+            v = v.astimezone(UTC).replace(tzinfo=None)
+        return v

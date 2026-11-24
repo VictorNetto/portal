@@ -155,11 +155,9 @@ Nos relatórios, valem \`created\`, \`updated\` e \`sent\`. As datas seguem o fu
 
 **Data de criação:** começa com a data de hoje. Mude-a quando registrar um achado dias depois de encontrá-lo; datas futuras não são aceitas. Pode ser alterada enquanto o conteúdo estiver aberto para edição (rascunho e pronta), mas não para depois da conclusão. A linha do tempo e as durações dos painéis contam a partir dela.
 
-**Lote:** agrupa vulnerabilidades (\`BATCH-0001\`). Em rascunho e pronta, digite um lote que já existe para colocá-la nele, ou apague o campo para tirá-la; depois do envio, fica fixo. Lotes novos são criados pela API.
-
 No topo da página, ao lado do status, podem aparecer:
 
-- **Lote \`BATCH-0001\`:** a vulnerabilidade faz parte de um lote, em geral uma execução de ferramenta pela API. Clique para ver o lote inteiro em Operações.
+- **Lote \`BATCH-0001\`:** a vulnerabilidade veio de uma execução de ferramenta pela API, junto com outras. Clique para ver o lote inteiro em Operações.
 - **Importada em …:** veio de outro sistema com o seu histórico (status, datas, número e RVS). As datas são as de lá, não de trabalho feito no portal.`,
       },
       {
@@ -260,6 +258,7 @@ Endpoints (cada um tem uma subseção abaixo, com parâmetros, resposta, erros e
 - \`GET /api/v1/rvs-queue\`: Fila RVS. \`rvs:write\` ou \`vulns:read\`
 - \`POST /api/v1/vulnerabilities/{ref}/rvs\`: registrar o ID de RVS. \`rvs:write\`
 - \`POST /api/v1/vulnerabilities\`: criar uma vulnerabilidade. \`vulns:write\`; para importar, também \`vulns:import\`
+- \`PATCH /api/v1/vulnerabilities/{ref}\`: editar uma vulnerabilidade (também o lote). \`vulns:write\`
 - \`POST /api/v1/batches\`: criar um lote. \`vulns:write\`
 - \`GET /api/v1/reports\`: listar relatórios. \`reports:read\`
 - \`GET /api/v1/reports/{ref}\`: ler um relatório. \`reports:read\`
@@ -649,6 +648,28 @@ curl -sS -X POST https://<portal>/api/v1/vulnerabilities \\
 \`\`\``,
       },
       {
+        id: 'api-editar', title: 'Editar uma vulnerabilidade',
+        md: `**\`PATCH /api/v1/vulnerabilities/{ref}\`** · escopo \`vulns:write\`
+
+Muda só os campos enviados, com os nomes e as regras de *Criar uma vulnerabilidade*: \`identifier\`, \`cwe\`, \`description\`, \`finding_detail\`, \`mitigation\`, \`references\`, \`cvss_score\`, \`cvss_vector\`, \`source\`, \`internal_notes\`, \`operators\` (logins; substitui a lista) e \`batch_id\` (um lote que já existe; \`null\` tira a vulnerabilidade do lote). A resposta \`200\` é o registro completo, como em *Ler uma vulnerabilidade*.
+
+- Só vulnerabilidades em **rascunho** ou **pronta**, fora de relatório. Depois do envio dá \`409\`; dentro de um relatório em rascunho também (edite no portal, com o bloqueio do relatório).
+- Uma vulnerabilidade pronta continua com \`identifier\`, \`description\` e \`finding_detail\`; um rascunho fica com pelo menos um deles (senão, \`422\`).
+- Campos desconhecidos dão \`422\`, assim como \`status\` e os campos de importação: o ciclo de vida continua no portal.
+- \`if_updated_at\` (opcional): o \`updated_at\` que a ferramenta leu por último. Se o registro mudou desde então, nada é gravado e a resposta é \`409\`: leia de novo.
+- Um pedido que não muda nada não gera versão nem entrada de auditoria. Cada mudança é auditada com a chave como autora (a troca de lote, como \`{"from", "to"}\`), e quem estiver editando no portal vê um conflito ao salvar.
+
+**Exemplo: passar o lote BATCH-0003 inteiro para o BATCH-0004**
+
+\`\`\`
+curl -sS "https://<portal>/api/v1/vulnerabilities?batch=BATCH-0003&limit=200" -H "X-API-Key: $PORTAL_KEY" |
+  jq -r '.items[].id' | while read id; do
+    curl -sS -X PATCH "https://<portal>/api/v1/vulnerabilities/$id" \\
+      -H "X-API-Key: $PORTAL_KEY" -H "Content-Type: application/json" -d '{"batch_id": "BATCH-0004"}'
+  done
+\`\`\``,
+      },
+      {
         id: 'api-lotes', title: 'Lotes',
         md: `**\`POST /api/v1/batches\`** · escopo \`vulns:write\`
 
@@ -660,7 +681,7 @@ Resposta \`201\`:
 {"batch_id": "BATCH-0001", "created_at": "2026-11-24T19:30:04.949885"}
 \`\`\`
 
-- O número é do portal. Pela API, o lote só é definido na criação; no portal, uma vulnerabilidade em rascunho ou pronta pode ser posta em um lote existente, trocada de lote ou tirada dele.
+- O número é do portal. Depois, uma vulnerabilidade em rascunho ou pronta pode trocar de lote ou sair dele com \`PATCH /api/v1/vulnerabilities/{ref}\` (ver *Editar uma vulnerabilidade*); no portal, o lote não é editável.
 - \`batch_id\` aceita maiúsculas ou minúsculas; um lote que não existe dá \`422\`.
 - Para ler o lote: \`GET /api/v1/vulnerabilities?batch=BATCH-0001\`. No portal: \`batch:BATCH-0001\` em Operações.
 
@@ -1307,11 +1328,9 @@ For reports, \`created\`, \`updated\` and \`sent\` apply. Dates follow your brow
 
 **Creation date:** starts as today. Change it when you record a finding days after finding it; future dates are not accepted. It can be changed while the content is open for editing (draft and ready), but not to after the completion. The timeline and the dashboards' durations count from it.
 
-**Batch:** groups vulnerabilities (\`BATCH-0001\`). In draft and ready, type an existing batch to put the vulnerability in it, or clear the field to take it out; once sent, it is fixed. New batches are created through the API.
-
 At the top of the page, next to the status, you may see:
 
-- **Batch \`BATCH-0001\`:** the vulnerability is in a batch, usually a tool run through the API. Click it to see the whole batch in Operations.
+- **Batch \`BATCH-0001\`:** the vulnerability came from a tool run through the API, with others. Click it to see the whole batch in Operations.
 - **Imported on …:** it came from another system with its history (status, dates, number and RVS ID). The dates are from there, not from work done in the portal.`,
       },
       {
@@ -1412,6 +1431,7 @@ Endpoints (each has a subsection below, with parameters, response, errors and an
 - \`GET /api/v1/rvs-queue\`: RVS queue. \`rvs:write\` or \`vulns:read\`
 - \`POST /api/v1/vulnerabilities/{ref}/rvs\`: record the RVS ID. \`rvs:write\`
 - \`POST /api/v1/vulnerabilities\`: create a vulnerability. \`vulns:write\`; to import, also \`vulns:import\`
+- \`PATCH /api/v1/vulnerabilities/{ref}\`: edit a vulnerability (its batch too). \`vulns:write\`
 - \`POST /api/v1/batches\`: create a batch. \`vulns:write\`
 - \`GET /api/v1/reports\`: list reports. \`reports:read\`
 - \`GET /api/v1/reports/{ref}\`: read a report. \`reports:read\`
@@ -1801,6 +1821,28 @@ curl -sS -X POST https://<portal>/api/v1/vulnerabilities \\
 \`\`\``,
       },
       {
+        id: 'api-editar', title: 'Edit a vulnerability',
+        md: `**\`PATCH /api/v1/vulnerabilities/{ref}\`** · scope \`vulns:write\`
+
+Changes only the fields sent, with the names and rules of *Create a vulnerability*: \`identifier\`, \`cwe\`, \`description\`, \`finding_detail\`, \`mitigation\`, \`references\`, \`cvss_score\`, \`cvss_vector\`, \`source\`, \`internal_notes\`, \`operators\` (usernames; replaces the list) and \`batch_id\` (an existing batch; \`null\` takes the vulnerability out of its batch). The \`200\` response is the full record, as in *Read a vulnerability*.
+
+- Only **draft** or **ready** vulnerabilities outside a report. Once sent it is a \`409\`; inside a draft report too (edit it in the portal, under the report's lock).
+- A ready vulnerability keeps \`identifier\`, \`description\` and \`finding_detail\`; a draft keeps at least one of them (otherwise \`422\`).
+- Unknown fields are a \`422\`, and so are \`status\` and the import fields: the lifecycle stays in the portal.
+- \`if_updated_at\` (optional): the \`updated_at\` the tool last read. If the record changed since, nothing is written and the answer is \`409\`: read it again.
+- A request that changes nothing makes no new version and no audit entry. Each change is audited with the key as the actor (a batch move as \`{"from", "to"}\`), and anyone editing it in the portal gets a conflict on saving.
+
+**Example: move the whole of BATCH-0003 into BATCH-0004**
+
+\`\`\`
+curl -sS "https://<portal>/api/v1/vulnerabilities?batch=BATCH-0003&limit=200" -H "X-API-Key: $PORTAL_KEY" |
+  jq -r '.items[].id' | while read id; do
+    curl -sS -X PATCH "https://<portal>/api/v1/vulnerabilities/$id" \\
+      -H "X-API-Key: $PORTAL_KEY" -H "Content-Type: application/json" -d '{"batch_id": "BATCH-0004"}'
+  done
+\`\`\``,
+      },
+      {
         id: 'api-lotes', title: 'Batches',
         md: `**\`POST /api/v1/batches\`** · scope \`vulns:write\`
 
@@ -1812,7 +1854,7 @@ A tool that creates many vulnerabilities in one run can group them. Create the b
 {"batch_id": "BATCH-0001", "created_at": "2026-11-24T19:30:04.949885"}
 \`\`\`
 
-- The number is the portal's. Through the API the batch is set only on creation; in the portal, a draft or ready vulnerability can be put in an existing batch, moved to another or taken out.
+- The number is the portal's. Later, a draft or ready vulnerability can move to another batch or leave it with \`PATCH /api/v1/vulnerabilities/{ref}\` (see *Edit a vulnerability*); the batch is not editable in the portal.
 - \`batch_id\` takes any case; a batch that doesn't exist is a \`422\`.
 - To read the batch: \`GET /api/v1/vulnerabilities?batch=BATCH-0001\`. In the portal: \`batch:BATCH-0001\` in Operations.
 

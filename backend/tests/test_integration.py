@@ -219,6 +219,76 @@ def test_creating_a_batch_needs_the_write_scope(admin):
     assert call(reader_key, "POST", "/batches").status_code == 403
 
 
+# --- editing (PATCH) -------------------------------------------------------------
+
+def _api_vuln(key, **fields):
+    r = call(key, "POST", "/vulnerabilities", json={"identifier": f"pytest-{tag()}", **fields})
+    assert r.status_code == 201, r.text
+    return r.json()
+
+
+def test_a_tool_edits_its_vulns_and_moves_them_between_batches(full, admin, writer):
+    first, second = (call(full, "POST", "/batches").json()["batch_id"] for _ in range(2))
+    v = _api_vuln(full, batch_id=first, source="nuclei")
+    r = call(full, "PATCH", f"/vulnerabilities/{v['id']}",
+             json={"batch_id": second.lower(), "cvss_score": 7.5, "cwe": "79", "operators": [writer.user["username"]]})
+    assert r.status_code == 200, r.text
+    out = r.json()
+    assert (out["batch_id"], out["cvss_score"], out["cwe"], out["operators"]) == (second, 7.5, "CWE-79", [writer.user["username"]])
+    assert out["source"] == "nuclei"                                    # untouched fields stay
+    r = call(full, "PATCH", f"/vulnerabilities/{v['id']}", json={"batch_id": None})
+    assert r.status_code == 200 and r.json()["batch_id"] is None
+    assert admin.get(f"/vulnerabilities/{v['id']}").json()["version"] == 3   # one per real change
+
+    from sqlalchemy import text
+
+    from app.db import SessionLocal
+    with SessionLocal() as s:
+        details = s.execute(text("SELECT detail FROM audit_logs WHERE entity_id = :i AND action = 'update'"),
+                            {"i": v["id"]}).scalars().all()
+    assert {"from": first, "to": second} in [d.get("batch") for d in details]
+    assert {"from": second, "to": None} in [d.get("batch") for d in details]
+
+
+def test_editing_a_ready_vuln_keeps_the_required_fields(full, writer):
+    v = saved_vuln(writer)
+    r = call(full, "PATCH", f"/vulnerabilities/{v['id']}", json={"mitigation": "patch it"})
+    assert r.status_code == 200 and r.json()["mitigation"] == "patch it" and r.json()["status"] == "ready"
+    r = call(full, "PATCH", f"/vulnerabilities/{v['id']}", json={"description": "  "})
+    assert r.status_code == 422 and "description" in r.json()["detail"]
+
+
+def test_only_draft_and_ready_standalone_vulns_can_be_edited(full, admin, writer):
+    sent = sent_vuln(writer)
+    r = call(full, "PATCH", f"/vulnerabilities/{sent['internal_id']}", json={"identifier": "x"})
+    assert r.status_code == 409 and "sent" in r.json()["detail"]
+    rep = new_report(writer)
+    inside = report_vuln(writer, rep["id"])
+    assert call(full, "PATCH", f"/vulnerabilities/{inside['id']}", json={"identifier": "x"}).status_code == 409
+
+
+def test_edit_refusals(full, admin):
+    v = _api_vuln(full)
+    path = f"/vulnerabilities/{v['id']}"
+    assert call(full, "PATCH", path, json={"batch_id": "BATCH-999999"}).status_code == 422
+    assert call(full, "PATCH", path, json={"status": "ready"}).status_code == 422      # the lifecycle stays in the portal
+    assert call(full, "PATCH", path, json={"identifier": None}).status_code == 422    # nothing would be left
+    assert call(full, "PATCH", "/vulnerabilities/VULN-999999999", json={"identifier": "x"}).status_code == 404
+    assert call(make_key(admin, ["vulns:read"]), "PATCH", path, json={"identifier": "x"}).status_code == 403
+
+
+def test_if_updated_at_guards_against_overwriting(full, writer):
+    v = _api_vuln(full)
+    seen = call(full, "GET", f"/vulnerabilities/{v['id']}").json()["updated_at"]
+    current = writer.get(f"/vulnerabilities/{v['id']}").json()
+    writer.patch(f"/vulnerabilities/{v['id']}", {"version": current["version"], "source": "edited in the portal"})
+    r = call(full, "PATCH", f"/vulnerabilities/{v['id']}", json={"source": "tool", "if_updated_at": seen})
+    assert r.status_code == 409
+    fresh = call(full, "GET", f"/vulnerabilities/{v['id']}").json()["updated_at"]
+    r = call(full, "PATCH", f"/vulnerabilities/{v['id']}", json={"source": "tool", "if_updated_at": fresh})
+    assert r.status_code == 200 and r.json()["source"] == "tool"
+
+
 # --- imports: past vulnerabilities with their history (vulns:import) --------------
 
 @pytest.fixture(scope="module")

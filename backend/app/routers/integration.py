@@ -29,7 +29,7 @@ from app.models.enums import AuditAction, ReportStatus, VulnStatus
 from app.models.report import Report
 from app.models.user import ApiKey
 from app.models.vulnerability import Vulnerability
-from app.schemas.ingest import BatchResult, IngestResult, IngestVuln
+from app.schemas.ingest import BatchResult, IngestResult, IngestVuln, IngestVulnUpdate
 from app.schemas.integration import (
     ExtAttachment,
     ExtReport,
@@ -236,6 +236,16 @@ def get_vulnerability(
                  entity_type="vulnerability", entity_id=vuln.id, request=request)
     session.commit()
     return _vuln_full(vuln)
+
+
+@router.patch("/vulnerabilities/{ref}", response_model=ExtVuln, dependencies=[Depends(_limit_body)])
+def update_vulnerability(
+    ref: str, payload: IngestVulnUpdate, request: Request,
+    key: ApiKey = Depends(require_scope(scopes.VULNS_WRITE)),
+    session: Session = Depends(get_session),
+):
+    """Edit a draft or ready vulnerability: the fields sent change, `batch_id` included (SPEC §11)."""
+    return _vuln_full(ingest_svc.update(session, _vuln(session, ref, for_update=True), payload, key, request))
 
 
 @router.get("/vulnerabilities/{ref}/attachments", response_model=list[ExtAttachment])

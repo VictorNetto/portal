@@ -47,6 +47,7 @@ schemas so integrations don't follow UI changes).
 | `GET /v1/rvs-queue` | `rvs:write` or `vulns:read` | sent, no RVS ID yet, oldest first |
 | `POST /v1/vulnerabilities/{ref}/rvs` `{"rvs_id"}` | `rvs:write` | sent → fixing; 409 otherwise or when already set |
 | `POST /v1/vulnerabilities` | `vulns:write` | create (below) |
+| `PATCH /v1/vulnerabilities/{ref}` | `vulns:write` | edit a draft or ready vulnerability, its batch included (below) |
 | `POST /v1/batches` | `vulns:write` | a new batch id for the vulns of one run (below) |
 | `GET /v1/reports` | `reports:read` | summaries with `vulnerability_count` and `fixed_count`; filters `status`, `client`, `updated_since`; paging |
 | `GET /v1/reports/{ref}` | `reports:read` | full report with sections, vulnerability summaries, evidence list |
@@ -142,8 +143,8 @@ em …*). The response says `"imported": true`. Imports are standalone vulnerabi
 A tool that creates many vulnerabilities in one run can group them: call `POST /v1/batches`
 (no body) first, which returns `201 {"batch_id": "BATCH-0001", "created_at": "…"}`, then send
 `"batch_id": "BATCH-0001"` with each `POST /v1/vulnerabilities` of the run. The id is made by the
-portal. The API sets it only on creation; in the portal a vulnerability can be put in, moved to or
-taken out of an existing batch while it is a draft or ready. Vulnerability reads include `batch_id` (`null` when in none),
+portal; a vulnerability can be moved to another batch or taken out of it later with `PATCH`
+(below). Vulnerability reads include `batch_id` (`null` when in none),
 `GET /v1/vulnerabilities?batch=BATCH-0001` lists one batch, and the Hub filters it with
 `batch:BATCH-0001`.
 
@@ -155,6 +156,35 @@ for f in findings/*.json; do
 done
 ```
 
+## Edit a vulnerability
+
+`PATCH /v1/vulnerabilities/{ref}` (`vulns:write`) changes the fields sent and nothing else, with
+the names and rules of the create body: `identifier`, `cwe`, `description`, `finding_detail`,
+`mitigation`, `references`, `cvss_score`, `cvss_vector`, `source`, `internal_notes`, `operators`
+(usernames; replaces the list) and `batch_id` (an existing batch, any case; `null` takes the
+vulnerability out of its batch). The response is the full record, as `GET` returns it.
+
+- Only a **draft** or **ready** standalone vulnerability: once sent it is a `409`, and so is one
+  inside a draft report (edit it in the portal, under the report's lock).
+- A ready vulnerability keeps `identifier`, `description` and `finding_detail`; a draft keeps at
+  least one of them (`422` otherwise).
+- Unknown fields are a `422` (no metadata here), and so are `status` and the import fields: the
+  lifecycle stays in the portal.
+- `if_updated_at` (optional): the `updated_at` the tool last read. If the record changed since,
+  nothing is written and the answer is `409`; read it again.
+- A request that changes nothing makes no new version and no audit entry. Each change is audited
+  with the key as the actor (a batch move as `{"from", "to"}`), and an editor open in the portal
+  sees it as a conflict.
+
+```bash
+# Move every vulnerability of BATCH-0003 into BATCH-0004
+curl -s -H "X-API-Key: $KEY" "https://portal/api/v1/vulnerabilities?batch=BATCH-0003&limit=200" |
+  jq -r '.items[].id' | while read id; do
+    curl -s -X PATCH -H "X-API-Key: $KEY" -H "Content-Type: application/json" \
+      -d '{"batch_id": "BATCH-0004"}' "https://portal/api/v1/vulnerabilities/$id"
+  done
+```
+
 ## Errors
 
 | Status | Meaning |
@@ -162,7 +192,7 @@ done
 | 401 | missing / invalid / revoked / expired key |
 | 403 | the key lacks the endpoint's scope |
 | 404 | record not found (or deleted) |
-| 409 | not allowed in the current status (e.g. RVS on a vuln not sent, or already set) |
+| 409 | not allowed in the current status (e.g. RVS on a vuln not sent, or already set; editing a sent vuln), or `if_updated_at` is stale |
 | 413 | body over 1 MB |
 | 422 | validation failed, including an invalid `cursor` (the `detail` says what) |
 
@@ -170,5 +200,5 @@ done
 
 - Idempotency / de-duplication (`external_id` unique per `source`): a retried create makes a second
   record.
-- Updates and lifecycle moves (`PATCH`, send, transitions), batch create, evidence upload.
+- Lifecycle moves (complete, send, transitions), editing metadata, evidence upload.
 - Change feed / webhooks; per-key rate limiting.

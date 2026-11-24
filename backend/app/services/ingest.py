@@ -11,8 +11,9 @@ from app import audit, scopes
 from app.models.enums import AuditAction, UserRole, VulnStatus
 from app.models.user import ApiKey, User
 from app.models.vulnerability import VulnBatch, Vulnerability
-from app.schemas.ingest import IngestVuln
-from app.services.vulnerability import _next_vuln_internal_id, _require_unused_rvs, resolve_batch
+from app.schemas.ingest import IngestVuln, IngestVulnUpdate
+from app.services import vulnerability as vuln_svc
+from app.services.vulnerability import _next_vuln_internal_id, _require_unused_rvs
 
 # Same fields the UI requires before a vuln can be sent (FRONTEND_SPEC §8.8).
 _REQUIRED_FOR_READY = ("identifier", "description", "finding_detail")  # mitigation may stay blank
@@ -281,4 +282,82 @@ def create_batch(session: Session, key: ApiKey, request: Request) -> VulnBatch:
 
 
 def _resolve_batch(session: Session, ref: str | None) -> str | None:
-    return resolve_batch(session, ref, ": create one with POST /v1/batches")
+    """The stored id of an existing batch ('batch-0001' is fine); 422 if there is none."""
+    if ref is None or not ref.strip():
+        return None
+    wanted = ref.strip().upper()
+    if session.scalar(select(VulnBatch.internal_id).where(VulnBatch.internal_id == wanted)) is None:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            f"Unknown batch_id '{ref.strip()}': create one with POST /v1/batches",
+        )
+    return wanted
+
+
+_REQUIRES_ONE_OF = ("identifier", "description", "finding_detail")
+
+
+def update(
+    session: Session, vuln: Vulnerability, payload: IngestVulnUpdate, key: ApiKey, request: Request
+) -> Vulnerability:
+    """Edit a draft or ready vulnerability through the API: the fields sent, nothing else.
+
+    The lifecycle (completing, sending, ...) stays in the portal. A vuln inside a draft report
+    is edited there too, under the report's lock (SPEC §3)."""
+    changes = payload.model_dump(exclude_unset=True)
+    expected = changes.pop("if_updated_at", None)
+    if vuln.status not in (VulnStatus.draft, VulnStatus.ready):
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            f"Only a draft or ready vulnerability can be edited (current: {vuln.status.value})",
+        )
+    if vuln_svc.is_in_report(vuln):
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            "This vulnerability is inside a draft report: edit it in the portal, under the report's lock",
+        )
+    if expected is not None and expected != vuln.updated_at:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            f"Changed since {expected.isoformat()} (now {vuln.updated_at.isoformat()}): read it again",
+        )
+
+    if "batch_id" in changes:  # null takes it out of its batch
+        changes["batch_id"] = _resolve_batch(session, changes["batch_id"])
+    new_ops = _resolve_operators(session, changes.pop("operators") or []) if "operators" in changes else None
+
+    after = {f: changes.get(f, getattr(vuln, f)) for f in _REQUIRED_FOR_READY}
+    if vuln.status == VulnStatus.ready:
+        missing = [f for f in _REQUIRED_FOR_READY if _blank(after[f])]
+        if missing:
+            raise HTTPException(
+                status.HTTP_422_UNPROCESSABLE_ENTITY,
+                "Required for status 'ready': " + ", ".join(missing),
+            )
+    elif all(_blank(after[f]) for f in _REQUIRES_ONE_OF):
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            "Provide at least one of: identifier, description, finding_detail",
+        )
+
+    changed = [f for f, v in changes.items() if getattr(vuln, f) != v]
+    detail: dict = {"via": "api"}
+    if "batch_id" in changed:
+        detail["batch"] = {"from": vuln.batch_id, "to": changes["batch_id"]}
+    for f in changed:
+        setattr(vuln, f, changes[f])
+    if new_ops is not None and {u.id for u in new_ops} != {u.id for u in vuln.operators}:
+        vuln.operators = new_ops
+        changed.append("operators")
+    if not changed:
+        return vuln  # nothing to change: no new version, no audit entry
+
+    vuln.version += 1  # D5: an open editor in the portal sees the change as a conflict
+    audit.record(
+        session, action=AuditAction.update, api_key_id=key.id,
+        entity_type="vulnerability", entity_id=vuln.id,
+        detail={**detail, "fields": changed}, request=request,
+    )
+    session.commit()
+    session.refresh(vuln)
+    return vuln
