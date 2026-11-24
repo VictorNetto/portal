@@ -9,6 +9,7 @@ to model it.
 
 import json
 import uuid
+from datetime import datetime
 from decimal import Decimal
 from typing import Any, Literal
 
@@ -32,6 +33,8 @@ class IngestVuln(BaseModel):
     cvss_vector: str | None = Field(default=None, max_length=200)
     source: str | None = Field(default=None, max_length=200)
     internal_notes: str | None = Field(default=None, max_length=100_000)
+    # From POST /v1/batches (BATCH-0001): groups the vulns of one tool run.
+    batch_id: str | None = Field(default=None, max_length=32)
 
     # The caller decides the initial status per request (no system default).
     status: Literal["draft", "ready"] = "draft"
@@ -67,3 +70,11 @@ class IngestResult(BaseModel):
     id: uuid.UUID
     internal_id: str | None
     status: str
+    batch_id: str | None = None
+
+
+class BatchResult(BaseModel):
+    """A new batch: send `batch_id` with each vulnerability of the run."""
+
+    batch_id: str
+    created_at: datetime

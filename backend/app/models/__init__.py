@@ -16,7 +16,7 @@ from app.models.enums import (
 from app.models.report import Report, ReportSection, report_operators
 from app.models.report_template import ReportTemplate
 from app.models.user import ApiKey, AuthSession, User
-from app.models.vulnerability import Vulnerability, vulnerability_operators
+from app.models.vulnerability import VulnBatch, Vulnerability, vulnerability_operators
 
 __all__ = [
     "ApiKey",
@@ -33,6 +33,7 @@ __all__ = [
     "User",
     "UserRole",
     "VulnStatus",
+    "VulnBatch",
     "Vulnerability",
     "report_operators",
     "vulnerability_operators",

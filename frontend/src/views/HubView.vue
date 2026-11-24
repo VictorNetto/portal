@@ -58,7 +58,8 @@ const page = ref(1)
 // Single-line filter/find (the FilterBar). "/" focuses it and opens the menu.
 // Filter text is isolated per entity tab: switching tabs shows that tab's own
 // filter, and switching back restores it.
-const queries = ref({ vulns: '', reports: '' })
+// ?q= seeds the opening tab's filter once (e.g. a vuln's batch links to batch:BATCH-0001).
+const queries = ref({ vulns: '', reports: '', [entity.value]: typeof route.query.q === 'string' ? route.query.q : '' })
 const query = computed({
   get: () => queries.value[entity.value],
   set: (v) => { queries.value[entity.value] = v },
@@ -135,7 +136,13 @@ const operatorValues = computed(() => {
   }
   return [...set].sort()
 })
-const dynamicFilterValues = computed(() => ({ operator: operatorValues.value }))
+// Batches of the loaded vulns, newest first (BATCH-0012 before BATCH-0003).
+const batchValues = computed(() => {
+  if (entity.value !== 'vulns') return []
+  const ids = [...new Set(vulns.value.map((v) => v.batch_id).filter(Boolean))]
+  return ids.sort((a, b) => b.localeCompare(a, undefined, { numeric: true }))
+})
+const dynamicFilterValues = computed(() => ({ operator: operatorValues.value, batch: batchValues.value }))
 
 async function load() {
   loading.value = true; error.value = ''
@@ -516,6 +523,8 @@ onMounted(load)
               <span class="v repLink" @click="goReport(preview.report.id)">{{ preview.report.name }}</span></span>
             <span class="m"><span class="k">{{ t('hub.rvsShort') }}</span>
               <span class="mono v">{{ preview.rvs_id || '—' }}</span></span>
+            <span v-if="preview.batch_id" class="m"><span class="k">{{ t('vform.batch') }}</span>
+              <span class="mono v repLink" :title="t('vform.batchHint')" @click="query = `batch:${preview.batch_id}`">{{ preview.batch_id }}</span></span>
           </template>
           <template v-else>
             <span class="m"><span class="k">{{ t('rcols.risk') }}</span>

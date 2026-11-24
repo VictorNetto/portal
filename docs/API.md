@@ -38,7 +38,7 @@ schemas so integrations don't follow UI changes).
 
 | Method and path | Scope | Purpose |
 |---|---|---|
-| `GET /v1/vulnerabilities` | `vulns:read` | summaries; filters `status` (repeatable), `source`, `report` (UUID, number or `none`), `cvss_min`, `updated_since`; paging `limit` (≤ 200) + `cursor` |
+| `GET /v1/vulnerabilities` | `vulns:read` | summaries; filters `status` (repeatable), `source`, `report` (UUID, number or `none`), `batch` (`BATCH-0001` or `none`), `cvss_min`, `updated_since`; paging `limit` (≤ 200) + `cursor` |
 | `GET /v1/vulnerabilities/{ref}` | `vulns:read` | full record (no internal notes, no viewers) |
 | `GET /v1/vulnerabilities/{ref}/attachments` | `vulns:read` | evidence metadata |
 | `GET /v1/attachments/{id}/content` | `vulns:read` / `reports:read` | evidence file; needs the scope of its owner (404 otherwise) |
@@ -46,6 +46,7 @@ schemas so integrations don't follow UI changes).
 | `GET /v1/rvs-queue` | `rvs:write` or `vulns:read` | sent, no RVS ID yet, oldest first |
 | `POST /v1/vulnerabilities/{ref}/rvs` `{"rvs_id"}` | `rvs:write` | sent → fixing; 409 otherwise or when already set |
 | `POST /v1/vulnerabilities` | `vulns:write` | create (below) |
+| `POST /v1/batches` | `vulns:write` | a new batch id for the vulns of one run (below) |
 | `GET /v1/reports` | `reports:read` | summaries with `vulnerability_count` and `fixed_count`; filters `status`, `client`, `updated_since`; paging |
 | `GET /v1/reports/{ref}` | `reports:read` | full report with sections, vulnerability summaries, evidence list |
 | `GET /v1/reports/{ref}/export?format=pdf\|xlsx\|docx` | `exports` | same files as the UI export |
@@ -74,6 +75,7 @@ system in sync. Times are UTC. `updated_at` is maintained by the DB on every row
 | `source` | string ≤ 200 | e.g. `nuclei`, `burp` |
 | `internal_notes` | string | |
 | `operators` | string[] ≤ 20 | **usernames**; active `admin`, `write_all` or `write_restricted` accounts |
+| `batch_id` | string | from `POST /v1/batches` (any case); an unknown id is a 422 |
 | `status` | `"draft"` (default) \| `"ready"` | the caller decides per request |
 | `metadata` | object | stored as-is; ≤ 64 KB together with unknown fields |
 | *(any other field)* | any | stored in metadata |
@@ -83,7 +85,24 @@ system in sync. Times are UTC. `updated_at` is maintained by the DB on every row
   *Concluir*; `mitigation` may stay blank) and assigns the `VULN-xxxx` number.
 - Never creates a `sent` (or later) vulnerability.
 
-Response `201 {"id": "…", "internal_id": null, "status": "draft"}`.
+Response `201 {"id": "…", "internal_id": null, "status": "draft", "batch_id": null}`.
+
+## Batches
+
+A tool that creates many vulnerabilities in one run can group them: call `POST /v1/batches`
+(no body) first, which returns `201 {"batch_id": "BATCH-0001", "created_at": "…"}`, then send
+`"batch_id": "BATCH-0001"` with each `POST /v1/vulnerabilities` of the run. The id is made by the
+portal and set only on creation. Vulnerability reads include `batch_id` (`null` when in none),
+`GET /v1/vulnerabilities?batch=BATCH-0001` lists one batch, and the Hub filters it with
+`batch:BATCH-0001`.
+
+```bash
+BATCH=$(curl -s -X POST -H "X-API-Key: $KEY" https://portal/api/v1/batches | jq -r .batch_id)
+for f in findings/*.json; do
+  jq --arg b "$BATCH" '. + {batch_id: $b}' "$f" |
+    curl -s -X POST -H "X-API-Key: $KEY" -H "Content-Type: application/json" -d @- https://portal/api/v1/vulnerabilities
+done
+```
 
 ## Errors
 

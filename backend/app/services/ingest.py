@@ -3,13 +3,13 @@
 from datetime import UTC, datetime
 
 from fastapi import HTTPException, Request, status
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
 from app import audit
 from app.models.enums import AuditAction, UserRole, VulnStatus
 from app.models.user import ApiKey, User
-from app.models.vulnerability import Vulnerability
+from app.models.vulnerability import VulnBatch, Vulnerability
 from app.schemas.ingest import IngestVuln
 from app.services.vulnerability import _next_vuln_internal_id
 
@@ -59,6 +59,7 @@ def create(
                 "Required for status 'ready': " + ", ".join(missing),
             )
 
+    batch_id = _resolve_batch(session, payload.batch_id)
     operators = _resolve_operators(session, payload.operators)
     vuln = Vulnerability(
         status=VulnStatus.draft,
@@ -73,6 +74,7 @@ def create(
         source=payload.source,
         internal_notes=payload.internal_notes,
         extra_metadata=payload.combined_metadata(),
+        batch_id=batch_id,
         # The record belongs to whoever issued the key; the key itself is the
         # actor in the audit log.
         created_by=key.created_by,
@@ -84,7 +86,8 @@ def create(
     audit.record(
         session, action=AuditAction.create, api_key_id=key.id,
         entity_type="vulnerability", entity_id=vuln.id,
-        detail={"via": "api", "source": payload.source, "status": payload.status}, request=request,
+        detail={"via": "api", "source": payload.source, "status": payload.status, "batch": batch_id},
+        request=request,
     )
     if payload.status == "ready":
         vuln.status = VulnStatus.ready
@@ -99,3 +102,34 @@ def create(
     session.commit()
     session.refresh(vuln)
     return vuln
+
+
+# --- Batches -------------------------------------------------------------------
+
+def create_batch(session: Session, key: ApiKey, request: Request) -> VulnBatch:
+    """A new batch id for the vulns of one tool run."""
+    n = session.execute(text("SELECT nextval('vuln_batch_seq')")).scalar_one()
+    batch = VulnBatch(internal_id=f"BATCH-{n:04d}", api_key_id=key.id)
+    session.add(batch)
+    session.flush()
+    audit.record(
+        session, action=AuditAction.create, api_key_id=key.id,
+        entity_type="vuln_batch", entity_id=batch.id,
+        detail={"batch": batch.internal_id}, request=request,
+    )
+    session.commit()
+    session.refresh(batch)
+    return batch
+
+
+def _resolve_batch(session: Session, ref: str | None) -> str | None:
+    """The stored id of an existing batch ('batch-0001' is fine); 422 if there is none."""
+    if ref is None or not ref.strip():
+        return None
+    wanted = ref.strip().upper()
+    if session.scalar(select(VulnBatch.internal_id).where(VulnBatch.internal_id == wanted)) is None:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            f"Unknown batch_id '{ref.strip()}': create one with POST /v1/batches",
+        )
+    return wanted

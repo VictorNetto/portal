@@ -27,6 +27,7 @@ class ExtVulnSummary(BaseModel):
     source: str | None
     rvs_id: str | None
     report: ExtReportRef | None
+    batch_id: str | None = None       # BATCH-0001: created in the same tool run
     created_at: datetime
     updated_at: datetime
 

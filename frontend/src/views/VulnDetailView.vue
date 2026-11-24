@@ -531,6 +531,7 @@ watch(() => route.fullPath, () => {
           <p v-if="vuln">
             {{ t('status.' + vuln.status) }}
             <template v-if="vuln.internal_id"> · {{ t('cols.internalId') }} <span class="mono">{{ vuln.internal_id }}</span></template>
+            <template v-if="vuln.batch_id"> · {{ t('vform.batch') }} <a class="mono batchLink" :title="t('vform.batchHint')" @click="router.push({ path: '/hub', query: { entity: 'vulns', q: `batch:${vuln.batch_id}` } })">{{ vuln.batch_id }}</a></template>
             · v{{ vuln.version }}
           </p>
           <p v-else-if="isNew">{{ t('vform.createHint') }}</p>
@@ -755,6 +756,8 @@ watch(() => route.fullPath, () => {
 .crumbs a { cursor: pointer; }
 .crumbs a:hover { color: var(--text); }
 .crumbs strong { color: var(--accent); font-weight: 400; }
+.batchLink { cursor: pointer; color: var(--accent); }
+.batchLink:hover { text-decoration: underline; }
 
 .titleBlock h1.mono { font-size: 22px; }
 .pageActions { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }

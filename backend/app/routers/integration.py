@@ -29,7 +29,7 @@ from app.models.enums import AuditAction, ReportStatus, VulnStatus
 from app.models.report import Report
 from app.models.user import ApiKey
 from app.models.vulnerability import Vulnerability
-from app.schemas.ingest import IngestResult, IngestVuln
+from app.schemas.ingest import BatchResult, IngestResult, IngestVuln
 from app.schemas.integration import (
     ExtAttachment,
     ExtReport,
@@ -126,7 +126,8 @@ def _vuln_summary(v: Vulnerability) -> ExtVulnSummary:
     return ExtVulnSummary(
         id=v.id, internal_id=v.internal_id, status=v.status.value, identifier=v.identifier,
         cwe=v.cwe, cvss_score=v.cvss_score, source=v.source, rvs_id=v.rvs_id,
-        report=_report_ref(v.report), created_at=v.created_at, updated_at=v.updated_at,
+        report=_report_ref(v.report), batch_id=v.batch_id,
+        created_at=v.created_at, updated_at=v.updated_at,
     )
 
 
@@ -175,7 +176,19 @@ def create_vulnerability(
 ) -> IngestResult:
     """Create a vulnerability, as a draft or already saved (SPEC §11)."""
     vuln = ingest_svc.create(session, payload, key, request)
-    return IngestResult(id=vuln.id, internal_id=vuln.internal_id, status=vuln.status.value)
+    return IngestResult(id=vuln.id, internal_id=vuln.internal_id, status=vuln.status.value,
+                        batch_id=vuln.batch_id)
+
+
+@router.post("/batches", response_model=BatchResult, status_code=status.HTTP_201_CREATED)
+def create_batch(
+    request: Request,
+    key: ApiKey = Depends(require_scope(scopes.VULNS_WRITE)),
+    session: Session = Depends(get_session),
+) -> BatchResult:
+    """A new batch id. Send it as `batch_id` with each vulnerability created in the same run."""
+    batch = ingest_svc.create_batch(session, key, request)
+    return BatchResult(batch_id=batch.internal_id, created_at=batch.created_at)
 
 
 @router.get("/vulnerabilities", response_model=Page[ExtVulnSummary])
@@ -183,6 +196,7 @@ def list_vulnerabilities(
     status_: list[VulnStatus] = Query(default=[], alias="status"),
     source: str | None = Query(default=None, description="source contains (case-insensitive)"),
     report: str | None = Query(default=None, description="report UUID or number, or 'none'"),
+    batch: str | None = Query(default=None, description="batch id (BATCH-0001), or 'none'"),
     cvss_min: float | None = Query(default=None, ge=0, le=10),
     updated_since: datetime | None = None,
     limit: int = Query(default=50, ge=1, le=MAX_PAGE),
@@ -199,6 +213,10 @@ def list_vulnerabilities(
         conditions.append(Vulnerability.report_id.is_(None))
     elif report:
         conditions.append(Vulnerability.report_id == _report(session, report).id)
+    if batch == "none":
+        conditions.append(Vulnerability.batch_id.is_(None))
+    elif batch:
+        conditions.append(Vulnerability.batch_id == batch.strip().upper())
     if cvss_min is not None:
         conditions.append(Vulnerability.cvss_score >= cvss_min)
     if updated_since:

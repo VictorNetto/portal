@@ -184,3 +184,36 @@ def test_read_and_export_a_report(full, writer):
 def test_create_through_v1(full):
     r = call(full, "POST", "/vulnerabilities", json={"identifier": f"pytest-{tag()}", "source": "v1"})
     assert r.status_code == 201 and r.json()["status"] == "draft"
+
+
+# --- batches -----------------------------------------------------------------
+
+def test_vulns_of_one_run_share_a_batch(full, admin):
+    r = call(full, "POST", "/batches")
+    assert r.status_code == 201, r.text
+    batch = r.json()["batch_id"]
+    assert batch.startswith("BATCH-")
+    ids = []
+    for ref in (batch, batch.lower()):           # any case is the same batch
+        r = call(full, "POST", "/vulnerabilities", json={"identifier": f"pytest-{tag()}", "batch_id": ref})
+        assert r.status_code == 201 and r.json()["batch_id"] == batch, r.text
+        ids.append(r.json()["id"])
+    loose = call(full, "POST", "/vulnerabilities", json={"identifier": f"pytest-{tag()}"}).json()
+    assert loose["batch_id"] is None
+
+    listed = call(full, "GET", "/vulnerabilities", params={"batch": batch}).json()["items"]
+    assert sorted(v["id"] for v in listed) == sorted(ids)
+    assert call(full, "GET", f"/vulnerabilities/{ids[0]}").json()["batch_id"] == batch
+    assert admin.get(f"/vulnerabilities/{ids[0]}").json()["batch_id"] == batch   # the portal shows it
+    # It is a field, not metadata.
+    assert "batch_id" not in call(full, "GET", f"/vulnerabilities/{ids[0]}").json()["metadata"]
+
+
+def test_an_unknown_batch_is_refused(full):
+    r = call(full, "POST", "/vulnerabilities", json={"identifier": f"pytest-{tag()}", "batch_id": "BATCH-999999"})
+    assert r.status_code == 422 and "batch" in r.json()["detail"].lower()
+
+
+def test_creating_a_batch_needs_the_write_scope(admin):
+    reader_key = make_key(admin, ["vulns:read"])
+    assert call(reader_key, "POST", "/batches").status_code == 403

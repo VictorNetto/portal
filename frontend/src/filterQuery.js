@@ -13,6 +13,7 @@
 //   operator:<text>              an operator's name or login contains (ci)
 //   source:<text>                source contains (ci)
 //   report:<text>                report id or name contains (ci); report:none = not in a report
+//   batch:<id>                   created in that integration-API batch (BATCH-0001, ci); batch:none = in none
 //   <date key>:<when>            the row's date for that key falls in <when> (DATE_KEYS;
 //                                see parsePeriod): 7d, 3m, 1y, or d1.d2.d3 (dd-mm-aaaa, mm-aaaa, aaaa,
 //                                26S1 semester, 26Q3 / 26T3 quarter).
@@ -53,6 +54,7 @@ export const FILTER_KEYS = [
   { key: 'status', enumerable: true, values: STATUSES },
   { key: 'cvss', enumerable: true, values: CVSS_VALUES },
   { key: 'report', enumerable: false, values: [] },
+  { key: 'batch', enumerable: true, values: [] },
   { key: 'operator', enumerable: true, values: [] },
   { key: 'source', enumerable: false, values: [], advanced: true },
   ...Object.keys(DATE_KEYS).map(dateKey),
@@ -195,6 +197,8 @@ function makeToken(raw) {
   }
   if (key === 'cvss')
     return { raw, negate, key, op: '>=', value: Number(value), valid: isValidCvss(value) }
+  if (key === 'batch')
+    return { raw, negate, key, op: 'eq', value: value.toUpperCase(), valid: value.length > 0 }
   if (key === 'source' || key === 'operator' || key === 'report')
     return { raw, negate, key, op: 'contains', value, valid: value.length > 0 }
   if (key in DATE_KEYS) {
@@ -217,6 +221,8 @@ function baseMatch(tok, r) {
       const text = r.report ? `${r.report.internal_id || ''} ${r.report.name || ''}`.toLowerCase() : ''
       return text.includes(tok.value.toLowerCase())
     }
+    case 'batch':
+      return tok.value === 'NONE' ? !r.batch_id : (r.batch_id || '').toUpperCase() === tok.value
     case 'operator': {
       const ops = Array.isArray(r.operators) ? r.operators : []
       const q = tok.value.toLowerCase()
