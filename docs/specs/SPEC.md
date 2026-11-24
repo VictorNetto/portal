@@ -1,16 +1,20 @@
-# Red Team Operations Platform — MVP Specification
+# Red Team Operations Platform — System Specification
 
-> **Status names:** this document predates **D14** (`docs/DECISIONS.md`). Read `saved_local` as `ready`,
-> `dispatched` as `sent`, `acknowledged`/`waiting_fix` as `fixing`, `pending_retest` as `retesting`;
-> `dispatching` is no longer a status (now the `reports.sending` flag).
+> **Current as of 2026-11-24.** This document describes the system as built. The reasoning behind
+> each rule is in [DECISIONS.md](../DECISIONS.md) (D1–D18), referenced inline; the integration API
+> is detailed in [API.md](../API.md), the screens in [FRONTEND_SPEC.md](FRONTEND_SPEC.md) and the
+> dashboards' query language in [DASHBOARDS.md](DASHBOARDS.md). Keep this file in step with the
+> code: a change to a rule here belongs in the same commit as the code that implements it.
 
 ## Overview
 
-A self-hosted web platform for red team operators to manage, document, and report security vulnerabilities and assessment operations. Targets ~20 concurrent operators, deployed as a modular monolith.
+A self-hosted web platform for a red team (~20 operators) to manage, document and report security
+vulnerabilities and assessment operations, and for the defense team to receive and track them. A
+modular monolith.
 
-**Stack:** Python (FastAPI) · PostgreSQL · MinIO (local S3) · Vue (SPA) · Tailwind CSS · Docker · Azure Communication Services (email)
-
-> **Design decisions log:** see [DECISIONS.md](../DECISIONS.md) for resolved edge-case decisions (deletion, dispatch atomicity, locking overrides, concurrency, corrections) and their rationale. Sections below reflect those decisions.
+**Stack:** Python 3.12 (FastAPI, SQLAlchemy 2, Alembic) · PostgreSQL 16 · Vue 3 (Vite, Pinia) ·
+nginx · Docker Compose · ReportLab / python-docx / openpyxl for documents · SMTP for delivery ·
+attachments on a local volume or any S3-compatible store.
 
 ---
 
@@ -18,15 +22,19 @@ A self-hosted web platform for red team operators to manage, document, and repor
 
 | Term | Definition |
 |---|---|
-| **RVS** | *Reporte de Vulnerabilidade de Segurança* — the blue team's own tracking record for a vulnerability. After we dispatch a finding, the blue team creates an RVS in their system and replies with an RVS ID, which we store on the vulnerability. |
-| **Blue team** | The defensive team that receives our dispatched vulnerabilities and reports, and performs remediation. |
-| **Dispatch** | The act of sending a vuln or report outbound via the dispatcher service, transitioning its status to `dispatched`. The current transport is email; it is designed to be swapped. |
-| **Dispatcher** | The single decoupled egress module (§12) that handles all outbound delivery. Email today, ServiceNow in the future — callers are insulated from the transport. |
-| **Standalone vuln** | A vulnerability with `report_id = NULL`. Managed independently; can be dispatched on its own. |
-| **Report vuln** | A vulnerability exclusively owned by one report (`report_id` set). Cannot be dispatched individually — only dispatched as part of its parent report. |
-| **Operator** | A platform user assigned to a vulnerability or report. |
+| **RVS** | *Reporte de Vulnerabilidade de Segurança* — the defense team's own tracking record for a vulnerability. After a finding is sent, the defense team registers it in their system and records its RVS ID on the portal. |
+| **Defense team** (blue team) | Receives sent vulnerabilities and reports and runs remediation. Has its own accounts and pages in the portal (§17). |
+| **Send** (*Enviar*) | Delivering a vuln or report through the dispatcher (§12); moves it to `sent`. |
+| **Dispatcher** | The single egress module (§12). SMTP today (or a stub that only logs); callers know nothing of the transport. |
+| **Standalone vuln** | A vulnerability with `report_id = NULL`: managed and sent on its own. |
+| **Report vuln** | A vulnerability inside a report (`report_id` set). While the report is a draft it is edited under the report's lock and is sent only with the report; afterwards it lives on its own. |
+| **Operator** | A user assigned to a vulnerability or report. |
+| **Batch** | Vulns created together by one integration-API run, sharing a `BATCH-0001` id (§11). |
+| **Import** | A past vulnerability brought in through the integration API with its status, dates and number (§11). |
 
-**Blue-team interaction flow:** we create and dispatch a finding → blue team receives the email/payload → blue team registers it in their system and sends back an RVS ID → operator enters that RVS ID on our platform (transitions the vuln to `acknowledged`) → remediation tracking continues from there.
+**Flow:** the red team writes a finding → completes it (`ready`, gets `VULN-xxxx`) → sends it,
+alone or in a report (`sent`) → the defense team accepts it and records the RVS ID (`fixing`), or
+assumes the risk (`risk_accepted`) → when the fix is done, a retest (`retesting`) → `fixed`.
 
 ---
 
@@ -39,15 +47,18 @@ A self-hosted web platform for red team operators to manage, document, and repor
 - [§5 Vulnerability Fields](#5-vulnerability-fields)
 - [§6 Report Fields](#6-report-fields)
 - [§7 Report Editor](#7-report-editor)
-- [§8 Vulnerability List UI](#8-vulnerability-list-ui)
-- [§9 Report Dispatch](#9-report-dispatch)
-- [§10 User Management](#10-user-management)
-- [§11 Input Integration](#11-input-integration)
-- [§12 Dispatcher Service](#12-dispatcher-service)
+- [§8 Operations Hub](#8-operations-hub)
+- [§9 Sending a Report](#9-sending-a-report)
+- [§10 Users, Access and Audit](#10-users-access-and-audit)
+- [§11 Integration API](#11-integration-api)
+- [§12 Dispatcher and Documents](#12-dispatcher-and-documents)
 - [§13 Infrastructure & Deployment](#13-infrastructure--deployment)
-- [§14 Deferred Post-MVP](#14-deferred-post-mvp)
+- [§14 Not Yet / Post-MVP](#14-not-yet--post-mvp)
 - [§15 Data Model](#15-data-model)
 - [§16 Technical Decisions](#16-technical-decisions)
+- [§17 Defense Team](#17-defense-team)
+- [§18 Dashboards](#18-dashboards)
+- [§19 Report Templates](#19-report-templates)
 
 ---
 
@@ -55,78 +66,106 @@ A self-hosted web platform for red team operators to manage, document, and repor
 
 ### Two Vulnerability Types
 
-| Type | `report_id` FK | Lock required | Lifecycle |
+| Type | `report_id` | Lock | Lifecycle |
 |---|---|---|---|
-| **Standalone** | `NULL` | Never | Full lifecycle (see §2.1) |
-| **Report vuln** | Set (exclusive) | Parent report lock | Starts in draft inside report; goes independent after report dispatched |
+| **Standalone** | `NULL` | None; optimistic concurrency (D5) | Full lifecycle (§2.1) |
+| **Report vuln** | Set (exclusive) | The report's lock (§3) | `draft` inside the report; on its own once the report is sent (§2.3) |
 
-A vulnerability belongs to **at most one report**, exclusively. A standalone vuln cannot be migrated into a report and vice versa.
+A vulnerability belongs to **at most one report**. While a report is a draft, standalone vulns
+that were not sent yet (`draft`, `ready`) can be **linked** into it — a `ready` one goes back to
+`draft` and keeps its number — and a report vuln can be **taken out**, becoming a standalone draft
+again. A sent vuln never changes report.
 
 ### One Table Per Entity
 
-No separate draft tables. A single `vulnerabilities` table and a single `reports` table. The `status` column carries the full lifecycle state.
+No separate draft tables: one `vulnerabilities` table and one `reports` table; the `status`
+column carries the lifecycle. Deletes are soft (`deleted_at`).
 
 ---
 
 ## 2. Lifecycles
 
+Statuses and their names on screen (D14, D17):
+
+| Vulnerability | Code | Moves on by |
+|---|---|---|
+| Rascunho | `draft` | *Concluir* (`POST /vulnerabilities/{id}/complete`): needs identifier, description and finding detail; assigns `VULN-xxxx` |
+| Pronta | `ready` | *Enviar* (`POST /vulnerabilities/{id}/send`) |
+| Enviada | `sent` | the defense team accepts it and records the RVS ID → `fixing`; or assumes the risk → `risk_accepted` |
+| Em correção | `fixing` | *Solicitar reteste* → `retesting`; or the defense team's *Marcar como corrigida* → `fixed` |
+| Em reteste | `retesting` | *Aprovar reteste* → `fixed`; *Reprovar reteste* → `fixing` |
+| Corrigida | `fixed` | end |
+| Risco assumido | `risk_accepted` | end (the defense team may undo it → `sent`) |
+
 ### 2.1 Standalone Vulnerability
 
 ```
-draft ──[save_draft]──────────► draft
-draft ──[send]────────────────► saved_local   (internal ID assigned)
-saved_local ──[dispatch]──────► dispatching   (transient; render + send in progress — see D2)
-dispatching ──[delivery ok]───► dispatched    (routed via dispatcher service)
-dispatching ──[delivery fail]─► dispatching   (error recorded; operator retries)
-dispatched ───────────────────► acknowledged  (blue team assigns RVS ID)
-acknowledged ─────────────────► waiting_fix
-waiting_fix ──────────────────► pending_retest
-pending_retest ───────────────► waiting_fix   (retest failed)
-pending_retest ───────────────► fixed
+draft ──[Concluir]──────────► ready        (VULN-xxxx assigned, ready_at)
+ready ──[Enviar]────────────► sent         (delivered through the dispatcher, sent_at)
+sent  ──[Aceitar]───────────► sent         (accepted_at / accepted_by; a field, not a status)
+sent  ──[RVS ID]────────────► fixing       (rvs_id, fixing_at; implies acceptance if none yet)
+sent  ──[Assumir risco]─────► risk_accepted (risk_accepted_at / _by, risk_reason ≥ 5 chars)
+risk_accepted ──[Desfazer]──► sent
+fixing ──[Solicitar reteste]► retesting    (retesting_at)
+fixing ──[Marcar corrigida]─► fixed        (defense team; retest skipped)
+retesting ──[Reprovar]──────► fixing       (retesting_at cleared)
+retesting ──[Aprovar]───────► fixed        (fixed_at)
 ```
+
+A standalone send renders that vuln's package and delivers it; a delivery failure leaves it
+`ready`.
 
 ### 2.2 Report
 
 ```
-draft ──[save_draft]──────────► draft
-draft ──[send]────────────────► dispatching   (transient; locked from editing — see D2)
-dispatching ──[delivery ok]───► dispatched    (end of report lifecycle)
-dispatching ──[delivery fail]─► dispatching   (error recorded; operator retries)
+draft ──[Enviar]──► sent
 ```
 
-Once dispatched, a report is **immutable** except for its internal notes field. While `dispatching` the report is locked from editing; the status only advances to `dispatched` after the dispatcher confirms delivery.
+Two statuses only. A send in progress or failed is the `reports.sending` flag, not a status (D14):
+from phase 1 until delivery the report is frozen; a failed delivery shows *Rascunho* + *Falha no
+envio* + *Tentar novamente*, and a retry never re-issues numbers (§9). Report **progress** is
+computed, never stored: `closed_count` (fixed or risk accepted) of `vulnerability_count`;
+*Concluído* when all are closed.
 
 ### 2.3 Report Vulnerability
 
 ```
-draft   (exists only inside a report; edited under the report lock)
+draft   (inside the report; edited under the report lock)
   │
-  └── parent report dispatched
-           │
+  └── report sent (one transaction with the report)
            ▼
-        dispatched  ──► acknowledged ──► waiting_fix ──► pending_retest ──► fixed
-                                                              │
-                                                              └──► waiting_fix
+         sent ──► fixing ⇄ retesting ──► fixed
+           └────► risk_accepted
 ```
 
-When the parent report is dispatched, all its linked vulns transition to `dispatched` in one batch. The package sent via the dispatcher service (§12) is a single combined payload: one PDF (the full operation report), one Excel file (all vulns as rows), and all non-image file attachments from all vulns. Only after this bulk dispatch are the vulns treated as independent records, each following its own lifecycle forward. See §9 for the full dispatch sequence.
+When the report is sent, all its vulns move to `sent` together and are delivered in one package
+(§9). From then on each one follows §2.1 on its own; the report keeps listing them and shows their
+progress.
+
+### 2.4 Admin Correction (D6)
+
+An admin may move a vuln back to an earlier status (*Ajustar status*, `POST
+/vulnerabilities/{id}/correction`, reason ≥ 5 chars). The dates of the undone stages are cleared;
+going back before `fixing` also removes the RVS ID (the vuln waits for one again); going back
+before `sent` clears the acceptance; undoing a risk acceptance clears its reason. Always audited as
+`correction` with the reason.
 
 ---
 
 ## 3. Write Locking
 
-**This section is the canonical lock definition. All other sections reference §3 rather than restate these rules.**
+**This section is the canonical lock definition.**
 
-- The **report** is the only entity that carries a write lock.
-- Holding the report lock grants write access to: the report itself, and all vulnerabilities with a FK to that report.
-- Lock auto-releases after **10 minutes of inactivity** (idle-release: no writes for 10 min → lock is considered free on the next acquire attempt; no background job needed).
-- **Standalone vulnerabilities** have no lock — freely editable by any authorized writer.
-- While a report is `dispatching` (transient dispatch state, see §9 / D2) it is locked from all editing until the dispatcher confirms delivery.
-- Once a report is `dispatched`, it is immutable; the lock is not used. The only post-dispatch editable field is `internal_notes` on the report — no coordination needed for that field alone.
-
-**Force-release (D4):** an `admin` may forcibly release a lock held by another operator before the 10-minute idle release fires (e.g. an operator left with a lock held). The UI shows the current holder and when the lock was acquired. Force-release is recorded in the audit log as a `lock_override` action. *(May be widened to `writer-all` post-MVP; single permission-check change.)*
-
-**Standalone vuln concurrency (D5):** standalone vulnerabilities carry no lock but use **optimistic concurrency** — writes include the last-read `version` integer and are rejected with `409 Conflict` if the stored version has advanced. See §15.8.
+- The **report** is the only entity with a write lock. Holding it grants write access to the
+  report and to every vulnerability inside it.
+- The lock frees itself after **10 minutes without writes** (checked lazily on the next acquire; no
+  background job). The editor keeps it alive with a heartbeat while open.
+- **Force-release (D4):** an admin may release a lock held by someone else; the UI shows the holder
+  and since when; audited as `lock_override`.
+- While a report is `sending` (§9) nothing in it can be edited.
+- Once a report is `sent`, the lock is not used: only its internal notes stay editable.
+- **Standalone vulnerabilities** have no lock. Every write carries the `version` last read; a stale
+  one is refused with `409` and the client reloads (D5).
 
 ---
 
@@ -134,21 +173,29 @@ When the parent report is dispatched, all its linked vulns transition to `dispat
 
 ### Vulnerabilities
 
-| Status | Editable fields |
+| Status | Editable |
 |---|---|
-| `draft`, `saved_local` | All fields. `identifier` may be blank here but is **required to dispatch** (D3) |
-| `dispatching` | None — locked while delivery is in progress (D2) |
-| `dispatched` | Internal notes · status · RVS ID — all other text fields read-only |
-| `acknowledged` and beyond | Internal notes · status only — RVS ID is read-only (setting the RVS ID **is** the acknowledgment action; once set it cannot change) |
+| `draft`, `ready` | All content fields (identifier, CWE, creation date, CVSS, description, finding detail, mitigation, references, source, internal notes), operators and *Compartilhado com*. The identifier may be blank in `draft`; it is required to complete (D3) |
+| `sent` and after | Internal notes, operators and *Compartilhado com* only |
 
-> **Admin correction (D6):** an `admin` may override these rules to reset a mistaken status transition or clear an incorrectly entered RVS ID. Every correction is written to the audit log.
+- A report vuln is edited only by the holder of the report's lock, and only while the report is a
+  draft and not sending.
+- **What goes into the documents** (the *No documento* toggle on description, finding detail,
+  mitigation and references; `export_hidden`) is not content: any writer may change it in any
+  status, saved at once, without the lock or a new version.
+- Attachments follow the content lock (draft / ready).
+- The **creation date** may be set by hand (a finding recorded later): never in the future, never
+  after `ready_at`.
 
 ### Reports
 
-| Status | Editable fields |
+| Status | Editable |
 |---|---|
-| `draft` | All fields |
-| `dispatched` | Internal notes only — all other fields frozen |
+| `draft` (not sending) | All fields, under the lock |
+| `sent` | Internal notes only |
+
+The report's *No documento* toggles (executive summary, introduction, report data, and each extra
+section's `exported`) follow the same rule as the vuln's: changeable at any time.
 
 ---
 
@@ -156,36 +203,40 @@ When the parent report is dispatched, all its linked vulns transition to `dispat
 
 | Field | Type | Notes |
 |---|---|---|
-| **Internal ID** | Auto-generated | e.g. `VULN-0042`; assigned on `saved_local` |
-| **RVS ID** | Text, nullable | The blue team's tracking ID (see Glossary). Filled in when they respond post-dispatch; triggers transition to `acknowledged` |
-| **Identifier** | Text | CVE-YYYY-NNNNN or free-text name |
-| **CWE** | Text | e.g. `CWE-79` |
+| **Identifier** | Text | CVE or free-text name; what lists and titles show (D15) |
+| **Internal ID** | `VULN-xxxx` | Assigned on *Concluir* (standalone) or when its report is sent; never changes. An import may bring its original number (§11) |
+| **RVS ID** | Text, nullable | The defense team's id; recorded after sending; unique across live vulns (case-insensitive) |
+| **CWE** | Text | Normalised to `CWE-79` |
 | **Description** | Markdown | |
 | **Finding Detail** | Markdown | Technical write-up |
-| **Mitigation / Solution** | Markdown | |
-| **References** | List of URLs | |
-| **CVSSv3.1 Score** | Float 0.0–10.0 | Manual entry |
-| **CVSSv3.1 Vector** | Text | Manual string e.g. `AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H` |
-| **Operators** | Linked users | List of operators assigned to this vuln |
-| **Source** | Text, nullable | Origin of the vuln (e.g. `manual`, `nuclei`, `bugcrowd`, `api-import`). Set at creation; follows standard field-lock rules (read-only after `dispatched`) |
-| **Extra Metadata** | JSON | Additional fields from inbound API calls stored as-is; see §11 and §15.8 |
-| **Creation date** | Timestamp | Now by default; may be set by hand on the form or on create (a finding recorded later), never in the future. Editable with the content (draft / ready), never after the completion date |
-| **Batch** | Text, nullable | `BATCH-0001`: the integration-API run it was created in (§11). Set on creation only |
-| **Imported at** | Timestamp, nullable | Set when a past vuln is brought in with its history (§11, `vulns:import`); its dates are another system's |
-| **Internal Notes** | Markdown | Operator-only; excluded from all exports |
-| **Attachments** | Files | See §5.1 |
-| **report_id** | FK, nullable | `NULL` = standalone vuln (see Glossary) |
-| **Status** | Enum | See §2.1 / §2.3 |
-
-> **Post-MVP:** CVSSv3.1 interactive calculator widget.
+| **Mitigation / Solution** | Markdown | May stay blank |
+| **References** | List of http(s) URLs | Up to 50 |
+| **CVSS v3.1 Score** | 0.0–10.0 | Typed, or from the built-in calculator |
+| **CVSS v3.1 Vector** | Text | Typed, or from the calculator |
+| **Source** | Text, nullable | Where it came from (`nuclei`, `burp`, …); several values on the form |
+| **Operators** | Users | Who works on it; the creator is the default |
+| **Shared with** (*Compartilhado com*) | Users | Read access for restricted roles (D10) |
+| **Creation date** | Timestamp | Now by default; may be set by hand on the form or through the API (§4) |
+| **Batch** | `BATCH-xxxx`, nullable | The integration-API run it was created in (§11); set on creation only |
+| **Imported at** | Timestamp, nullable | Set when brought in with its history (§11); its dates are another system's |
+| **Acceptance** | Timestamp + user | When and by whom the defense team accepted it (D17) |
+| **Risk acceptance** | Timestamp + user + reason | When the defense team assumed the risk, and why (D17) |
+| **Extra Metadata** | JSON | Free data from the tool that created it (§11) |
+| **Internal Notes** | Markdown | Red team only; never exported, never sent, not in the integration API |
+| **No documento** | List | Sections left out of its documents (`export_hidden`) |
+| **Attachments** | Files | §5.1 |
+| **Status** + dates | Enum + timestamps | §2; `ready_at`, `sent_at`, `fixing_at`, `retesting_at`, `fixed_at` |
 
 ### 5.1 Attachments
 
-All files are stored in MinIO (S3). URLs are pre-signed or proxied through the backend — no direct public S3 exposure.
-
-- **Images** (PNG, JPG, GIF, WebP): operator assigns a name on upload; system stores the file in S3 and inserts `![name](url)` at cursor. Renders inline in editor and exported PDF.
-- **Non-image files**: stored in S3 as downloadable attachments; included in the dispatch package when the vuln (or its parent report) is dispatched via the dispatcher service (§12).
-- Upload methods: drag-and-drop, clipboard paste (Ctrl+V), file picker.
+- Stored through the storage interface (local volume by default, or S3 — D9). Never exposed
+  directly: every read is proxied by the API, so access rules and read auditing apply.
+- Validated by extension allowlist and file content (magic bytes); the client's Content-Type is
+  ignored; SVG is refused; **50 MB** per file.
+- **Images** pasted or dropped into a Markdown field are stored as attachments and referenced
+  inline; they render in the editor and the documents.
+- **Other files** are downloadable, and go with the vuln (or its report) when it is sent.
+- Upload: drag-and-drop, paste, file picker.
 
 ---
 
@@ -193,177 +244,199 @@ All files are stored in MinIO (S3). URLs are pre-signed or proxied through the b
 
 | Field | Type | Notes |
 |---|---|---|
-| **Internal ID** | Auto-generated | e.g. `OP-0007`; assigned on first save |
-| **Name** | Text | |
-| **Client Name** | Text | Target organisation; appears on cover |
-| **Operators** | Linked users | All operators assigned to this report |
-| **Start Date / End Date** | Dates | Execution window |
-| **Status** | Enum | `draft` / `dispatched` |
-| **Report content & sections** | See §7 | Cover, Executive Summary, TOC, Introduction, Report Data (structured fields), free-form extras, then linked vulns |
-| **Evidence Bundle** | Files | Images, videos, code snippets, tables; stored in S3; available for embedding in report sections |
-| **Internal Notes** | Markdown | Editable even after dispatch; excluded from exports |
-| **Lock** | See §3 | Single lock covering the report and all its linked vulns |
+| **Name** | Text | Its identifier on screen (D15) |
+| **Internal ID** | `OP-xxxx` | Assigned when the report is sent (a retry keeps it); drafts have none |
+| **Client Name** | Text | On the cover |
+| **Operators** / **Shared with** | Users | As on vulns |
+| **Start / End Date** | Dates | Execution window |
+| **Status** | `draft` / `sent` | Plus the `sending` flag and the last `send_error` (§9) |
+| **Content** | §7 | Executive summary, introduction, report data, extra sections, vulns |
+| **Evidence** | Files | The report's own attachments; images can be embedded in its sections |
+| **Template** | Reference | The template it started from, if any (§19) |
+| **Internal Notes** | Markdown | Editable after sending; never exported |
+| **Lock** | §3 | One lock for the report and its vulns |
 
 ---
 
 ## 7. Report Editor
 
 ### Structure
-A report renders in the following fixed order. This table is the single source of truth for section definitions, storage, and editability.
+
+Documents render in this fixed order:
 
 | # | Section | Storage | Editable | Notes |
 |---|---|---|---|---|
-| 1 | **Cover** | Auto-rendered from report fields | No | Renders: name, client name, dates, operators |
-| 2 | **Executive Summary** | `executive_summary_md` on `reports` | Yes | Pre-populated with a default template on report creation |
-| 3 | **TOC** | Generated at render time | No | Built from section titles + vuln identifiers; never stored |
-| 4 | **Introduction** | `introduction_md` on `reports` | Yes | Always custom; blank by default |
-| 5 | **Report Data** | Structured columns on `reports` | Yes | See subfields below |
-| 6 | **Free-form extras** | `report_sections` table (§15.6) | Yes | Operator-added, operator-ordered; any number; rendered here |
-| 7 | **Vulnerabilities** | `vulnerabilities` table, FK to report | Auto-rendered | Sorted by CVSSv3.1 score descending |
+| 1 | **Cover** | From the report fields | No | Name, client, dates, operators |
+| 2 | **Executive Summary** | `reports.executive_summary_md` | Yes | Starts with an outline, or the template's text |
+| 3 | **Table of contents** | Generated | No | |
+| 4 | **Introduction** | `reports.introduction_md` | Yes | |
+| 5 | **Report Data** | Columns on `reports` | Yes | Test type, demand origin, environment, scope, test model (free text) |
+| 6 | **Extra sections** | `report_sections` | Yes | Any number, in the author's order |
+| 7 | **Vulnerabilities** | `vulnerabilities` with the report's id | Through the vuln editor | CVSS descending |
 
-**Report Data subfields** (all free text for MVP; enum constraints added post-MVP when values stabilise):
-
-| Field | Column | Example values |
-|---|---|---|
-| Test type | `test_type` | infra, web, mobile, API |
-| Demand origin | `demand_origin` | who/what originated the engagement |
-| Environment | `environment` | production, staging, QA |
-| Scope | `scope` | free-text description of what was in scope |
-| Test model | `test_model` | graybox, blackbox, whitebox |
+Each of 2, 4, 5 and every extra section has a *No documento* toggle (§4).
 
 ### Editing
-- Vulnerability fields (description, finding detail, mitigation, etc.) are edited through the dedicated vulnerability editor — not inside the report editor.
-- The report editor handles: editing report metadata, filling section content, adding/removing/reordering free-form extras, managing the evidence bundle.
-- Editing requires the report lock (§3). Only one operator edits a given report at a time.
 
-### Media Upload (Evidence Bundle)
-- Upload via drag-and-drop or clipboard paste.
-- Images: stored in S3; available for inline embedding in narrative sections via `![name](url)`.
-- Non-image files: stored in S3 as evidence attachments; included in the dispatch package.
+- Vulnerability content is edited in the vulnerability editor, under the report's lock.
+- The report editor handles the metadata, the sections, linking/unlinking and creating vulns, and
+  the evidence.
+- *Salvar como Template* saves the section texts as a template (§19).
 
-### Export Formats
-| Template | Contents | Formats |
+### Export
+
+| Document | Contents | Formats |
 |---|---|---|
-| Vulnerability Report | Single standalone vuln — all structured fields | PDF, DOCX |
-| Operation Report | Report sections (in order) · all linked vulns (CVSS desc) · evidence bundle | PDF, DOCX |
+| Vulnerability | One vuln: all fields shown in documents | PDF, Word |
+| Report | Sections in order · its vulns (CVSS desc) · evidence list | PDF, Word, Excel (the vulns) |
+| Batch (Hub) | Selected vulns or reports | ZIP of PDFs; Excel |
 
-Internal notes are stripped from all exports.
+Internal notes and sections switched off with *No documento* never appear in documents.
 
 ---
 
-## 8. Vulnerability List UI
+## 8. Operations Hub
 
-| Shown | Condition |
+The Hub (*Operações*) lists vulnerabilities and reports in two tabs, filtered to what the user may
+read (§10.2).
+
+- Vulnerabilities inside a draft report are listed too, each row naming its report.
+- One-line **filter language** (`frontend/src/filterQuery.js`): free text on the identifier;
+  `status:a,b`, `cvss:x` (≥), `report:` (`none`), `operator:`, `batch:` (`none`), `source:`, and
+  date keys `created`, `updated`, `sent`, `accepted`, `fixing`, `retesting`, `fixed`, `risk` with
+  relative (`7d`, `3m`, `1y`) or calendar periods (`d1.d2.d3`, months, years, semesters, quarters);
+  `-key:value` negates; quoted values hold spaces; terms are ANDed. `?q=` opens the Hub with a
+  filter.
+- A details drawer with the timeline; row and batch actions (export, send, delete), skipping and
+  reporting the items an action does not apply to; pagination.
+
+---
+
+## 9. Sending a Report
+
+*Enviar* on a draft report (`POST /reports/{id}/send`), by a writer holding the lock. In two phases
+so a failure never reads as sent (D2, D14, D16):
+
+**Before freezing:** every vuln must have identifier, description and finding detail (D3); the
+package is built first, so content that cannot be rendered is refused and the report stays an
+editable draft.
+
+**Phase 1 — one DB transaction:** `sending` set (the report is frozen), `OP-xxxx` and the vulns'
+`VULN-xxxx` assigned (kept from a previous try), commit.
+
+**Phase 2 — deliver:** the dispatcher sends the report PDF, the Excel of its vulns and every
+non-image file of the report and its vulns.
+- **Success:** report → `sent` (`sent_at`), its vulns → `sent` (`sent_at`), `sending` cleared.
+- **Failure:** the report stays a frozen draft with `send_error`; *Tentar novamente* retries without
+  new numbers.
+
+---
+
+## 10. Users, Access and Audit
+
+### 10.1 Authentication
+
+- Username + password (bcrypt). Users have a **full name** (documents) and a **display name** (on
+  screen), apart from the login.
+- **Sessions live on the server** (`auth_sessions`, D16): at most 1 hour from login, ended sooner
+  by 15 minutes without activity (D12). Access tokens last 5 minutes; a refresh token works once.
+  Signing out or changing the password ends sessions.
+- **Login limits (D16):** 5 failures per account and 30 per IP in 15 minutes answer `429`; failures
+  are audited (`login_failed`).
+- **First run:** if no user exists, an `admin` is created with `FIRST_ADMIN_PASSWORD` or a random
+  password printed once to the API log. New and reset users must change their password at first
+  login.
+- **API keys** (§11): created by admins, carry scopes and an optional expiry; 32+ random bytes,
+  stored as a SHA-256 hash (D7); shown once.
+- The auth layer is pluggable so SSO (Azure Entra ID) can be added later.
+
+### 10.2 Roles (D10, D17, D18)
+
+| Role | Sees | Changes |
+|---|---|---|
+| `admin` | everything | everything; users, API keys, template approval, corrections, lock release |
+| `write_all` | everything | every vuln and report |
+| `read_all` | everything | nothing |
+| `auditor` | everything | nothing; plus the audit log |
+| `write_restricted` | what it created, operates or was shared | creates; edits what it created or operates; deletes what it created |
+| `read_restricted` | what it created, operates or was shared | nothing |
+| `defense` | sent vulns only, without red-team-only fields (§17) | accepts, records RVS IDs, assumes risk, ends the fix |
+| `dashboard` | dashboards (aggregates of every finding) and TV links (§18) | dashboards |
+
+- Enforcement lives in `backend/app/access.py`; lists filter in SQL. A record the user may not read
+  answers **404**; a readable one they may not change, **403**. The UI mirrors the rules
+  (`frontend/src/access.js`) but the server never trusts it.
+- A report's vulns follow the report's access. The creator always keeps access.
+- `defense` and `dashboard` accounts are refused by every other route (`get_current_user`).
+
+### 10.3 Audit Log
+
+Captured for: login, failed login, logout · create, read, update, delete · status change, send,
+accept · export · API key create/revoke and every key's writes, exports and downloads · permission
+change · lock override · correction. Imports are a `create` with `"import": true`.
+
+- **Reads are logged on purpose (D8):** who read what, when. A list logs the listing, not each row.
+- Each entry: actor (user **or** API key; only a failed login may have none) · action · entity type
+  and id · detail · IP · time. Append-only.
+- The *Logs de Auditoria* page (auditor, admin) uses the Hub's filter bar, filtered on the server
+  (`POST /audit-logs/search`).
+
+---
+
+## 11. Integration API
+
+Other systems use `/api/v1` with **scoped API keys** (D13); full reference in
+[API.md](../API.md).
+
+| Scope | Allows |
 |---|---|
-| Standalone vulns (all statuses) | Always |
-| Report vulns | Only after parent report is `dispatched` — appear as independent records |
-| Report vulns while report is `draft` | Never shown in this list; only visible inside the report editor |
+| `vulns:read` | read vulnerabilities and their evidence |
+| `vulns:write` | create vulnerabilities and batches |
+| `vulns:import` | with `vulns:write`: create past vulnerabilities with their history |
+| `rvs:write` | the RVS queue and recording RVS IDs |
+| `reports:read` | read reports and their evidence |
+| `exports` | PDF / Word / Excel downloads |
+
+- Keys work only on `/v1/*`, read every record their scope allows (per-user access is for people),
+  and have their own response schemas: no internal notes, viewers or locks. Lists are
+  keyset-paginated by `updated_at` with `updated_since` for syncing. Records are addressed by UUID
+  or number.
+- **Create** (`POST /v1/vulnerabilities`): content fields, operators (usernames), `status` `draft`
+  or `ready` (which needs the required fields and assigns the number), `metadata`; unknown fields
+  are kept in the metadata. Records belong to the admin who issued the key.
+- **Batches:** `POST /v1/batches` returns a portal-made `BATCH-0001`; the tool sends it as
+  `batch_id` with each vuln of the run (an unknown id is a `422`). Set on creation only; the Hub
+  filters `batch:`, the API `?batch=`.
+- **Imports** (`vulns:import`): the same endpoint and body may carry any status, each step's date,
+  the original `VULN-` number (the counter moves past it), the RVS ID, who accepted and the risk
+  reason. Each status needs the dates leading to it and none after, in lifecycle order, none in
+  the future; `updated_at` defaults to the last of them. Nothing is delivered and no history is
+  invented: one audit `create` with `"import": true`, and the record keeps `imported_at`. Without
+  the scope these fields are a `403`. Imports are standalone vulns.
+- **Not through the API:** sending (it emails people; a human decision), deletes, admin actions.
 
 ---
 
-## 9. Report Dispatch
+## 12. Dispatcher and Documents
 
-Triggered by the operator clicking **Send** on a `draft` report. Dispatch runs in **two phases** so a delivery failure can never masquerade as a completed dispatch (D2).
+The dispatcher (`backend/app/dispatcher.py`) is the single egress point: callers hand it a payload
+(subject, body, files) and know nothing of the transport.
 
-**Precondition:** every linked vuln must have a non-blank `identifier` (D3); the send is refused otherwise with the offending vulns flagged.
-
-**Phase 1 — DB transaction (atomic, Postgres only):**
-1. Report and all linked vulns transition `draft → dispatching` in one batch.
-2. `VULN-xxxx` internal IDs are assigned to the linked vulns.
-3. Commit. The report is now locked from editing (§3).
-
-**Phase 2 — render + dispatch (outside the DB transaction):**
-4. An **Excel file** is generated with all vulns as rows; the PDF operation report is rendered.
-5. The **dispatcher service** is called with: PDF report + Excel + all non-image file attachments from all vulns combined. The dispatcher currently sends an email via Azure Communication Services (plain message body + all files attached). This is not hardcoded — the dispatcher is a swappable module; future implementations may route to ServiceNow or other destinations without touching this flow.
-6. **On success:** report and vulns transition `dispatching → dispatched`, `dispatched_at` set. Report is immutable from this point (except internal notes).
-7. **On failure:** report and vulns **remain `dispatching`** with the error recorded; the operator retries the send. No partial/half-sent state is ever labelled `dispatched`.
-
-Once `dispatched`, report vulns appear in the vulnerability list as independent records, each managing its own lifecycle forward.
-
----
-
-## 10. User Management
-
-### 10.1 Authentication (MVP)
-
-- Username + password; passwords hashed with bcrypt.
-- JWT sessions: short-lived access tokens + refresh tokens.
-- **API Keys** for machine-to-machine integrations: generated and revoked by `admin`, carry a role scope and optional expiry date. Keys are high-entropy random strings (32+ bytes from a CSPRNG) hashed with **SHA-256** — not bcrypt — so verification is fast on every request; safe because the key itself is unguessable (D7).
-- Auth layer structured as a pluggable strategy so **Azure AD / SSO can be added post-MVP** without touching application logic.
-
-**First run:** if no users exist on startup, one `admin` user is seeded with a randomly generated password printed to container stdout (never stored in plaintext). User must change it on first login.
-
-> **Post-MVP:** Azure AD SSO via Azure Entra ID.
-
-### 10.2 Roles
-
-| Role | Permissions |
+| `DISPATCH_TRANSPORT` | Behaviour |
 |---|---|
-| `admin` | Full access; user management, API key management, system config |
-| `writer-all` | Create and edit any vuln or report |
-| `reader-all` | Read-only across all records |
-| `auditor` | Read-only + full audit log access |
+| `stub` (default) | Logs what would be sent; nothing leaves |
+| `smtp` | Email to `DISPATCH_TO` through `SMTP_*`, with the PDF, Excel and non-image files attached |
 
-> **Post-MVP:** `writer-report-selected` and `reader-selected` scoped roles (per-resource grants table). Deferred — ~20 operators makes global roles sufficient for MVP.
+Azure Communication Services and ServiceNow are possible later transports; adding one does not
+touch the callers.
 
-### 10.3 Audit Logs
-
-Captured for every: login/logout · record create/read/update/delete · status transition · export action · API key generation/revocation/use · permission change · lock override · correction.
-
-**Read events are logged deliberately (D8)** — this portal holds confidential findings, so who-read-what-when is a security control. To keep volume proportional to user actions, a list/search logs the *listing* access, not one entry per row returned. Growth is managed operationally (retention/partitioning) if needed, never by dropping read capture.
-
-Each entry stores: user · timestamp · action type · target entity ID · IP address.
-
-Accessible via dedicated UI to the `auditor` role and `admin`.
-
----
-
-## 11. Input Integration
-
-- REST API accepting vulnerability data from external tools (scanners, C2s, recon pipelines).
-- Required fields validated; additional fields stored as structured metadata.
-- Callers control the initial status via a request parameter: `"status": "draft"` (default) or `"status": "saved_local"`. No system-level configuration — the caller decides per request.
-- Authenticated via API keys (admin-managed).
-- **Batches.** A tool creating many vulns in one run asks for a batch id first
-  (`POST /v1/batches` → `BATCH-0001`) and sends it as `batch_id` with each vuln. The id is made
-  by the portal and set on creation only; the Hub filters it (`batch:`), the API lists it
-  (`?batch=`).
-- **Imports.** A key that also holds the `vulns:import` scope may create a past vuln as it ended
-  up: any status, the date of each step, its original `VULN-` number (the counter moves past it),
-  its RVS ID, who accepted it and the risk reason. Each status needs the dates leading to it and
-  none after, in lifecycle order. Nothing is dispatched and no history is invented: one audit
-  creation marked `import`, and the record keeps `imported_at`. Without the scope, those fields
-  are refused (`403`). Imports are standalone vulns. Full rules: `docs/API.md`.
-
-### RVS Management Panel
-- Queue view: vulns in `dispatched` status with no RVS ID.
-- Operator fills in RVS ID → status transitions to `acknowledged`.
-
----
-
-## 12. Dispatcher Service *(Decoupled Module)*
-
-The dispatcher is the single egress point for all outbound notifications and exports. The rest of the platform calls one interface — `dispatch(target, payload)` — and knows nothing about the underlying transport.
-
-**Current implementation:** Azure Communication Services email (plain message body + attachments).
-**Future implementations:** ServiceNow, webhook, etc. — added by swapping the concrete implementation without modifying callers.
-
-### Rendering (decoupled from transport)
-Rendered artifacts are passed to the dispatcher as byte payloads — the renderer does not know or care about the destination. See §16 for library choices and rationale.
+**Rendering** (`backend/app/render.py`) is separate from the transport and produces bytes:
 
 | Format | Scope |
 |---|---|
-| PDF | Single vuln report or full operation report, via selectable template |
-| Excel | Vuln list with all fields as columns |
-| DOCX | Single vuln report or full operation report |
-
-### External Read API
-Read-only REST endpoints exposing `dispatched`+ vulns and reports to authorized external consumers. API-key authenticated, role-scoped.
-
-### Post-MVP Path
-- ServiceNow implementation replaces or supplements email transport.
-- Excel export deprecated when ServiceNow integration matures.
-- New transports added by implementing the dispatcher interface.
+| PDF | One vuln, or a full report |
+| Word | One vuln, or a full report |
+| Excel | A list of vulns, all fields as columns |
 
 ---
 
@@ -371,285 +444,326 @@ Read-only REST endpoints exposing `dispatched`+ vulns and reports to authorized 
 
 | Concern | Solution |
 |---|---|
-| Deployment | Docker Compose, self-hosted, LAN + internet access |
-| Database | PostgreSQL — single table per entity, `status` column carries lifecycle |
-| File storage | MinIO (local S3-compatible) |
-| Backend | Python — FastAPI |
-| Frontend | Vue (SPA, API-driven) |
-| Styling | Tailwind CSS |
-| PDF export | WeasyPrint — see §16 |
-| DOCX export | python-docx — see §16 |
-| Dispatcher (MVP transport) | Azure Communication Services (email) |
-| SSO | Deferred post-MVP; auth layer pre-wired for plug-in |
+| Deployment | Docker Compose, self-hosted; `docs/INSTALL.md`, `docs/RUNBOOK.md` |
+| Proxy | nginx: the only published port; `/api/*` → API, the rest → frontend; TLS and a strict CSP in production |
+| Database | PostgreSQL 16; migrations with Alembic (`backend/migrations`) |
+| Files | Local volume (`STORAGE_BACKEND=local`, default) or S3-compatible (`s3`) (D9) |
+| Backend | FastAPI; several workers, non-root, in production |
+| Frontend | Vue 3 SPA (Vite); built and served by nginx in production |
+| Delivery | SMTP (§12) |
+| Backups | `scripts/backup.sh` / `restore.sh`: database and attachments, optionally encrypted |
 | Scale | ~20 concurrent operators — modular monolith |
+
+The API refuses to start in production with the development `JWT_SECRET`.
 
 ---
 
-## 14. Deferred Post-MVP
+## 14. Not Yet / Post-MVP
 
-- Azure AD / SSO integration
-- CVSSv3.1 calculator widget
-- ServiceNow dispatcher implementation (replaces email)
-- Excel export deprecation (follows ServiceNow migration)
-- `writer-report-selected` and `reader-selected` scoped roles + per-resource grants table
-- Status transitions driven by ServiceNow webhooks (currently all manual)
+- SSO (Azure Entra ID).
+- Azure Communication Services or ServiceNow delivery; status changes driven by ServiceNow.
+- Permission constraints still to decide (who may delete, send or reassign what): today, any
+  writer of the record (`docs/BACKLOG.md`).
+- Integration API: de-duplication (`external_id`), updates and lifecycle actions, evidence upload,
+  webhooks.
+- Imports of reports, and imports through a file upload.
+- Dashboards: SLA deadlines, frozen report blocks, period comparisons, backlog over time (D18).
+- Templates: duplicate, create from scratch (D11).
 
 ---
 
 ## 15. Data Model
 
-**Stack:** PostgreSQL · SQLAlchemy 2.0 · Alembic (migrations). Files live in MinIO; DB stores S3 keys and metadata only.
+**Stack:** PostgreSQL · SQLAlchemy 2 · Alembic. Files live in the storage backend; the database
+keeps their keys and metadata. Timestamps are stored in UTC without a zone.
 
 ### 15.1 Enums
 
 | Enum | Values |
 |---|---|
-| `user_role` | `admin` · `write_all` · `read_all` · `auditor` |
-| `vuln_status` | `draft` · `saved_local` · `dispatching` · `dispatched` · `acknowledged` · `waiting_fix` · `pending_retest` · `fixed` |
-| `report_status` | `draft` · `dispatching` · `dispatched` |
-| `audit_action` | `login` · `logout` · `create` · `read` · `update` · `delete` · `status_change` · `export` · `dispatch` · `api_key_create` · `api_key_revoke` · `permission_change` · `lock_override` · `correction` |
+| `user_role` | `admin` · `write_all` · `read_all` · `auditor` · `write_restricted` · `read_restricted` · `defense` · `dashboard` |
+| `vuln_status` | `draft` · `ready` · `sent` · `fixing` · `retesting` · `fixed` · `risk_accepted` |
+| `report_status` | `draft` · `sent` |
+| `audit_action` | `login` · `login_failed` · `logout` · `create` · `read` · `update` · `delete` · `status_change` · `export` · `send` · `api_key_create` · `api_key_revoke` · `permission_change` · `lock_override` · `correction` · `accept` |
+| `share_status` (templates) | `private` · `pending` · `shared` · `unshared` |
 
-All `vuln_status` values are implemented in MVP, including the transient `dispatching` state (D2). Transitions currently triggered manually by operators; designed so ServiceNow can drive them post-MVP without schema changes.
+Old status names in past audit entries are kept as they were written (D14).
 
 ### 15.2 Sequences
 
 | Sequence | Format | Assigned when |
 |---|---|---|
-| `report_seq` | `OP-%04d` | First save of a report (draft → first write) |
-| `vuln_seq` | `VULN-%04d` | Standalone: `saved_local` transition. Report vuln: assigned in dispatch phase 1 (`draft → dispatching`), see §9 / D2. An import with its own number moves the counter past it (§11) |
-| `vuln_batch_seq` | `BATCH-%04d` | `POST /v1/batches` (§11) |
+| `report_seq` | `OP-%04d` | The report is sent (phase 1; a retry keeps it) |
+| `vuln_seq` | `VULN-%04d` | Standalone: *Concluir*. Report vuln: the report is sent (phase 1), unless it already had one. An import with its own number moves the counter past it |
+| `vuln_batch_seq` | `BATCH-%04d` | `POST /v1/batches` |
 
 ### 15.3 Table: `users`
 
 | Column | Type | Constraints | Notes |
 |---|---|---|---|
 | `id` | uuid | PK | |
-| `username` | text | UNIQUE NOT NULL | |
-| `password_hash` | text | NULL | bcrypt; NULL reserved for future SSO-only accounts |
+| `username` | text | UNIQUE NOT NULL | the login |
+| `full_name` | text | NULL | used in documents |
+| `display_name` | text | NULL | shown on screen (else full name, else login) |
+| `password_hash` | text | NULL | bcrypt; NULL reserved for SSO-only accounts |
 | `role` | user_role | NOT NULL | |
-| `must_change_password` | bool | NOT NULL default true | forced on first-run admin and manual resets |
-| `is_active` | bool | NOT NULL default true | deactivate instead of hard delete |
-| `created_at` | timestamptz | NOT NULL | |
-| `updated_at` | timestamptz | NOT NULL | |
+| `must_change_password` | bool | NOT NULL | first-run admin, new and reset users |
+| `is_active` | bool | NOT NULL | deactivate instead of delete |
+| `created_at`, `updated_at` | timestamp | NOT NULL | |
+
+### 15.3.1 Table: `auth_sessions`
+
+| Column | Type | Constraints | Notes |
+|---|---|---|---|
+| `id` | uuid | PK | carried in the tokens |
+| `user_id` | uuid | FK users, indexed | |
+| `refresh_jti` / `previous_jti` | text | | the current refresh token, and the previous one during a short race window |
+| `rotated_at` | timestamp | NULL | |
+| `expires_at` | timestamp | NOT NULL | 1 h after login |
+| `revoked_at` | timestamp | NULL | sign-out, password change, token reuse |
 
 ### 15.4 Table: `api_keys`
 
 | Column | Type | Constraints | Notes |
 |---|---|---|---|
 | `id` | uuid | PK | |
-| `label` | text | NOT NULL | human-readable name |
-| `key_prefix` | text | NOT NULL | first 8 chars of plaintext key; shown in UI for identification |
-| `key_hash` | text | UNIQUE NOT NULL | full key hashed (SHA-256, D7); key is 32+ bytes CSPRNG; plaintext shown exactly once at creation |
-| `role` | user_role | NOT NULL | scope of this key |
-| `created_by` | uuid | FK users NOT NULL | admin who issued it |
-| `expires_at` | timestamptz | NULL | optional; admin-configured |
-| `revoked_at` | timestamptz | NULL | soft-revoke |
-| `last_used_at` | timestamptz | NULL | updated on each authenticated request |
-| `created_at` | timestamptz | NOT NULL | |
+| `label` | text | NOT NULL | |
+| `key_prefix` | text | NOT NULL | first 8 characters, shown on screen |
+| `key_hash` | text | UNIQUE NOT NULL | SHA-256 (D7) |
+| `scopes` | text[] | NOT NULL | §11 |
+| `created_by` | uuid | FK users NOT NULL | the admin who issued it; owns what it creates |
+| `expires_at` | timestamp | NULL | |
+| `revoked_at` | timestamp | NULL | |
+| `last_used_at` | timestamp | NULL | |
+| `created_at` | timestamp | NOT NULL | |
 
 ### 15.5 Table: `reports`
 
 | Column | Type | Constraints | Notes |
 |---|---|---|---|
 | `id` | uuid | PK | |
-| `internal_id` | text | UNIQUE NULL | `OP-0007`; assigned from sequence on first save |
+| `internal_id` | text | UNIQUE NULL | `OP-0007`; on send |
 | `name` | text | NOT NULL | |
-| `client_name` | text | NULL | target organisation; rendered on cover |
-| `start_date` | date | NULL | |
-| `end_date` | date | NULL | |
-| `status` | report_status | NOT NULL default `draft` | includes transient `dispatching` (D2) |
-| `dispatch_error` | text | NULL | last dispatch-phase-2 failure message; set while stuck in `dispatching`, cleared on success (D2) |
-| `executive_summary_md` | text | NULL | pre-populated with default template on creation |
-| `introduction_md` | text | NULL | always custom |
-| `test_type` | text | NULL | free text (MVP); enum post-MVP |
-| `demand_origin` | text | NULL | free text |
-| `environment` | text | NULL | free text |
-| `scope` | text | NULL | free text |
-| `test_model` | text | NULL | free text (MVP); enum post-MVP |
-| `internal_notes` | text | NULL | markdown; editable even after dispatch |
-| `dispatched_at` | timestamptz | NULL | |
-| `lock_user_id` | uuid | FK users NULL | current lock holder |
-| `lock_acquired_at` | timestamptz | NULL | |
-| `lock_last_activity_at` | timestamptz | NULL | bumped on every write; idle-release triggers at now − 10 min |
+| `client_name` | text | NULL | |
+| `start_date`, `end_date` | date | NULL | |
+| `status` | report_status | NOT NULL default `draft` | |
+| `sending` | bool | NOT NULL default false | frozen from phase 1 until delivery (§9) |
+| `send_error` | text | NULL | last delivery failure |
+| `executive_summary_md`, `introduction_md` | text | NULL | |
+| `test_type`, `demand_origin`, `environment`, `scope`, `test_model` | text | NULL | report data |
+| `internal_notes` | text | NULL | editable after sending; never exported |
+| `export_hidden` | jsonb | NOT NULL | sections left out of its documents |
+| `sent_at` | timestamp | NULL | |
+| `lock_user_id` | uuid | FK users NULL | lock holder (§3) |
+| `lock_acquired_at`, `lock_last_activity_at` | timestamp | NULL | idle release at 10 min |
+| `template_id` | uuid | FK report_templates ON DELETE SET NULL | §19 |
 | `created_by` | uuid | FK users NOT NULL | |
-| `created_at` | timestamptz | NOT NULL | |
-| `updated_at` | timestamptz | NOT NULL | |
-| `deleted_at` | timestamptz | NULL | soft delete; all queries filter `IS NULL` |
-
-**Lock implementation** (implements the rule in §3): any write to the report or its linked vulns bumps `lock_last_activity_at`. Lock acquisition checks lazily — if `now − lock_last_activity_at > 10 min`, the lock is considered free (no background job needed). `lock_user_id` is set to NULL on release. Dispatched reports skip lock checks entirely; only `internal_notes` is editable post-dispatch and requires no coordination.
+| `created_at`, `updated_at` | timestamp | NOT NULL | |
+| `deleted_at` | timestamp | NULL | soft delete; only drafts can be deleted, with their vulns (D1) |
 
 ### 15.6 Table: `report_sections`
 
-Stores **free-form extra sections only** — the five typed sections (Cover, Executive Summary, TOC, Introduction, Report Data) are stored as columns on `reports`. Rows here are rendered after Report Data and before the vulnerabilities, in operator-defined order.
+Extra sections only; the typed ones are columns on `reports`.
 
 | Column | Type | Constraints | Notes |
 |---|---|---|---|
 | `id` | uuid | PK | |
 | `report_id` | uuid | FK reports ON DELETE CASCADE NOT NULL | |
-| `position` | int | NOT NULL | operator-controlled render order among extras (1-based) |
-| `title` | text | NOT NULL | section heading as it appears in the report |
+| `position` | int | NOT NULL | 1-based; UNIQUE with `report_id` |
+| `title` | text | NOT NULL | |
 | `content_markdown` | text | NULL | |
-| `created_at` | timestamptz | NOT NULL | |
-| `updated_at` | timestamptz | NOT NULL | |
+| `exported` | bool | NOT NULL default true | *No documento* |
+| `created_at`, `updated_at` | timestamp | NOT NULL | |
 
-UNIQUE on (`report_id`, `position`); reordering shifts positions in a single transaction.
+### 15.7 Tables: `report_operators`, `report_viewers`
 
-### 15.7 Table: `report_operators`
-
-| Column | Type | Constraints |
-|---|---|---|
-| `report_id` | uuid | FK reports ON DELETE CASCADE |
-| `user_id` | uuid | FK users |
-| PK | | (`report_id`, `user_id`) |
+`(report_id, user_id)`, both FKs, composite PK; the report's operators and *Compartilhado com*.
 
 ### 15.8 Table: `vulnerabilities`
 
 | Column | Type | Constraints | Notes |
 |---|---|---|---|
 | `id` | uuid | PK | |
-| `internal_id` | text | UNIQUE NULL | `VULN-0042`; assigned on `saved_local` (standalone) or parent report dispatch (report vuln) |
-| `report_id` | uuid | FK reports ON DELETE CASCADE NULL | NULL = standalone; exclusive — one report only. Cascade only ever reaches *draft* report vulns (D1) |
-| `status` | vuln_status | NOT NULL default `draft` | includes transient `dispatching` (D2) |
-| `version` | int | NOT NULL default 1 | optimistic-concurrency counter for standalone edits; bumped on every write; stale write → `409` (D5) |
-| `rvs_id` | text | NULL | set at the `acknowledged` transition; read-only thereafter (app-enforced; admin correction excepted, D6) |
-| `identifier` | text | NULL | CVE-YYYY-NNNNN or free-text name. Nullable while draft/saved_local; **required to dispatch** (D3, app-enforced) |
-| `cwe` | text | NULL | e.g. `CWE-79` |
-| `description` | text | NULL | markdown |
-| `finding_detail` | text | NULL | markdown |
-| `mitigation` | text | NULL | markdown |
-| `references` | jsonb | NOT NULL default `'[]'` | ordered array of URL strings |
-| `cvss_score` | numeric(3,1) | NULL | 0.0–10.0; CVSS label derived at render time |
-| `cvss_vector` | text | NULL | manual string e.g. `AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H` |
-| `source` | text | NULL | origin label e.g. `manual`, `nuclei`, `bugcrowd`, `api-import`; free text, set at creation |
-| `internal_notes` | text | NULL | markdown; excluded from all exports |
-| `extra_metadata` | jsonb | NOT NULL default `'{}'` | stores additional fields from inbound API |
-| `dispatched_at` | timestamptz | NULL | |
-| `acknowledged_at` | timestamptz | NULL | |
-| `waiting_fix_at` | timestamptz | NULL | |
-| `pending_retest_at` | timestamptz | NULL | |
-| `fixed_at` | timestamptz | NULL | |
+| `internal_id` | text | UNIQUE NULL | `VULN-0042` |
+| `report_id` | uuid | FK reports ON DELETE CASCADE NULL | NULL = standalone; cascade only reaches draft reports' vulns (D1) |
+| `status` | vuln_status | NOT NULL default `draft` | |
+| `version` | int | NOT NULL default 1 | optimistic concurrency (D5) |
+| `rvs_id` | text | NULL; UNIQUE on `lower(btrim(rvs_id))` | |
+| `identifier`, `cwe` | text | NULL | |
+| `description`, `finding_detail`, `mitigation` | text | NULL | Markdown |
+| `references` | jsonb | NOT NULL default `[]` | URLs |
+| `cvss_score` | numeric(3,1) | NULL | |
+| `cvss_vector`, `source` | text | NULL | |
+| `internal_notes` | text | NULL | never exported or sent |
+| `export_hidden` | jsonb | NOT NULL default `[]` | sections left out of its documents |
+| `extra_metadata` | jsonb | NOT NULL default `{}` | from the integration API |
+| `ready_at`, `sent_at`, `fixing_at`, `retesting_at`, `fixed_at` | timestamp | NULL | lifecycle (§2) |
+| `accepted_at` / `accepted_by` | timestamp / FK users | NULL | D17 |
+| `risk_accepted_at` / `risk_accepted_by` / `risk_reason` | timestamp / FK users / text | NULL | D17 |
+| `batch_id` | text | FK vuln_batches(internal_id) NULL, indexed | §11 |
+| `imported_at` | timestamp | NULL | §11 |
 | `created_by` | uuid | FK users NOT NULL | |
-| `created_at` | timestamptz | NOT NULL | default now; may be set by hand (form, create) or by an import |
-| `updated_at` | timestamptz | NOT NULL | |
-| `deleted_at` | timestamptz | NULL | soft delete |
-| `batch_id` | text | FK vuln_batches(internal_id) NULL, indexed | the integration-API run it was created in |
-| `imported_at` | timestamptz | NULL | set when imported with its history (`vulns:import`) |
-
-**`report_id` constraint:** enforced at app layer — a vuln's `report_id` cannot change once the parent report is `dispatched`. `ON DELETE CASCADE` means deleting a report removes its linked vulns; the app layer only ever permits deleting a **`draft`** report, so cascade never reaches dispatched/live vulns (D1).
+| `created_at` | timestamp | NOT NULL | default now; may be set by hand or by an import |
+| `updated_at` | timestamp | NOT NULL | |
+| `deleted_at` | timestamp | NULL | soft delete |
 
 ### 15.8.1 Table: `vuln_batches`
-
-Vulns created together by one integration-API run (§11).
 
 | Column | Type | Constraints | Notes |
 |---|---|---|---|
 | `id` | uuid | PK | |
-| `internal_id` | text | UNIQUE NOT NULL | `BATCH-0001` (`vuln_batch_seq`); what `vulnerabilities.batch_id` holds |
+| `internal_id` | text | UNIQUE NOT NULL | `BATCH-0001`; what `vulnerabilities.batch_id` holds |
 | `api_key_id` | uuid | FK api_keys NULL | the key that asked for it |
-| `created_at` | timestamptz | NOT NULL | |
+| `created_at` | timestamp | NOT NULL | |
 
-### 15.9 Table: `vulnerability_operators`
+### 15.9 Tables: `vulnerability_operators`, `vulnerability_viewers`
 
-| Column | Type | Constraints |
-|---|---|---|
-| `vulnerability_id` | uuid | FK vulnerabilities ON DELETE CASCADE |
-| `user_id` | uuid | FK users |
-| PK | | (`vulnerability_id`, `user_id`) |
+`(vulnerability_id, user_id)`, FK vulnerabilities ON DELETE CASCADE and FK users, composite PK.
 
 ### 15.10 Table: `attachments`
 
-Covers both vuln attachments and report evidence bundle. Exactly one of the two owner FKs is non-null (CHECK constraint enforced).
+Vuln files and report evidence; exactly one owner (CHECK).
 
 | Column | Type | Constraints | Notes |
 |---|---|---|---|
 | `id` | uuid | PK | |
 | `vulnerability_id` | uuid | FK vulnerabilities ON DELETE CASCADE NULL | |
-| `report_id` | uuid | FK reports ON DELETE CASCADE NULL | evidence bundle |
-| `s3_key` | text | NOT NULL | MinIO object key |
+| `report_id` | uuid | FK reports ON DELETE CASCADE NULL | |
+| `s3_key` | text | NOT NULL | storage key (either backend) |
 | `original_filename` | text | NOT NULL | |
-| `display_name` | text | NULL | operator-assigned name; for images used as markdown alt-text `![display_name](url)` |
-| `mime_type` | text | NOT NULL | |
-| `size_bytes` | bigint | NOT NULL | |
-| `is_image` | bool | NOT NULL | true → embedded inline; false → sent as file attachment on dispatch |
+| `display_name` | text | NULL | |
+| `mime_type` | text | NOT NULL | detected from the content |
+| `size_bytes` | bigint | NOT NULL | ≤ 50 MB |
+| `is_image` | bool | NOT NULL | inline vs. sent as a file |
 | `uploaded_by` | uuid | FK users NOT NULL | |
-| `created_at` | timestamptz | NOT NULL | |
-
-CHECK: `(vulnerability_id IS NULL) != (report_id IS NULL)` — exactly one owner.
+| `created_at` | timestamp | NOT NULL | |
 
 ### 15.11 Table: `audit_logs`
 
-Append-only. Never updated or deleted.
+Append-only.
 
 | Column | Type | Constraints | Notes |
 |---|---|---|---|
-| `id` | bigserial | PK | integer sequence preferred over uuid for append-only high-volume table |
-| `user_id` | uuid | FK users NULL | human actor; NULL if API key |
-| `api_key_id` | uuid | FK api_keys NULL | machine actor; NULL if human |
+| `id` | bigserial | PK | |
+| `user_id` | uuid | FK users NULL | human actor |
+| `api_key_id` | uuid | FK api_keys NULL | machine actor |
 | `action` | audit_action | NOT NULL | |
-| `entity_type` | text | NULL | `vulnerability` / `report` / `user` / `api_key` |
+| `entity_type` | text | NULL | `vulnerability`, `report`, `user`, `api_key`, `report_template`, `dashboard`, `vuln_batch`, … |
 | `entity_id` | uuid | NULL | |
-| `detail` | jsonb | NULL | e.g. `{"from": "dispatched", "to": "acknowledged", "rvs_id": "RVS-2025-001"}` |
+| `detail` | jsonb | NULL | e.g. `{"from": "sent", "to": "fixing", "rvs_id": "RVS-2026-0001"}` |
 | `ip_address` | inet | NULL | |
-| `created_at` | timestamptz | NOT NULL default now() | |
+| `created_at` | timestamp | NOT NULL default now() | |
 
-CHECK: `(user_id IS NULL) != (api_key_id IS NULL)` — exactly one actor.
+CHECK `ck_audit_actor`: exactly one actor (`user_id` or `api_key_id`), except a `login_failed`
+entry, which may have no user and never a key (D16).
 
-### 15.12 Indexes
+### 15.12 Other tables
+
+- `report_templates` (§19): `name`, `owner_id`, `share_status`, `share_requested_at`,
+  `share_decided_at` / `_by`, `executive_summary_md`, `introduction_md`, `sections` (jsonb),
+  `version`.
+- `dashboards` (§18): `name`, `description`, `variables` and `screens` (jsonb), `refresh_seconds`,
+  `rotate_seconds`, `created_by`, `updated_by`.
+- `dashboard_links`: TV links — `dashboard_id`, `label`, `token_hash` (UNIQUE, SHA-256),
+  `created_by`, `revoked_at`, `last_used_at`.
+
+### 15.13 Indexes
 
 | Table | Index | Rationale |
 |---|---|---|
-| `vulnerabilities` | `(report_id)` | fetch all vulns for a report |
-| `vulnerabilities` | `(status)` | filtered list views |
-| `vulnerabilities` | `(status, dispatched_at)` | RVS queue (dispatched + no rvs_id) |
-| `vulnerabilities` | `(cvss_score DESC)` | report export ordering |
+| `vulnerabilities` | `(report_id)` | a report's vulns |
+| `vulnerabilities` | `(status)`, `(status, sent_at)` | lists; the RVS queue |
+| `vulnerabilities` | `(cvss_score DESC)` | document ordering |
 | `vulnerabilities` | `(deleted_at)` | soft-delete filter |
-| `reports` | `(status)` | list views |
-| `reports` | `(lock_last_activity_at)` | idle-lock detection |
-| `audit_logs` | `(entity_type, entity_id)` | per-record history |
-| `audit_logs` | `(created_at)` | time-range queries |
-| `attachments` | `(vulnerability_id)` | fetch attachments for a vuln |
-| `attachments` | `(report_id)` | fetch evidence bundle for a report |
+| `vulnerabilities` | `(batch_id)` | a batch's vulns |
+| `vulnerabilities` | UNIQUE `lower(btrim(rvs_id))` | one RVS ID per vuln |
+| `reports` | `(status)`, `(lock_last_activity_at)` | lists; idle locks |
+| `audit_logs` | `(entity_type, entity_id)`, `(created_at)`, `(action, created_at)` | history; time ranges; login limits |
+| `attachments` | `(vulnerability_id)`, `(report_id)` | a record's files |
+| `auth_sessions` | `(user_id)` | a user's sessions |
+| `report_templates` | `(owner_id)`, `(share_status)` | lists; the approval queue |
+| `dashboard_links` | `(dashboard_id)` | a dashboard's links |
 
-### 15.13 Entity Relationship Summary
+### 15.14 Entity Relationships
 
 ```
-users ─────────────────────── creates ──► vulnerabilities
-  │                                          │        │
-  ├── vulnerability_operators ──────────────┘        │ report_id (nullable FK)
-  │                                                   │
-  ├── report_operators ──────────────────────────────►│
-  │                                          reports ◄┘
-  │                                            │
-  │                                            ├── report_sections
-  │                                            └── attachments (evidence)
-  │
-  └── api_keys                        vulnerabilities
-                                            └── attachments (vuln files)
+users ──── creates / operates / is shared ──► vulnerabilities ──► attachments
+  │                                              │   │
+  │                                   report_id ─┘   └─ batch_id ──► vuln_batches ──► api_keys
+  ├──── creates / operates / is shared ──► reports ──► report_sections
+  │                                          │    └──► attachments (evidence)
+  │                                          └── template_id ──► report_templates
+  ├── auth_sessions
+  ├── api_keys
+  └── dashboards ──► dashboard_links
 
-audit_logs ◄── (user_id OR api_key_id) + entity reference
+audit_logs ◄── (user_id or api_key_id) + entity reference
 ```
 
 ---
 
 ## 16. Technical Decisions
 
-### PDF Export: WeasyPrint
+- **PDF: ReportLab** (`render.py`), with a small Markdown-to-flowables converter written for the
+  portal (headings, lists, quotes, code blocks, inline images from attachments). No system libraries or
+  browser binaries in the image.
+- **Word: python-docx**; **Excel: openpyxl**.
+- **Markdown in the browser:** the portal's own editor (preview, line gutter, image paste/drop) and
+  a safe renderer (no raw HTML).
+- **CVSS v3.1:** typed, or computed by the built-in calculator from the eight base metrics, as in
+  FIRST's calculator.
+- **Storage:** an interface with local and S3 backends (D9).
+- **Charts:** a one-line query language computed in the API, aggregates only (D18).
 
-Pipeline: Markdown → HTML (via `markdown-it-py`) → CSS-styled template → PDF (via WeasyPrint).
+---
 
-| Library | Verdict | Reason |
-|---|---|---|
-| **WeasyPrint** | ✅ Chosen | Pure Python, Docker-friendly, CSS-based templates, headers/footers/page numbers, actively maintained |
-| Playwright | Rejected (MVP) | Pixel-perfect rendering, but ~300 MB Docker layer + browser binary dependency |
-| pandoc | Rejected | Requires full LaTeX (~500 MB); harder to template |
-| reportlab | Rejected | No Markdown input; verbose for complex layouts |
+## 17. Defense Team
 
-Templates are HTML + CSS files — familiar to anyone using Tailwind. WeasyPrint can be swapped for Playwright post-MVP if rendering fidelity requirements grow without changing the rest of the pipeline.
+Role `defense` (D17), with its own API (`/defense/*`) and pages:
 
-### DOCX Export: python-docx
+- Sees only sent vulnerabilities (`sent`, `fixing`, `retesting`, `fixed`, `risk_accepted`) and only
+  what the red team sends: no internal notes, operators, sharing or creator, and of the report only
+  its name. Report files are not shown, only the vuln's own.
+- Pages per section: *Novas*, *Aguardando RVS*, *Em andamento*, *Corrigidas*, *Risco assumido*,
+  each with the Hub's filter bar (status, cvss, id, report keys), pagination and the batch actions
+  that section allows.
+- Actions: **accept** a sent vuln; **record the RVS ID** (→ `fixing`); **assume the risk** with a
+  reason (→ `risk_accepted`), and undo it; on a vuln being fixed, **request a retest** or **mark it
+  fixed** without one. The retest's outcome stays with the red team.
+- Only the defense team (or a defense tool through an `rvs:write` key) records RVS IDs.
+- A defense account cannot be an operator or be shared with.
 
-Produces `.docx` from structured report data. No binary dependencies. Sufficient for document-style red team reports.
+---
 
-### CVSSv3.1 Input
+## 18. Dashboards
 
-MVP: manual entry of score (float) + vector string. No interactive calculator widget. **Post-MVP:** calculator widget deferred until after first release.
+Role `dashboard` and admins (D18; language in [DASHBOARDS.md](DASHBOARDS.md)):
+
+- A dashboard is up to 10 screens of charts (24 in all), each chart one line:
+  `<measure> [by …] [over …] [where <Hub filter>] [top N] [as …] [title "…"]`, computed in the API.
+  Results are counts and durations only — no identifier, description or host leaves a chart.
+- `$name = value` variables, replaced before parsing; viewers may change them for their own view.
+- A chart that cannot run is not saved; each query previews as it is typed.
+- `refresh_seconds` (30 s – 1 h) and `rotate_seconds` (5 s – 10 min).
+- **TV links:** read-only, no sign-in, token shown once and kept hashed, revocable, audited; only
+  status, severity and source groupings; computed with the creator's access, which stops when that
+  account is deactivated or loses the role.
+- No user-written code runs on the server.
+
+---
+
+## 19. Report Templates
+
+D11. A template is the text of a report's sections (executive summary, introduction, extra
+sections). Anyone who can create reports may save one (*Salvar como Template*) and start a report
+from one; the report gets a **copy** and remembers its source (`template_id`).
+
+| State | Who uses it | Owner may | Admin may |
+|---|---|---|---|
+| `private` | its owner | edit, delete, request sharing | edit, delete |
+| `pending` | its owner (frozen) | withdraw | approve / reject |
+| `shared` | everyone | — | edit, delete, unshare |
+| `unshared` | nobody | — | delete, reshare |
+
+Editing carries a `version` (409 when stale); every sharing step is audited. Readers and auditors
+have no access to templates.
