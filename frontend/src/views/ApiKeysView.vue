@@ -11,7 +11,7 @@ const loading = ref(true)
 const error = ref('')
 
 // What a key may do (backend app/scopes.py, D13).
-const SCOPES = ['vulns:read', 'vulns:write', 'rvs:write', 'reports:read', 'exports']
+const SCOPES = ['vulns:read', 'vulns:write', 'vulns:import', 'rvs:write', 'reports:read', 'exports']
 const blank = () => ({ label: '', scopes: new Set(), expires: '' })
 const showCreate = ref(false)
 const draft = ref(blank())

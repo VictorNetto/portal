@@ -126,7 +126,7 @@ def _vuln_summary(v: Vulnerability) -> ExtVulnSummary:
     return ExtVulnSummary(
         id=v.id, internal_id=v.internal_id, status=v.status.value, identifier=v.identifier,
         cwe=v.cwe, cvss_score=v.cvss_score, source=v.source, rvs_id=v.rvs_id,
-        report=_report_ref(v.report), batch_id=v.batch_id,
+        report=_report_ref(v.report), batch_id=v.batch_id, imported_at=v.imported_at,
         created_at=v.created_at, updated_at=v.updated_at,
     )
 
@@ -177,7 +177,7 @@ def create_vulnerability(
     """Create a vulnerability, as a draft or already saved (SPEC §11)."""
     vuln = ingest_svc.create(session, payload, key, request)
     return IngestResult(id=vuln.id, internal_id=vuln.internal_id, status=vuln.status.value,
-                        batch_id=vuln.batch_id)
+                        batch_id=vuln.batch_id, imported=vuln.imported_at is not None)
 
 
 @router.post("/batches", response_model=BatchResult, status_code=status.HTTP_201_CREATED)

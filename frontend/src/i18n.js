@@ -183,6 +183,7 @@ const messages = {
       scope: {
         'vulns:read': 'ler vulnerabilidades e suas evidências',
         'vulns:write': 'criar vulnerabilidades',
+        'vulns:import': 'importar vulnerabilidades antigas, com status, datas e números (com vulns:write)',
         'rvs:write': 'ver a Fila RVS e registrar IDs de RVS',
         'reports:read': 'ler relatórios e suas evidências',
         exports: 'baixar PDF, Word e Excel',
@@ -529,6 +530,8 @@ const messages = {
       createdOn: 'Data de criação',
       batch: 'Lote',
       batchHint: 'Ver todas as vulnerabilidades deste lote no Hub',
+      imported: 'Importada em {date}',
+      importedHint: 'Trazida de outro sistema com o seu histórico: as datas são as de lá',
       cvss: 'CVSS (0.0 - 10.0)',
       cvssVector: 'Vetor CVSS',
       sources: 'Fontes',
@@ -884,6 +887,7 @@ const messages = {
       scope: {
         'vulns:read': 'read vulnerabilities and their evidence',
         'vulns:write': 'create vulnerabilities',
+        'vulns:import': 'import past vulnerabilities, with their status, dates and numbers (with vulns:write)',
         'rvs:write': 'see the RVS queue and record RVS IDs',
         'reports:read': 'read reports and their evidence',
         exports: 'download PDF, Word and Excel',
@@ -1222,6 +1226,8 @@ const messages = {
       createdOn: 'Creation date',
       batch: 'Batch',
       batchHint: 'See every vulnerability of this batch in the Hub',
+      imported: 'Imported on {date}',
+      importedHint: 'Brought in from another system with its history: the dates are from there',
       cvss: 'CVSS (0.0 - 10.0)',
       cvssVector: 'CVSS vector',
       sources: 'Sources',

@@ -217,3 +217,86 @@ def test_an_unknown_batch_is_refused(full):
 def test_creating_a_batch_needs_the_write_scope(admin):
     reader_key = make_key(admin, ["vulns:read"])
     assert call(reader_key, "POST", "/batches").status_code == 403
+
+
+# --- imports: past vulnerabilities with their history (vulns:import) --------------
+
+@pytest.fixture(scope="module")
+def importer(admin):
+    return make_key(admin, ["vulns:write", "vulns:import", "vulns:read"])
+
+
+def past(**fields):
+    body = {"identifier": f"pytest-{tag()}", "description": "d", "finding_detail": "f", "status": "sent",
+            "created_at": "2025-02-03T10:00:00Z", "ready_at": "2025-02-04T10:00:00Z",
+            "sent_at": "2025-02-05T10:00:00Z"}
+    return {**body, **fields}
+
+
+def free_number(admin):
+    """A VULN number above any in use (the test DB is shared)."""
+    import re
+    nums = [int(m) for m in re.findall(r'"internal_id":"VULN-(\d+)"', admin.get("/vulnerabilities").text)]
+    return f"VULN-{max(nums, default=0) + 1000:04d}"
+
+
+def test_history_needs_the_import_scope(full):
+    for extra in ({"status": "sent"}, {"created_at": "2025-01-01T00:00:00Z"}, {"internal_id": "VULN-0001"}):
+        r = call(full, "POST", "/vulnerabilities", json={"identifier": f"pytest-{tag()}", **extra})
+        assert r.status_code == 403 and "vulns:import" in r.json()["detail"], (extra, r.text)
+
+
+def test_import_a_fixed_vuln_keeps_its_dates_number_and_rvs(importer, admin):
+    number, rvs = free_number(admin), f"RVS-PYTEST-{tag()}"
+    r = call(importer, "POST", "/vulnerabilities", json=past(
+        status="fixed", internal_id=number.lower(), rvs_id=rvs, internal_notes="from the old tracker",
+        fixing_at="2025-02-10T10:00:00-03:00", retesting_at="2025-03-01T10:00:00Z",
+        fixed_at="2025-03-02T10:00:00Z", accepted_by="admin"))
+    assert r.status_code == 201, r.text
+    assert r.json()["internal_id"] == number and r.json()["imported"] is True
+    v = admin.get(f"/vulnerabilities/{r.json()['id']}").json()
+    assert v["status"] == "fixed" and v["rvs_id"] == rvs and v["imported_at"]
+    assert v["created_at"].startswith("2025-02-03T10:00") and v["fixing_at"].startswith("2025-02-10T13:00")
+    assert v["accepted_at"] == v["fixing_at"]           # recording the RVS ID accepted it
+    assert v["updated_at"].startswith("2025-03-02T10:00")   # its last date, not now
+    assert v["internal_notes"] == "from the old tracker"
+    # The counter moved past it: the next number is after the imported one.
+    nxt = call(importer, "POST", "/vulnerabilities", json={**past(status="ready"), "sent_at": None,
+                                                           "identifier": f"pytest-{tag()}"}).json()
+    assert int(nxt["internal_id"].split("-")[1]) > int(number.split("-")[1])
+    # The same number or RVS ID cannot come twice.
+    assert call(importer, "POST", "/vulnerabilities", json=past(internal_id=number)).status_code == 409
+    again = past(status="fixing", rvs_id=rvs.lower(), fixing_at="2025-02-10T10:00:00Z")
+    assert call(importer, "POST", "/vulnerabilities", json=again).status_code == 409
+
+
+def test_import_a_risk_accepted_vuln(importer, admin):
+    r = call(importer, "POST", "/vulnerabilities", json=past(
+        status="risk_accepted", risk_accepted_at="2025-02-20T10:00:00Z", risk_reason="legacy system"))
+    assert r.status_code == 201, r.text
+    v = admin.get(f"/vulnerabilities/{r.json()['id']}").json()
+    assert v["status"] == "risk_accepted" and v["risk_reason"] == "legacy system" and v["rvs_id"] is None
+
+
+def test_import_checks_the_dates_against_the_status(importer):
+    cases = [
+        (past(status="fixing", rvs_id="X-1"), "fixing_at"),                     # a step's date missing
+        (past(status="sent", fixed_at="2025-03-01T00:00:00Z"), "not part"),      # a later step's date
+        (past(status="sent", ready_at="2025-02-06T10:00:00Z"), "after"),         # out of order
+        (past(status="fixing", fixing_at="2025-02-10T10:00:00Z"), "rvs_id"),     # no RVS ID
+        (past(status="risk_accepted", risk_accepted_at="2025-02-20T10:00:00Z"), "risk_reason"),
+        (past(created_at="2099-01-01T00:00:00Z"), "future"),
+        (past(status="sent", updated_at="2025-01-01T00:00:00Z"), "updated_at"),
+        (past(status="sent", accepted_at="2025-02-06T00:00:00Z", accepted_by="nobody-pytest"), "unknown user"),
+        (past(status="ready", sent_at=None, internal_id="nope"), "VULN-"),
+    ]
+    for body, expected in cases:
+        body = {k: v for k, v in body.items() if v is not None}
+        r = call(importer, "POST", "/vulnerabilities", json=body)
+        assert r.status_code == 422 and expected in r.text, (body, r.text)
+
+
+def test_a_plain_create_with_the_import_scope_is_still_new(importer, admin):
+    r = call(importer, "POST", "/vulnerabilities", json={"identifier": f"pytest-{tag()}"})
+    assert r.status_code == 201 and r.json()["imported"] is False
+    assert admin.get(f"/vulnerabilities/{r.json()['id']}").json()["imported_at"] is None

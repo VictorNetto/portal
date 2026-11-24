@@ -94,9 +94,9 @@ def test_ready_needs_the_ui_required_fields_and_gets_an_id(key):
     assert "mitigation" not in partial.json()["detail"]
 
 
-def test_cannot_ingest_beyond_ready(key):
-    assert post(key, {"identifier": "pytest-x", "status": "sent"}).status_code == 422
-    assert post(key, {"identifier": "pytest-x", "status": "fixing"}).status_code == 422
+def test_cannot_ingest_beyond_ready_without_the_import_scope(key):
+    assert post(key, {"identifier": "pytest-x", "status": "sent"}).status_code == 403
+    assert post(key, {"identifier": "pytest-x", "status": "fixing"}).status_code == 403
     assert post(key, {"identifier": "pytest-x", "status": "saved_local"}).status_code == 422
 
 

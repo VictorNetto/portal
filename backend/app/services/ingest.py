@@ -4,14 +4,15 @@ from datetime import UTC, datetime
 
 from fastapi import HTTPException, Request, status
 from sqlalchemy import select, text
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app import audit
+from app import audit, scopes
 from app.models.enums import AuditAction, UserRole, VulnStatus
 from app.models.user import ApiKey, User
 from app.models.vulnerability import VulnBatch, Vulnerability
 from app.schemas.ingest import IngestVuln
-from app.services.vulnerability import _next_vuln_internal_id
+from app.services.vulnerability import _next_vuln_internal_id, _require_unused_rvs
 
 # Same fields the UI requires before a vuln can be sent (FRONTEND_SPEC §8.8).
 _REQUIRED_FOR_READY = ("identifier", "description", "finding_detail")  # mitigation may stay blank
@@ -46,18 +47,27 @@ def _resolve_operators(session: Session, usernames: list[str]) -> list[User]:
 def create(
     session: Session, payload: IngestVuln, key: ApiKey, request: Request
 ) -> Vulnerability:
+    # A history needs vulns:import: said before anything about the content.
+    used = payload.import_fields_used()
+    if used and scopes.VULNS_IMPORT not in (key.scopes or []):
+        raise HTTPException(
+            status.HTTP_403_FORBIDDEN,
+            f"This API key lacks the scope 'vulns:import', needed for: {', '.join(used)}",
+        )
     if not any(not _blank(getattr(payload, f)) for f in ("identifier", "description", "finding_detail")):
         raise HTTPException(
             status.HTTP_422_UNPROCESSABLE_ENTITY,
             "Provide at least one of: identifier, description, finding_detail",
         )
-    if payload.status == "ready":
+    if payload.status != "draft":
         missing = [f for f in _REQUIRED_FOR_READY if _blank(getattr(payload, f))]
         if missing:
             raise HTTPException(
                 status.HTTP_422_UNPROCESSABLE_ENTITY,
-                "Required for status 'ready': " + ", ".join(missing),
+                f"Required for status '{payload.status}': " + ", ".join(missing),
             )
+    if used:
+        return _import(session, payload, key, request)
 
     batch_id = _resolve_batch(session, payload.batch_id)
     operators = _resolve_operators(session, payload.operators)
@@ -99,6 +109,154 @@ def create(
             entity_type="vulnerability", entity_id=vuln.id,
             detail={"from": "draft", "to": "ready"}, request=request,
         )
+    session.commit()
+    session.refresh(vuln)
+    return vuln
+
+
+# --- Imports (vulns:import) -------------------------------------------------------
+# A past vulnerability arrives as it ended up: its status and the date of each step that
+# led there, as the portal itself would have recorded them. Nothing is sent and no
+# history is made up: one audit entry says it was imported.
+
+_IMPORT_DATES = (
+    "created_at", "ready_at", "sent_at", "accepted_at", "fixing_at", "retesting_at", "fixed_at",
+    "risk_accepted_at",
+)
+# Per status: the dates it must have, and those it may have.
+_REQUIRED_DATES: dict[str, tuple[str, ...]] = {
+    "draft": ("created_at",),
+    "ready": ("created_at", "ready_at"),
+    "sent": ("created_at", "ready_at", "sent_at"),
+    "risk_accepted": ("created_at", "ready_at", "sent_at", "risk_accepted_at"),
+    "fixing": ("created_at", "ready_at", "sent_at", "fixing_at"),
+    "retesting": ("created_at", "ready_at", "sent_at", "fixing_at", "retesting_at"),
+    "fixed": ("created_at", "ready_at", "sent_at", "fixing_at", "fixed_at"),
+}
+_OPTIONAL_DATES: dict[str, tuple[str, ...]] = {
+    "sent": ("accepted_at",),
+    "risk_accepted": ("accepted_at",),
+    "fixing": ("accepted_at",),       # recording the RVS ID accepts it: defaults to fixing_at
+    "retesting": ("accepted_at",),
+    "fixed": ("accepted_at", "retesting_at"),   # the defense team may close it without a retest
+}
+# (earlier, later): when both are present, the first may not come after the second.
+_ORDER = (
+    ("created_at", "ready_at"), ("ready_at", "sent_at"), ("sent_at", "accepted_at"),
+    ("sent_at", "fixing_at"), ("accepted_at", "fixing_at"), ("sent_at", "risk_accepted_at"),
+    ("accepted_at", "risk_accepted_at"), ("fixing_at", "retesting_at"),
+    ("fixing_at", "fixed_at"), ("retesting_at", "fixed_at"),
+)
+_WITH_RVS = ("fixing", "retesting", "fixed")
+
+
+def _unprocessable(problems: list[str]) -> HTTPException:
+    return HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "; ".join(problems))
+
+
+def _user_id(session: Session, field: str, username: str | None, problems: list[str]):
+    if username is None or not username.strip():
+        return None
+    user_id = session.scalar(select(User.id).where(User.username == username.strip()))
+    if user_id is None:
+        problems.append(f"{field}: unknown user '{username.strip()}'")
+    return user_id
+
+
+def _history(session: Session, p: IngestVuln) -> dict:
+    """The lifecycle columns of an imported vuln, checked against its status; 422 otherwise."""
+    st = p.status
+    dates = {f: getattr(p, f) for f in _IMPORT_DATES if getattr(p, f) is not None}
+    required, optional = _REQUIRED_DATES[st], _OPTIONAL_DATES.get(st, ())
+    problems = []
+    missing = [f for f in required if f not in dates]
+    if missing:
+        problems.append(f"status '{st}' needs: " + ", ".join(missing))
+    extra = [f for f in dates if f not in required and f not in optional]
+    if extra:
+        problems.append(f"not part of status '{st}': " + ", ".join(extra))
+    for earlier, later in _ORDER:
+        if earlier in dates and later in dates and dates[earlier] > dates[later]:
+            problems.append(f"{earlier} is after {later}")
+
+    rvs = (p.rvs_id or "").strip() or None
+    if st in _WITH_RVS and rvs is None:
+        problems.append(f"status '{st}' needs: rvs_id")
+    if st not in _WITH_RVS and rvs is not None:
+        problems.append(f"not part of status '{st}': rvs_id")
+    if st in _WITH_RVS and "accepted_at" not in dates and "fixing_at" in dates:
+        dates["accepted_at"] = dates["fixing_at"]
+    if st == "risk_accepted":
+        if _blank(p.risk_reason):
+            problems.append("status 'risk_accepted' needs: risk_reason")
+    else:
+        problems += [f"not part of status '{st}': {f}"
+                     for f in ("risk_reason", "risk_accepted_by") if not _blank(getattr(p, f))]
+    if not _blank(p.accepted_by) and "accepted_at" not in dates:
+        problems.append("accepted_by needs accepted_at")
+    if st == "draft" and p.internal_id:
+        problems.append("a draft has no internal_id")
+
+    latest = max(dates.values()) if dates else None
+    updated = p.updated_at or latest
+    if p.updated_at and latest and p.updated_at < latest:
+        problems.append("updated_at is before the last of its dates")
+
+    accepted_by = _user_id(session, "accepted_by", p.accepted_by, problems)
+    risk_by = _user_id(session, "risk_accepted_by", p.risk_accepted_by, problems)
+    if problems:
+        raise _unprocessable(problems)
+    return {
+        **dates, "updated_at": updated, "rvs_id": rvs, "accepted_by": accepted_by,
+        "risk_accepted_by": risk_by,
+        "risk_reason": p.risk_reason.strip() if st == "risk_accepted" else None,
+    }
+
+
+def _number(session: Session, wanted: str | None) -> str:
+    """Its original VULN number (the counter moves past it, so new ones never collide), or the
+    next one."""
+    if wanted is None:
+        return _next_vuln_internal_id(session)
+    if session.scalar(select(Vulnerability.id).where(Vulnerability.internal_id == wanted)):
+        raise HTTPException(status.HTTP_409_CONFLICT, f"{wanted} already exists")
+    session.execute(
+        text("SELECT setval('vuln_seq', GREATEST(:n, (SELECT last_value FROM vuln_seq)))"),
+        {"n": int(wanted.split("-")[1])},
+    )
+    return wanted
+
+
+def _import(session: Session, p: IngestVuln, key: ApiKey, request: Request) -> Vulnerability:
+    history = _history(session, p)
+    if history["rvs_id"]:
+        _require_unused_rvs(session, history["rvs_id"])
+    batch_id = _resolve_batch(session, p.batch_id)
+    operators = _resolve_operators(session, p.operators)
+    internal_id = None if p.status == "draft" else _number(session, p.internal_id)
+    vuln = Vulnerability(
+        status=VulnStatus(p.status), internal_id=internal_id,
+        identifier=p.identifier, cwe=p.cwe, description=p.description,
+        finding_detail=p.finding_detail, mitigation=p.mitigation, references=p.references,
+        cvss_score=p.cvss_score, cvss_vector=p.cvss_vector, source=p.source,
+        internal_notes=p.internal_notes, extra_metadata=p.combined_metadata(),
+        batch_id=batch_id, created_by=key.created_by, imported_at=datetime.now(UTC),
+        **history,
+    )
+    vuln.operators = operators
+    session.add(vuln)
+    try:
+        session.flush()
+    except IntegrityError:  # the same number or RVS ID imported at the same moment
+        session.rollback()
+        raise HTTPException(status.HTTP_409_CONFLICT, "internal_id or rvs_id already exists") from None
+    audit.record(
+        session, action=AuditAction.create, api_key_id=key.id,
+        entity_type="vulnerability", entity_id=vuln.id,
+        detail={"via": "api", "import": True, "source": p.source, "status": p.status,
+                "internal_id": internal_id, "batch": batch_id},
+        request=request,
+    )
     session.commit()
     session.refresh(vuln)
     return vuln

@@ -6,7 +6,7 @@ from typing import Literal
 
 from pydantic import BaseModel, Field, field_validator
 
-Scope = Literal["vulns:read", "vulns:write", "rvs:write", "reports:read", "exports"]  # app/scopes.py
+Scope = Literal["vulns:read", "vulns:write", "vulns:import", "rvs:write", "reports:read", "exports"]  # app/scopes.py
 
 
 class ApiKeyCreate(BaseModel):

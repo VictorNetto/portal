@@ -18,6 +18,7 @@ X-API-Key: <key>
 |---|---|
 | `vulns:read` | read vulnerabilities and their evidence |
 | `vulns:write` | create vulnerabilities |
+| `vulns:import` | with `vulns:write`: create past vulnerabilities with their status, dates, number and RVS ID ([Import](#import-past-vulnerabilities)) |
 | `rvs:write` | see the RVS queue and record RVS IDs |
 | `reports:read` | read reports and their evidence |
 | `exports` | download PDF / Word / Excel |
@@ -76,7 +77,7 @@ system in sync. Times are UTC. `updated_at` is maintained by the DB on every row
 | `internal_notes` | string | |
 | `operators` | string[] ≤ 20 | **usernames**; active `admin`, `write_all` or `write_restricted` accounts |
 | `batch_id` | string | from `POST /v1/batches` (any case); an unknown id is a 422 |
-| `status` | `"draft"` (default) \| `"ready"` | the caller decides per request |
+| `status` | `"draft"` (default) \| `"ready"` | the caller decides per request; any other status only with `vulns:import` |
 | `metadata` | object | stored as-is; ≤ 64 KB together with unknown fields |
 | *(any other field)* | any | stored in metadata |
 
@@ -85,7 +86,56 @@ system in sync. Times are UTC. `updated_at` is maintained by the DB on every row
   *Concluir*; `mitigation` may stay blank) and assigns the `VULN-xxxx` number.
 - Never creates a `sent` (or later) vulnerability.
 
-Response `201 {"id": "…", "internal_id": null, "status": "draft", "batch_id": null}`.
+Response `201 {"id": "…", "internal_id": null, "status": "draft", "batch_id": null, "imported": false}`.
+
+## Import past vulnerabilities
+
+For vulnerabilities from earlier semesters, tracked elsewhere. The same `POST /v1/vulnerabilities`
+and body, from a key that also holds **`vulns:import`**: the vulnerability arrives as it ended up,
+with the dates of each step, so the timeline and the dashboards' durations are the real ones.
+Without that scope, any of these fields is a `403`.
+
+| Field | Notes |
+|---|---|
+| `status` | any: `draft`, `ready`, `sent`, `fixing`, `retesting`, `fixed`, `risk_accepted` |
+| `internal_id` | its original number (`VULN-0042`, any case); the counter moves past it, so new numbers never collide. Omitted: the next number. A draft has none. `409` if it exists |
+| `created_at`, `ready_at`, `sent_at`, `accepted_at`, `fixing_at`, `retesting_at`, `fixed_at`, `risk_accepted_at` | ISO 8601 (a `Z`/offset is converted to UTC); none in the future |
+| `updated_at` | defaults to the last of its dates; not before it |
+| `rvs_id` | required for `fixing`, `retesting`, `fixed`; `409` if another vulnerability has it |
+| `accepted_by`, `risk_accepted_by` | usernames of existing accounts (optional) |
+| `risk_reason` | required for `risk_accepted` |
+
+Each status needs the dates of the steps that lead to it, and nothing later:
+
+| Status | Required | Optional |
+|---|---|---|
+| `draft` | `created_at` | |
+| `ready` | + `ready_at` | |
+| `sent` | + `sent_at` | `accepted_at` |
+| `risk_accepted` | `created_at`, `ready_at`, `sent_at`, `risk_accepted_at`, `risk_reason` | `accepted_at` |
+| `fixing` | `created_at`, `ready_at`, `sent_at`, `fixing_at`, `rvs_id` | `accepted_at` (default `fixing_at`) |
+| `retesting` | + `retesting_at` | `accepted_at` |
+| `fixed` | `created_at`, `ready_at`, `sent_at`, `fixing_at`, `fixed_at`, `rvs_id` | `accepted_at`, `retesting_at` |
+
+Dates must follow each other (created ≤ ready ≤ sent ≤ accepted ≤ fixing ≤ retesting ≤ fixed, and
+sent ≤ risk accepted); the `422` lists every problem at once. The content rules are the usual ones
+(beyond `draft`: `identifier`, `description` and `finding_detail`), and `internal_notes`,
+`operators`, `batch_id` and `metadata` work as for any creation.
+
+Nothing is sent (no email), and no history is made up: the audit log has one creation entry
+with `"import": true`. The record keeps `imported_at` (in the reads and on its page, *Importada
+em …*). The response says `"imported": true`. Imports are standalone vulnerabilities.
+
+```json
+{
+  "identifier": "SQL injection em Portal do Cliente", "description": "…", "finding_detail": "…",
+  "status": "fixed", "internal_id": "VULN-0042", "rvs_id": "RVS-2025-00017",
+  "created_at": "2025-03-03T14:00:00-03:00", "ready_at": "2025-03-04T10:00:00-03:00",
+  "sent_at": "2025-03-05T09:00:00-03:00", "fixing_at": "2025-03-12T16:00:00-03:00",
+  "retesting_at": "2025-04-01T10:00:00-03:00", "fixed_at": "2025-04-02T11:00:00-03:00",
+  "internal_notes": "Imported from the 2025S1 tracker"
+}
+```
 
 ## Batches
 

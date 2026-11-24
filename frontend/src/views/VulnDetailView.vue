@@ -532,6 +532,7 @@ watch(() => route.fullPath, () => {
             {{ t('status.' + vuln.status) }}
             <template v-if="vuln.internal_id"> · {{ t('cols.internalId') }} <span class="mono">{{ vuln.internal_id }}</span></template>
             <template v-if="vuln.batch_id"> · {{ t('vform.batch') }} <a class="mono batchLink" :title="t('vform.batchHint')" @click="router.push({ path: '/hub', query: { entity: 'vulns', q: `batch:${vuln.batch_id}` } })">{{ vuln.batch_id }}</a></template>
+            <template v-if="vuln.imported_at"> · <span :title="t('vform.importedHint')">{{ t('vform.imported', { date: fmtDate(vuln.imported_at) }) }}</span></template>
             · v{{ vuln.version }}
           </p>
           <p v-else-if="isNew">{{ t('vform.createHint') }}</p>
