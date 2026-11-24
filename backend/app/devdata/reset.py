@@ -29,7 +29,7 @@ from app.models.enums import AuditAction, ReportStatus, UserRole, VulnStatus
 from app.models.report import Report, ReportSection
 from app.models.report_template import ReportTemplate, ShareStatus
 from app.models.user import User
-from app.models.vulnerability import Vulnerability
+from app.models.vulnerability import VulnBatch, Vulnerability
 from app.seed import seed_first_admin
 from app.services.report_lock import utcnow
 from app.storage import get_storage
@@ -52,7 +52,7 @@ TEAM = [
 ]
 OPERATORS = ["jonathan", "michelle", "benjamin", "samantha", "theodore"]
 ORDER = list(VulnStatus)
-WIPED = ("dashboard_links, dashboards, audit_logs, attachments, api_keys, report_sections, report_operators, report_viewers, "
+WIPED = ("dashboard_links, dashboards, audit_logs, attachments, vuln_batches, api_keys, report_sections, report_operators, report_viewers, "
          "vulnerability_operators, vulnerability_viewers, vulnerabilities, reports, report_templates")
 
 
@@ -65,6 +65,7 @@ def wipe(session: Session) -> None:
                     {"admin": settings.first_admin_username})
     session.execute(text("ALTER SEQUENCE vuln_seq RESTART WITH 1"))
     session.execute(text("ALTER SEQUENCE report_seq RESTART WITH 1"))
+    session.execute(text("ALTER SEQUENCE vuln_batch_seq RESTART WITH 1"))
     session.commit()
 
 
@@ -248,6 +249,19 @@ class Builder:
             if status == VulnStatus.sent:
                 v.viewers = [self.users["danielle"], self.users["nicholas"]]
 
+    def scanner_batch(self) -> None:
+        """One tool run through the integration API: drafts sharing a batch id (BATCH-0001)."""
+        n = self.s.execute(text("SELECT nextval('vuln_batch_seq')")).scalar_one()
+        batch = VulnBatch(internal_id=f"BATCH-{n:04d}", created_at=self.ago(2))
+        self.s.add(batch)
+        self.s.flush()
+        operators = [self.users["jonathan"]]
+        for app in ("Portal do Cliente", "API de Pagamentos", "Intranet"):
+            v, _ = self.vuln(app, "Time de Produto", "staging", VulnStatus.draft,
+                             batch.created_at, None, operators=operators)
+            v.source, v.batch_id = "nuclei", batch.internal_id
+            self.s.add(v)
+
     def templates(self) -> None:
         owner = self.users["jonathan"]
         for name, share in c.TEMPLATES:
@@ -276,6 +290,7 @@ def main() -> int:
         for spec in sorted(c.REPORTS, key=lambda r: -(r["sent"] or 0)):
             builder.report(spec)
         builder.standalone()
+        builder.scanner_batch()
         for name, desc, variables, screens in c.DASHBOARDS:
             session.add(Dashboard(
                 name=name, description=desc, created_by=builder.users["painel"].id,
