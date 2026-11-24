@@ -491,6 +491,8 @@ def create_vuln(
 ) -> Vulnerability:
     report = _locked_draft(session, report_id, user)
     data = body.model_dump(exclude={"operator_ids", "viewer_ids"})
+    if data.get("created_at") is None:
+        data.pop("created_at", None)  # the database default: now
     vuln = Vulnerability(
         status=VulnStatus.draft, report_id=report.id, created_by=user.id, **data
     )

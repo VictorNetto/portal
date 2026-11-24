@@ -8,7 +8,7 @@ import {
   heartbeatReport, releaseReportLock, downloadAuthed, ApiError, setVulnExportSections,
 } from '../api'
 import { attachmentPath } from '../markdown'
-import { fmtTime } from '../dates'
+import { fmtTime, fmtDate, parseUtc } from '../dates'
 import { t } from '../i18n'
 import { userName } from '../people'
 import { confirmDialog, promptDialog } from '../dialog'
@@ -49,6 +49,7 @@ const blankForm = () => ({
   identifier: '', cwe: '', cvss_score: null, cvss_vector: '', source: '',
   description: '', finding_detail: '', mitigation: '', internal_notes: '',
   references: [''],
+  created_at: localDay(new Date()),   // a calendar day (YYYY-MM-DD) in local time
 })
 
 const vuln = ref(null)
@@ -96,7 +97,7 @@ const attachError = ref('')
 
 // --- Field-lock rules (SPEC §4), mirrored for UX; the server enforces anyway.
 const ALL_FIELDS = ['identifier', 'cwe', 'description', 'finding_detail', 'mitigation',
-  'references', 'cvss_score', 'cvss_vector', 'source', 'internal_notes', 'operators']
+  'references', 'cvss_score', 'cvss_vector', 'source', 'internal_notes', 'operators', 'created_at']
 const editableFields = computed(() => {
   if (!isWriter.value) return new Set()                  // read-only roles never edit
   if (inReport.value) {
@@ -148,6 +149,7 @@ function syncForm() {
   for (const k of Object.keys(f)) {
     if (k === 'references') f.references = v.references?.length ? [...v.references] : ['']
     else if (k === 'cvss_score') f.cvss_score = v.cvss_score == null ? null : Number(v.cvss_score)
+    else if (k === 'created_at') f.created_at = localDay(parseUtc(v.created_at))
     else f[k] = v[k] ?? ''
   }
   form.value = f
@@ -222,10 +224,27 @@ function removeRef(i) {
 }
 
 // --- Persisting -----------------------------------------------------------
+// The creation date is picked as a local calendar day. It is only sent when it differs from
+// the stored one (today, for a new record), so the time of day is kept unless the day changes;
+// a changed day is stored at local noon, which no time zone moves to another day.
+function localDay(d) {
+  if (!d) return ''
+  const p = (n) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`
+}
+const todayDay = () => localDay(new Date())
+function createdAtBody() {
+  const day = form.value.created_at
+  const stored = vuln.value ? localDay(parseUtc(vuln.value.created_at)) : todayDay()
+  if (!day || day === stored) return null
+  return new Date(`${day}T12:00:00`).toISOString()
+}
+
 function bodyFromForm(fields) {
   const body = {}
   for (const f of fields) {
     if (f === 'operators') continue // sent separately as operator_ids
+    if (f === 'created_at') { const when = createdAtBody(); if (when) body.created_at = when; continue }
     const val = form.value[f]
     if (f === 'references') body.references = val.map((r) => r.trim()).filter(Boolean)
     else if (f === 'cvss_score') body.cvss_score = val === '' || val == null ? null : Number(val)
@@ -594,6 +613,11 @@ watch(() => route.fullPath, () => {
             <div v-else class="roVal">{{ form.cwe || '—' }}</div>
           </div>
           <div class="f">
+            <label>{{ t('vform.createdOn') }}</label>
+            <input v-if="canEdit('created_at')" v-field v-model="form.created_at" type="date" :max="todayDay()" required />
+            <div v-else class="roVal">{{ fmtDate(vuln?.created_at) }}</div>
+          </div>
+          <div class="f">
             <label>{{ t('vform.cvss') }}</label>
             <CvssInput v-if="canEdit('cvss_score')" v-model="form.cvss_score" />
             <div v-else class="roVal">
@@ -756,7 +780,7 @@ input.invalid { border-color: var(--danger); }
 .roVal .cvss.hi { color: var(--danger); } .roVal .cvss.me { color: var(--st-wait-fg); } .roVal .cvss.lo { color: var(--muted); }
 .refList { margin: 0; padding-left: 18px; display: grid; gap: 4px; font-size: 13px; }
 .refList a { color: var(--accent); word-break: break-all; }
-.infoGrid { display: grid; grid-template-columns: 1.3fr .85fr .85fr 1.25fr; gap: 16px 24px; align-items: start; }
+.infoGrid { display: grid; grid-template-columns: 1.2fr .7fr .9fr .75fr 1.25fr; gap: 16px 24px; align-items: start; }
 .row2 { grid-column: 1 / -1; display: grid; grid-template-columns: 1fr 1.6fr; gap: 24px; }
 
 .layout { display: grid; grid-template-columns: minmax(0, 1.45fr) minmax(340px, .9fr); gap: 16px; align-items: start; }

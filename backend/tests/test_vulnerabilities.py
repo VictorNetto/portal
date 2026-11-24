@@ -171,3 +171,33 @@ def test_transitions_are_audited_with_the_actor(admin, writer):
     items = admin.get("/audit-logs", params={"action": "status_change", "page_size": 200}).json()["items"]
     mine = [e for e in items if e["entity_id"] == v["id"]]
     assert mine and mine[0]["actor"] == writer.user["username"] and mine[0]["detail"]["to"] == "ready"
+
+
+# --- creation date set by hand -----------------------------------------------
+
+def test_creation_date_can_be_chosen_on_create_and_defaults_to_now(writer):
+    v = new_vuln(writer, created_at="2026-03-10T12:00:00-03:00")
+    assert v["created_at"].startswith("2026-03-10T15:00:00")       # stored as UTC
+    other = new_vuln(writer)
+    assert other["created_at"][:4] >= "2026"                       # the database default
+
+
+def test_creation_date_is_edited_with_the_content(writer):
+    v = new_vuln(writer)
+    r = writer.patch(f"/vulnerabilities/{v['id']}", {"version": v["version"], "created_at": "2025-12-01T15:00:00Z"})
+    assert r.status_code == 200 and r.json()["created_at"].startswith("2025-12-01T15:00:00")
+
+    ready = saved_vuln(writer)        # completed now: a date after that is refused
+    r = writer.patch(f"/vulnerabilities/{ready['id']}", {"version": ready["version"], "created_at": "2025-01-01T00:00:00Z"})
+    assert r.status_code == 200
+    r = writer.patch(f"/vulnerabilities/{ready['id']}", {"version": r.json()["version"], "created_at": "2099-01-01T00:00:00Z"})
+    assert r.status_code == 422
+
+
+def test_creation_date_cannot_be_in_the_future_or_changed_once_sent(writer):
+    r = writer.post("/vulnerabilities", {"identifier": f"pytest-{tag()}", "created_at": "2099-01-01T00:00:00Z"})
+    assert r.status_code == 422
+    v = saved_vuln(writer)
+    v = writer.post(f"/vulnerabilities/{v['id']}/send").json()
+    r = writer.patch(f"/vulnerabilities/{v['id']}", {"version": v["version"], "created_at": "2025-01-01T00:00:00Z"})
+    assert r.status_code == 422 and "created_at" in r.json()["detail"]
